@@ -86,7 +86,7 @@ public final class MobPickerGUI extends EditorGUI.Holder {
                 "&eClick &7to type a query"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
-                AnvilInput.open(plugin, p, "&fSearch mobs",
+                ChatInput.prompt(plugin, p, "&fSearch mobs",
                         search.isEmpty() ? "" : search,
                         text -> {
                             search = text == null ? "" : text.trim();

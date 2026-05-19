@@ -62,7 +62,7 @@ public final class WavesGUI extends EditorGUI.Holder {
                     return;
                 }
                 if (e.isRightClick()) {
-                    AnvilInput.open(plugin, p, "&fDelay after wave (seconds)",
+                    ChatInput.prompt(plugin, p, "&fDelay after wave (seconds)",
                             String.valueOf(w.delayAfterSeconds()), s -> {
                         try { w.setDelayAfterSeconds(Integer.parseInt(s)); plugin.templates().save(template); }
                         catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }

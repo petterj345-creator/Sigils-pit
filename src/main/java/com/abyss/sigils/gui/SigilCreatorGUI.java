@@ -217,16 +217,16 @@ public final class SigilCreatorGUI implements Listener {
         e.setCancelled(true);
 
         switch (slot) {
-            case SLOT_ID -> AnvilInput.open(plugin, p, "&fSigil ID", s.draft.id(), text -> {
+            case SLOT_ID -> ChatInput.prompt(plugin, p, "&fSigil ID", s.draft.id(), text -> {
                 s.draft.setId(text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_]", ""));
                 reopenAfterAnvil(p, s);
             });
-            case SLOT_NAME -> AnvilInput.open(plugin, p, "&fDisplay Name", s.draft.display(), text -> {
+            case SLOT_NAME -> ChatInput.prompt(plugin, p, "&fDisplay Name", s.draft.display(), text -> {
                 s.draft.setDisplay(text);
                 reopenAfterAnvil(p, s);
             });
             case SLOT_MAT -> p.sendMessage(Text.color("&7Drag an item from your inventory into this slot."));
-            case SLOT_MODEL -> AnvilInput.open(plugin, p, "&fModel Data", String.valueOf(s.draft.modelData()), text -> {
+            case SLOT_MODEL -> ChatInput.prompt(plugin, p, "&fModel Data", String.valueOf(s.draft.modelData()), text -> {
                 try { s.draft.setModelData(Integer.parseInt(text)); } catch (NumberFormatException ex) {}
                 reopenAfterAnvil(p, s);
             });
@@ -256,7 +256,7 @@ public final class SigilCreatorGUI implements Listener {
                 for (int i = 0; i < SLOT_TIERS.length; i++) {
                     if (slot == SLOT_TIERS[i] && i < s.draft.tierValues().size()) {
                         int tierIndex = i;
-                        AnvilInput.open(plugin, p,
+                        ChatInput.prompt(plugin, p,
                                 "&fValue for T" + (tierIndex + 1),
                                 fmt(s.draft.tierValues().get(tierIndex)),
                                 text -> {

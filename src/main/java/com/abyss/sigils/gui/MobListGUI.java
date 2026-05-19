@@ -109,7 +109,7 @@ public final class MobListGUI extends EditorGUI.Holder {
         }
         if (e.getClick() == org.bukkit.event.inventory.ClickType.DROP
                 || e.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fLevel", String.valueOf(entry.level()), s -> {
+            ChatInput.prompt(plugin, p, "&fLevel", String.valueOf(entry.level()), s -> {
                 try { entry.setLevel(Integer.parseInt(s)); plugin.templates().save(template); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                 open(p);
@@ -117,7 +117,7 @@ public final class MobListGUI extends EditorGUI.Holder {
             return;
         }
         if (e.isRightClick()) {
-            AnvilInput.open(plugin, p, "&fCount", String.valueOf(entry.count()), s -> {
+            ChatInput.prompt(plugin, p, "&fCount", String.valueOf(entry.count()), s -> {
                 try { entry.setCount(Integer.parseInt(s)); plugin.templates().save(template); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                 open(p);

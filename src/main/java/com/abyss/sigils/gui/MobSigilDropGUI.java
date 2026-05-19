@@ -91,7 +91,7 @@ public final class MobSigilDropGUI extends EditorGUI.Holder {
                         chance = Math.max(0.0, chance - 0.05);
                         refresh(p);
                     } else {
-                        AnvilInput.open(plugin, p, "&fChance (0.0 to 1.0)",
+                        ChatInput.prompt(plugin, p, "&fChance (0.0 to 1.0)",
                                 String.valueOf(chance), text -> {
                             try {
                                 double c = Double.parseDouble(text);

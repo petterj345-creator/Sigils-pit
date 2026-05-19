@@ -15,17 +15,21 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 /**
  * The upgrade menu opened by clicking the upgrade block in a completed dungeon.
  *
  * Layout (27 slots / 3 rows):
  *   slot 13: sigil input (only input; sigil-only, no dust)
- *   slot 15: confirm button (lime/red glass depending on validity)
+ *   slot 15: confirm button (lime/red depending on validity)
  *   rest:    filler
  *
  * Upgrade rules (from config, defaults shown):
@@ -38,33 +42,50 @@ import java.util.*;
  *     - 75    # T3 -> T4
  *     - 50    # T4 -> T5
  *
- * On failure the sigil is unchanged (no tier change, no stat change) — the
- * player just keeps trying. XP, if configured, is still consumed on failure
- * (you "spent the energy" on the attempt). This is configurable via
- *   upgrade.consume-xp-on-fail: true|false   (default true).
+ * On failure the sigil is unchanged — the player just keeps trying.
  *
- * The old "Sigil Dust" requirement has been removed. Dust items still exist
- * in the codebase for backwards compatibility but the upgrade no longer
- * consumes any.
+ * --- Click safety ---
+ * Earlier versions created the inventory with the Player as the holder, which
+ * is ambiguous (every inventory the player owns has the same holder) and the
+ * onClick listener relied on a UUID→Inventory map + inventory equality. If
+ * that equality check missed, NO click was cancelled — and the button click
+ * was registered as a normal item-move ("I just move things around, nothing
+ * upgrades"). The current version uses a dedicated {@link Holder} so the
+ * listener can identify our inventory by holder reference, and ALL clicks in
+ * the top half are cancelled up front before any routing logic runs.
  */
 public final class UpgradeGUI implements Listener {
 
     private final AbyssPlugin plugin;
     private final Random rng = new Random();
-    private final Map<UUID, Inventory> open = new HashMap<>();
 
-    private static final int SIGIL_SLOT = 13;
+    private static final int SIGIL_SLOT  = 13;
     private static final int BUTTON_SLOT = 15;
 
     public UpgradeGUI(AbyssPlugin plugin) { this.plugin = plugin; }
 
+    /** Per-open holder. Used to identify our inventory by reference. */
+    public static final class Holder implements InventoryHolder {
+        private Inventory inv;
+        Holder() {}
+        void setInventory(Inventory inv) { this.inv = inv; }
+        @Override public Inventory getInventory() { return inv; }
+    }
+
     public void open(Player p) {
-        Inventory inv = Bukkit.createInventory(p, 27, Text.color("&5&lForge of the Abyss"));
+        Holder holder = new Holder();
+        Inventory inv = Bukkit.createInventory(holder, 27, Text.color("&5&lForge of the Abyss"));
+        holder.setInventory(inv);
         for (int i = 0; i < 27; i++) inv.setItem(i, filler());
         inv.setItem(SIGIL_SLOT, null);
         inv.setItem(BUTTON_SLOT, buttonRed("Insert a sigil"));
-        open.put(p.getUniqueId(), inv);
         p.openInventory(inv);
+    }
+
+    private static Holder holderOf(Inventory top) {
+        if (top == null) return null;
+        InventoryHolder h = top.getHolder();
+        return (h instanceof Holder uh) ? uh : null;
     }
 
     private ItemStack filler() {
@@ -110,32 +131,55 @@ public final class UpgradeGUI implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
-        Inventory tracked = open.get(p.getUniqueId());
-        if (tracked == null || !e.getView().getTopInventory().equals(tracked)) return;
+        Inventory top = e.getView().getTopInventory();
+        Holder holder = holderOf(top);
+        if (holder == null) return; // not our GUI
 
-        int slot = e.getRawSlot();
-        boolean isTop = slot < tracked.getSize();
+        int raw = e.getRawSlot();
+        int topSize = top.getSize();
+        boolean isTopClick = raw < topSize;
 
-        if (!isTop) return; // allow normal player-inv interaction
-
-        if (slot == SIGIL_SLOT) {
-            // Filter what can be placed: only sigils.
-            ItemStack cursor = e.getView().getCursor();
-            if (cursor != null && cursor.getType() != Material.AIR) {
-                if (!SigilItem.isSigil(cursor)) { e.setCancelled(true); return; }
+        // ---- Clicks in player inventory (bottom) ----
+        if (!isTopClick) {
+            // Block shift-clicks from below — they'd dump items into our fillers.
+            // Only allow a shift-click of a sigil, and route it to the sigil slot.
+            if (e.isShiftClick()) {
+                ItemStack moving = e.getCurrentItem();
+                if (moving != null && SigilItem.isSigil(moving) && top.getItem(SIGIL_SLOT) == null) {
+                    e.setCancelled(true);
+                    top.setItem(SIGIL_SLOT, moving.clone());
+                    p.getInventory().setItem(e.getSlot(), null);
+                    Bukkit.getScheduler().runTask(plugin, () -> refreshButton(top));
+                } else {
+                    // Any other shift-click from player inv into our GUI: block it.
+                    e.setCancelled(true);
+                }
             }
-            // Let click happen, then refresh button next tick
-            Bukkit.getScheduler().runTask(plugin, () -> refreshButton(tracked));
+            return; // normal bottom-inv interaction is fine otherwise
+        }
+
+        // ---- Clicks in top inventory (our GUI) ----
+        if (raw == SIGIL_SLOT) {
+            // Only allow sigils to be placed, anything else is blocked.
+            ItemStack cursor = e.getView().getCursor();
+            if (cursor != null && cursor.getType() != Material.AIR && !SigilItem.isSigil(cursor)) {
+                e.setCancelled(true);
+                return;
+            }
+            // Allow the click to go through (place/take the sigil), then
+            // refresh the button on the next tick to reflect new state.
+            Bukkit.getScheduler().runTask(plugin, () -> refreshButton(top));
             return;
         }
 
-        if (slot == BUTTON_SLOT) {
+        if (raw == BUTTON_SLOT) {
+            // Always cancel button slot — it's a UI element, never an item.
             e.setCancelled(true);
-            attemptUpgrade(p, tracked);
+            attemptUpgrade(p, top);
             return;
         }
 
-        // Click on filler — block
+        // Any other slot in the top half is filler — block all interaction.
         e.setCancelled(true);
     }
 
@@ -160,17 +204,15 @@ public final class UpgradeGUI implements Listener {
     }
 
     /**
-     * Look up the success % for going FROM the given tier to (tier+1).
-     * Reads from config list "upgrade.success-chance-per-tier" — index 0 is
-     * the chance for T1→T2, index 1 is T2→T3, etc. If the list is too short
-     * for the requested tier, the last value in the list is reused (so e.g.
-     * a single "75" applies to every tier). If the list is missing entirely,
-     * a sensible curve is used.
+     * Success % for going FROM the given tier to (tier+1). Reads from config
+     * list "upgrade.success-chance-per-tier" — index 0 is T1→T2, index 1 is
+     * T2→T3, etc. If the list is too short for the requested tier, the last
+     * value in the list is reused (so e.g. a single "75" applies to every
+     * tier). If the list is missing entirely, a sensible default curve is used.
      */
     private int successPercentFor(int currentTier) {
         List<Integer> list = plugin.getConfig().getIntegerList("upgrade.success-chance-per-tier");
         if (list == null || list.isEmpty()) {
-            // Default curve: T1→T2 100, T2→T3 100, T3→T4 75, T4→T5 50, then 25 forever.
             return switch (currentTier) {
                 case 1, 2 -> 100;
                 case 3    -> 75;
@@ -208,14 +250,12 @@ public final class UpgradeGUI implements Listener {
         int successPct = successPercentFor(inst.tier());
         boolean succeeded = rng.nextInt(100) < successPct;
 
-        // Charge XP — on success always, on failure only if configured to
         if (xpCost > 0 && (succeeded || consumeXpOnFail)) {
             p.setLevel(p.getLevel() - xpCost);
         }
 
         if (!succeeded) {
-            // User asked for: "sigil stays the same, no progress, just retry".
-            // So we do NOT touch tier or stats. The sigil stays in the slot.
+            // User-asked behaviour: sigil stays unchanged, just retry.
             p.sendMessage(Text.color("&c&l✗ The forging failed. &7Your sigil is unchanged."));
             p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.6f);
             refreshButton(inv);
@@ -242,13 +282,15 @@ public final class UpgradeGUI implements Listener {
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
         if (!(e.getPlayer() instanceof Player p)) return;
-        Inventory tracked = open.remove(p.getUniqueId());
-        if (tracked == null) return;
+        Inventory top = e.getView().getTopInventory();
+        Holder holder = holderOf(top);
+        if (holder == null) return;
         // Return any sigil left in the input slot to the player
-        ItemStack item = tracked.getItem(SIGIL_SLOT);
+        ItemStack item = top.getItem(SIGIL_SLOT);
         if (item != null && item.getType() != Material.AIR) {
             Map<Integer, ItemStack> overflow = p.getInventory().addItem(item);
             for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
+            top.setItem(SIGIL_SLOT, null);
         }
     }
 }

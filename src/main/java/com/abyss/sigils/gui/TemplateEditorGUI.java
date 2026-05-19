@@ -118,7 +118,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
             e -> {
                 Player p = (Player) e.getWhoClicked();
                 if (e.isRightClick()) {
-                    AnvilInput.open(plugin, p, "&fBoss Level", String.valueOf(template.bossLevel()), s -> {
+                    ChatInput.prompt(plugin, p, "&fBoss Level", String.valueOf(template.bossLevel()), s -> {
                         try { template.setBossLevel(Integer.parseInt(s)); save(); }
                         catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                         open(p);
@@ -155,7 +155,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                     "&eClick &7to change"),
                 e -> {
                     Player p = (Player) e.getWhoClicked();
-                    AnvilInput.open(plugin, p, "&fKills before boss", String.valueOf(template.mobsBeforeBoss()), s -> {
+                    ChatInput.prompt(plugin, p, "&fKills before boss", String.valueOf(template.mobsBeforeBoss()), s -> {
                         try { template.setMobsBeforeBoss(Integer.parseInt(s)); save(); }
                         catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                         open(p);
@@ -171,7 +171,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to change"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
-                AnvilInput.open(plugin, p, "&fTime limit (minutes)", String.valueOf(template.timeLimitMinutes()), s -> {
+                ChatInput.prompt(plugin, p, "&fTime limit (minutes)", String.valueOf(template.timeLimitMinutes()), s -> {
                     try { template.setTimeLimitMinutes(Integer.parseInt(s)); save(); }
                     catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                     open(p);
@@ -188,7 +188,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                     "&eClick &7to change"),
                 e -> {
                     Player p = (Player) e.getWhoClicked();
-                    AnvilInput.open(plugin, p, "&fMobs per spawn tick", String.valueOf(template.mobsPerWave()), s -> {
+                    ChatInput.prompt(plugin, p, "&fMobs per spawn tick", String.valueOf(template.mobsPerWave()), s -> {
                         try { template.setMobsPerWave(Integer.parseInt(s)); save(); }
                         catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                         open(p);
@@ -202,7 +202,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                     "&eClick &7to change"),
                 e -> {
                     Player p = (Player) e.getWhoClicked();
-                    AnvilInput.open(plugin, p, "&fSeconds between ticks", String.valueOf(template.waveIntervalSeconds()), s -> {
+                    ChatInput.prompt(plugin, p, "&fSeconds between ticks", String.valueOf(template.waveIntervalSeconds()), s -> {
                         try { template.setWaveIntervalSeconds(Integer.parseInt(s)); save(); }
                         catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                         open(p);
@@ -218,7 +218,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to change"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
-                AnvilInput.open(plugin, p, "&fMax concurrent mobs", String.valueOf(template.maxConcurrentMobs()), s -> {
+                ChatInput.prompt(plugin, p, "&fMax concurrent mobs", String.valueOf(template.maxConcurrentMobs()), s -> {
                     try { template.setMaxConcurrentMobs(Integer.parseInt(s)); save(); }
                     catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                     open(p);
@@ -280,7 +280,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to change"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
-                com.abyss.sigils.gui.AnvilInput.open(plugin, p,
+                com.abyss.sigils.gui.ChatInput.prompt(plugin, p,
                         "&fLives (0 = unlimited)",
                         String.valueOf(template.lives()),
                         text -> {

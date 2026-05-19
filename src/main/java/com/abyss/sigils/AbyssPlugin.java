@@ -88,6 +88,7 @@ public final class AbyssPlugin extends JavaPlugin {
 
         EditorGUI.register(this);
         AnvilInput.register(this);
+        ChatInput.register(this);
         RewardsGUI.register(this);
         SigilCreatorGUI.register(this);
 

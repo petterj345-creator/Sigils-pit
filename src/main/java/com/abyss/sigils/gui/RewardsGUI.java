@@ -135,7 +135,10 @@ public final class RewardsGUI implements Listener {
                 "",
                 "&7Left-click an entry → set chance %",
                 "&7Right-click an entry → set count range",
-                "&7Shift-click an entry → return + remove"));
+                "&7Shift-click an entry → return + remove",
+                "",
+                "&8Number prompts close this menu and",
+                "&8ask you to type the value in chat."));
         return inv;
     }
 
@@ -304,15 +307,15 @@ public final class RewardsGUI implements Listener {
             return;
         }
         // Left-click → change chance %
-        AnvilInput.open(plugin, p, "&fChance %", String.valueOf(entry.chancePercent()), text -> {
+        ChatInput.prompt(plugin, p, "&fChance %", String.valueOf(entry.chancePercent()), text -> {
             try { entry.setChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, holder);
+            reopenAfterInput(p, holder);
         });
     }
 
     private void promptCountRange(Player p, Holder holder, RewardEntry entry) {
-        AnvilInput.open(plugin, p, "&fCount range (e.g. 1-3)",
+        ChatInput.prompt(plugin, p, "&fCount range (e.g. 1-3)",
                 entry.minCount() + "-" + entry.maxCount(), text -> {
             try {
                 if (text.contains("-")) {
@@ -326,7 +329,7 @@ public final class RewardsGUI implements Listener {
                 }
                 plugin.templates().save(holder.template());
             } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5'")); }
-            reopenAfterAnvil(p, holder);
+            reopenAfterInput(p, holder);
         });
     }
 
@@ -340,10 +343,10 @@ public final class RewardsGUI implements Listener {
             return;
         }
         if (relative == 0) {
-            AnvilInput.open(plugin, p, "&fMax items per chest", String.valueOf(holder.template().maxRewardItems()), text -> {
+            ChatInput.prompt(plugin, p, "&fMax items per chest", String.valueOf(holder.template().maxRewardItems()), text -> {
                 try { holder.template().setMaxRewardItems(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, holder);
+                reopenAfterInput(p, holder);
             });
             return;
         }
@@ -360,49 +363,49 @@ public final class RewardsGUI implements Listener {
 
     private void handleMoneyClick(InventoryClickEvent e, Holder holder, Player p) {
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fMoney chance %", String.valueOf(holder.template().moneyChancePercent()), text -> {
+            ChatInput.prompt(plugin, p, "&fMoney chance %", String.valueOf(holder.template().moneyChancePercent()), text -> {
                 try { holder.template().setMoneyChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, holder);
+                reopenAfterInput(p, holder);
             });
             return;
         }
         if (e.isRightClick()) {
-            AnvilInput.open(plugin, p, "&fMoney max", String.valueOf(holder.template().moneyMax()), text -> {
+            ChatInput.prompt(plugin, p, "&fMoney max", String.valueOf(holder.template().moneyMax()), text -> {
                 try { holder.template().setMoneyMax(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, holder);
+                reopenAfterInput(p, holder);
             });
             return;
         }
-        AnvilInput.open(plugin, p, "&fMoney min", String.valueOf(holder.template().moneyMin()), text -> {
+        ChatInput.prompt(plugin, p, "&fMoney min", String.valueOf(holder.template().moneyMin()), text -> {
             try { holder.template().setMoneyMin(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, holder);
+            reopenAfterInput(p, holder);
         });
     }
 
     private void handleXpClick(InventoryClickEvent e, Holder holder, Player p) {
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fXP chance %", String.valueOf(holder.template().xpChancePercent()), text -> {
+            ChatInput.prompt(plugin, p, "&fXP chance %", String.valueOf(holder.template().xpChancePercent()), text -> {
                 try { holder.template().setXpChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, holder);
+                reopenAfterInput(p, holder);
             });
             return;
         }
         if (e.isRightClick()) {
-            AnvilInput.open(plugin, p, "&fXP levels max", String.valueOf(holder.template().xpLevelsMax()), text -> {
+            ChatInput.prompt(plugin, p, "&fXP levels max", String.valueOf(holder.template().xpLevelsMax()), text -> {
                 try { holder.template().setXpLevelsMax(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, holder);
+                reopenAfterInput(p, holder);
             });
             return;
         }
-        AnvilInput.open(plugin, p, "&fXP levels min", String.valueOf(holder.template().xpLevelsMin()), text -> {
+        ChatInput.prompt(plugin, p, "&fXP levels min", String.valueOf(holder.template().xpLevelsMin()), text -> {
             try { holder.template().setXpLevelsMin(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, holder);
+            reopenAfterInput(p, holder);
         });
     }
 
@@ -422,8 +425,9 @@ public final class RewardsGUI implements Listener {
         for (int i = 0; i < fresh.getSize(); i++) existing.setItem(i, fresh.getItem(i));
     }
 
-    private void reopenAfterAnvil(Player p, Holder holder) {
-        // After an anvil callback, open a fresh rewards GUI on the next tick.
+    private void reopenAfterInput(Player p, Holder holder) {
+        // After a chat-input callback, re-open the rewards GUI on the next tick
+        // so the player sees the freshly-saved value reflected immediately.
         Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, holder.template()));
     }
 

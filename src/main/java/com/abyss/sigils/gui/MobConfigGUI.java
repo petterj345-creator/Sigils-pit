@@ -98,7 +98,7 @@ public final class MobConfigGUI extends EditorGUI.Holder {
         Player p = (Player) e.getWhoClicked();
         if (e.getClick() == org.bukkit.event.inventory.ClickType.DROP
                 || e.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fCount", String.valueOf(count), text -> {
+            ChatInput.prompt(plugin, p, "&fCount", String.valueOf(count), text -> {
                 try { count = Math.max(1, Integer.parseInt(text)); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
@@ -114,7 +114,7 @@ public final class MobConfigGUI extends EditorGUI.Holder {
         Player p = (Player) e.getWhoClicked();
         if (e.getClick() == org.bukkit.event.inventory.ClickType.DROP
                 || e.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fLevel", String.valueOf(level), text -> {
+            ChatInput.prompt(plugin, p, "&fLevel", String.valueOf(level), text -> {
                 try { level = Math.max(1, Integer.parseInt(text)); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
