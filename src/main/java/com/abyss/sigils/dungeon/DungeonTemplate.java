@@ -64,6 +64,13 @@ public final class DungeonTemplate {
     private int xpLevelsMax = 0;
     private double xpChancePercent = 100;
 
+    // ----- forge / upgrade -----
+    /**
+     * How many forge attempts each player gets after clearing this template.
+     * -1 = use the global default from config (upgrade.attempts-per-clear).
+     */
+    private int upgradeAttemptsPerClear = -1;
+
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
         this.configFile = configFile;
@@ -99,6 +106,7 @@ public final class DungeonTemplate {
     public int xpLevelsMin()               { return xpLevelsMin; }
     public int xpLevelsMax()               { return xpLevelsMax; }
     public double xpChancePercent()        { return xpChancePercent; }
+    public int upgradeAttemptsPerClear()   { return upgradeAttemptsPerClear; }
 
     // ----- setters -----
     public void setMode(DungeonMode m)             { this.mode = m; }
@@ -130,6 +138,8 @@ public final class DungeonTemplate {
     public void setXpLevelsMin(int n)              { this.xpLevelsMin = Math.max(0, n); if (xpLevelsMax < xpLevelsMin) xpLevelsMax = xpLevelsMin; }
     public void setXpLevelsMax(int n)              { this.xpLevelsMax = Math.max(0, n); if (xpLevelsMin > xpLevelsMax) xpLevelsMin = xpLevelsMax; }
     public void setXpChancePercent(double p)       { this.xpChancePercent = clampPct(p); }
+    /** -1 = inherit from config, otherwise clamped to [0, +inf). */
+    public void setUpgradeAttemptsPerClear(int n)  { this.upgradeAttemptsPerClear = (n < 0) ? -1 : n; }
 
     private static double clampPct(double p) { return p < 0 ? 0 : (p > 100 ? 100 : p); }
 
@@ -218,6 +228,7 @@ public final class DungeonTemplate {
         cfg.set("rewards.xp.min", xpLevelsMin);
         cfg.set("rewards.xp.max", xpLevelsMax);
         cfg.set("rewards.xp.chance", xpChancePercent);
+        cfg.set("upgrade.attempts-per-clear", upgradeAttemptsPerClear);
         // We store the pool under a section, one entry per index, so Bukkit
         // can serialize the ItemStack natively (preserving NBT/PDC).
         cfg.set("rewards.pool", null); // clear stale
@@ -307,6 +318,7 @@ public final class DungeonTemplate {
         this.xpLevelsMin       = cfg.getInt("rewards.xp.min", 0);
         this.xpLevelsMax       = cfg.getInt("rewards.xp.max", 0);
         this.xpChancePercent   = cfg.getDouble("rewards.xp.chance", 100);
+        this.upgradeAttemptsPerClear = cfg.getInt("upgrade.attempts-per-clear", -1);
 
         rewardPool.clear();
         ConfigurationSection pool = cfg.getConfigurationSection("rewards.pool");

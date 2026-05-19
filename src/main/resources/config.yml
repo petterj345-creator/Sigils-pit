@@ -38,6 +38,10 @@ upgrade:
   substat-chance: 0.25
   # Cap on upgrade tier (per-definition maxTier still applies if lower).
   max-tier: 5
+  # How many forge attempts each player gets after clearing one dungeon.
+  # Each click on the FORGE button counts as one attempt, whether it
+  # succeeds or fails. Set to -1 for unlimited (the legacy behaviour).
+  attempts-per-clear: 3
   # Success % when going FROM tier N to tier N+1.
   # Index 0 = T1->T2, index 1 = T2->T3, etc.
   # If you provide fewer entries than tiers, the last value is reused.

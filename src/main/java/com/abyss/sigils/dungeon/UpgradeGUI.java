@@ -105,7 +105,8 @@ public final class UpgradeGUI implements Listener {
         return s;
     }
 
-    private ItemStack buttonGreen(int tier, int maxTier, int successPct, int xpCost) {
+    private ItemStack buttonGreen(int tier, int maxTier, int successPct, int xpCost,
+                                  int attemptsRemaining, int attemptsCap) {
         ItemStack s = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta m = s.getItemMeta();
         if (m != null) {
@@ -114,6 +115,9 @@ public final class UpgradeGUI implements Listener {
             lore.add(Text.color("&7T" + tier + " &8→ &fT" + Math.min(tier + 1, maxTier)));
             lore.add(Text.color("&7Success: " + colorPct(successPct) + successPct + "%"));
             if (xpCost > 0) lore.add(Text.color("&7Cost: &f" + xpCost + " XP levels"));
+            if (attemptsCap >= 0) {
+                lore.add(Text.color("&7Attempts left: &f" + attemptsRemaining + "&7/" + attemptsCap));
+            }
             lore.add(Text.color("&8Click to attempt upgrade."));
             m.setLore(lore);
             s.setItemMeta(m);
@@ -184,6 +188,12 @@ public final class UpgradeGUI implements Listener {
     }
 
     private void refreshButton(Inventory inv) {
+        // Find the viewer (we need their session for the attempt counter)
+        Player viewer = null;
+        for (org.bukkit.entity.HumanEntity h : inv.getViewers()) {
+            if (h instanceof Player pl) { viewer = pl; break; }
+        }
+
         ItemStack sigilItem = inv.getItem(SIGIL_SLOT);
         SigilInstance inst = SigilItem.fromItem(sigilItem);
 
@@ -199,8 +209,41 @@ public final class UpgradeGUI implements Listener {
             inv.setItem(BUTTON_SLOT, buttonRed("Already max tier"));
             return;
         }
+
+        // Check attempt budget for this player
+        DungeonSession sForViewer = (viewer != null) ? plugin.dungeonManager().sessionOf(viewer) : null;
+        int attemptsCap = resolveAttemptsCap(sForViewer);
+        if (attemptsCap >= 0 && viewer != null && sForViewer != null) {
+            int used = sForViewer.upgradeAttemptsUsed(viewer.getUniqueId());
+            int remaining = Math.max(0, attemptsCap - used);
+            if (remaining == 0) {
+                inv.setItem(BUTTON_SLOT, buttonRed("No attempts left"));
+                return;
+            }
+            int successPct = successPercentFor(inst.tier());
+            inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, remaining, attemptsCap));
+            return;
+        }
+
         int successPct = successPercentFor(inst.tier());
-        inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost));
+        inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, -1, -1));
+    }
+
+    /**
+     * Per-template override of upgrade.attempts-per-clear, with fallback to
+     * the global config default. Looks up the template by the session's
+     * templateName(); if no session/template found, just uses the config value.
+     * Returns -1 for unlimited.
+     */
+    private int resolveAttemptsCap(DungeonSession session) {
+        int globalCap = plugin.getConfig().getInt("upgrade.attempts-per-clear", -1);
+        if (session == null) return globalCap;
+        String tplName = session.templateName();
+        if (tplName == null) return globalCap;
+        DungeonTemplate tpl = plugin.templates().get(tplName);
+        if (tpl == null) return globalCap;
+        int perTemplate = tpl.upgradeAttemptsPerClear();
+        return (perTemplate < 0) ? globalCap : perTemplate;
     }
 
     /**
@@ -239,6 +282,18 @@ public final class UpgradeGUI implements Listener {
         int maxTier = Math.min(def.maxTier(), plugin.getConfig().getInt("upgrade.max-tier", 5));
         if (inst.tier() >= maxTier) { p.sendMessage(Text.color("&cAlready at max tier.")); return; }
 
+        // Attempt budget: -1 = unlimited, otherwise enforce
+        DungeonSession session = plugin.dungeonManager().sessionOf(p);
+        int attemptsCap = resolveAttemptsCap(session);
+        if (attemptsCap >= 0 && session != null) {
+            int used = session.upgradeAttemptsUsed(p.getUniqueId());
+            if (used >= attemptsCap) {
+                p.sendMessage(Text.color("&cYou've used all " + attemptsCap + " forge attempts for this clear."));
+                refreshButton(inv);
+                return;
+            }
+        }
+
         int xpCost = plugin.getConfig().getInt("upgrade.xp-level-cost", 0);
         boolean consumeXpOnFail = plugin.getConfig().getBoolean("upgrade.consume-xp-on-fail", true);
 
@@ -246,6 +301,10 @@ public final class UpgradeGUI implements Listener {
             p.sendMessage(Text.color("&cNeed " + xpCost + " XP levels."));
             return;
         }
+
+        // From here we WILL attempt. Count it before rolling so a successful
+        // attempt and a failed attempt both consume one slot.
+        if (session != null) session.incrementUpgradeAttempts(p.getUniqueId());
 
         int successPct = successPercentFor(inst.tier());
         boolean succeeded = rng.nextInt(100) < successPct;

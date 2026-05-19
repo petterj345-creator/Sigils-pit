@@ -263,6 +263,39 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to edit"),
             e -> RewardsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
+        // 48 Upgrade attempts per clear
+        int attemptsForDisplay = template.upgradeAttemptsPerClear();
+        String attemptsDisplay = (attemptsForDisplay < 0)
+                ? "&7Default &8(from config)"
+                : (attemptsForDisplay == 0 ? "&cdisabled" : "&f" + attemptsForDisplay);
+        set(48, icon(Material.ANVIL,
+                "&d&l⚒ Forge Attempts",
+                "&7How many times players can try to",
+                "&7upgrade a sigil after clearing.",
+                "&7Currently: " + attemptsDisplay,
+                "",
+                "&eClick &7to set a number",
+                "&eShift-click &7to reset to default",
+                "&8(-1 = inherit from config)"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (e.isShiftClick()) {
+                    template.setUpgradeAttemptsPerClear(-1);
+                    save();
+                    refresh(p);
+                    p.sendMessage(color("&7Forge attempts reset to config default."));
+                    return;
+                }
+                com.abyss.sigils.gui.ChatInput.prompt(plugin, p,
+                        "&fForge attempts per clear",
+                        String.valueOf(template.upgradeAttemptsPerClear()),
+                        text -> {
+                            try { template.setUpgradeAttemptsPerClear(Integer.parseInt(text.trim())); save(); }
+                            catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number (-1 = inherit).")); }
+                            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                        });
+            });
+
         // 49 Status
         String err = template.validationError();
         set(49,

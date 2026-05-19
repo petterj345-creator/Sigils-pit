@@ -28,6 +28,18 @@ public final class DungeonSession {
     /** Players who've been kicked out (out of lives). */
     private final Set<UUID> eliminated = new HashSet<>();
 
+    /**
+     * How many forge attempts each player has used at the Forge of the Abyss
+     * after clearing this dungeon. Compared against
+     * {@code upgrade.attempts-per-clear} from the plugin config. -1 in config
+     * means unlimited.
+     *
+     * Note: attempts count every CLICK on the FORGE button, regardless of
+     * success/failure. This matches what players expect — "I get 3 tries
+     * after a clear, not 3 successes".
+     */
+    private final Map<UUID, Integer> upgradeAttemptsUsed = new HashMap<>();
+
     // MAP mode
     private int kills = 0;
     /** Trash mobs alive right now. */
@@ -92,4 +104,11 @@ public final class DungeonSession {
     }
     public boolean isEliminated(UUID id) { return eliminated.contains(id); }
     public void eliminate(UUID id) { eliminated.add(id); }
+
+    /** How many upgrade attempts this player has used at the Forge. */
+    public int upgradeAttemptsUsed(UUID id) { return upgradeAttemptsUsed.getOrDefault(id, 0); }
+    /** Record one more upgrade attempt for this player. */
+    public void incrementUpgradeAttempts(UUID id) {
+        upgradeAttemptsUsed.merge(id, 1, Integer::sum);
+    }
 }
