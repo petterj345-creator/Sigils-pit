@@ -30,7 +30,19 @@ upgrade-block:
   block-type: "LODESTONE"
 
 upgrade:
-  xp-level-cost: 5
-  dust-cost: 3
+  # XP levels charged per upgrade attempt. 0 = no XP required (default).
+  xp-level-cost: 0
+  # If xp-level-cost > 0, charge it even on failed attempts?
+  consume-xp-on-fail: true
+  # Chance (0.0–1.0) of rolling a bonus sub-stat on a successful upgrade.
   substat-chance: 0.25
+  # Cap on upgrade tier (per-definition maxTier still applies if lower).
   max-tier: 5
+  # Success % when going FROM tier N to tier N+1.
+  # Index 0 = T1->T2, index 1 = T2->T3, etc.
+  # If you provide fewer entries than tiers, the last value is reused.
+  success-chance-per-tier:
+    - 100   # T1 -> T2  (always succeeds)
+    - 100   # T2 -> T3  (always succeeds)
+    - 75    # T3 -> T4
+    - 50    # T4 -> T5

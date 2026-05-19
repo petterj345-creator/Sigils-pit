@@ -4,6 +4,7 @@ import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.DungeonTemplate;
 import com.abyss.sigils.dungeon.SpawnPoint;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -19,6 +20,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.*;
@@ -97,6 +99,13 @@ public final class EditorMarkers implements Listener {
                 case LIGHT_BLUE_WOOL -> Color.AQUA;
                 default              -> Color.WHITE;
             });
+            // CRITICAL: don't persist these to disk. If they were persistent, the
+            // template world would save them, the dungeon clone would inherit them,
+            // and players running the dungeon would see "Boss Spawn"/"Player Spawn"
+            // wool blocks and floating text in the actual instance. By marking the
+            // entity non-persistent it gets discarded on chunk unload and is
+            // never written to region files.
+            e.setPersistent(false);
             e.getPersistentDataContainer().set(KEY_MARKER, PersistentDataType.BYTE, (byte) 1);
         });
 
@@ -109,6 +118,8 @@ public final class EditorMarkers implements Listener {
             e.setSeeThrough(true);
             e.setDefaultBackground(false);
             e.setBackgroundColor(Color.fromARGB(180, 0, 0, 0));
+            // Same reason as the block display above — never persist to disk.
+            e.setPersistent(false);
             e.getPersistentDataContainer().set(KEY_MARKER, PersistentDataType.BYTE, (byte) 1);
         });
     }
@@ -166,6 +177,30 @@ public final class EditorMarkers implements Listener {
      * Called by DungeonManager right after the clone is loaded.
      */
     public void stripFromInstance(World w) { clearFor(w); }
+
+    /**
+     * Strip stale marker entities as chunks load.
+     *
+     * - In instance worlds (abyss_inst_*) markers should never appear, so we
+     *   kill anything tagged as a marker.
+     * - In template worlds (abyss_tpl_*) we also kill them on chunk load,
+     *   because markers persisted to disk from older plugin versions need to
+     *   be wiped — {@link #refreshFor} will re-spawn the current ones (non-
+     *   persistently now) for any admin who's in the world.
+     */
+    @EventHandler
+    public void onChunkLoad(ChunkLoadEvent e) {
+        String name = e.getWorld().getName();
+        boolean instance = name.startsWith("abyss_inst_");
+        boolean template = name.startsWith("abyss_tpl_");
+        if (!instance && !template) return;
+        Chunk c = e.getChunk();
+        for (Entity entity : c.getEntities()) {
+            if (entity.getPersistentDataContainer().has(KEY_MARKER, PersistentDataType.BYTE)) {
+                entity.remove();
+            }
+        }
+    }
 
     private Location boundTo(Location l, World w) {
         Location bound = l.clone();
