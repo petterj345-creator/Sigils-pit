@@ -123,12 +123,12 @@ public final class PortalEntryGUI implements Listener {
      * Update the confirm button to reflect whether a map is in the slot.
      * - Map present and valid → green button "Enter [tplName]"
      * - Map present but template missing → red "Broken map" button
-     * - No map → yellow button "Enter random dungeon"
+     * - No map → grey "Need a map" tile (can't enter without one)
      */
     private void refreshConfirm(Inventory inv) {
         ItemStack map = inv.getItem(MAP_SLOT);
         if (map == null || map.getType() == Material.AIR) {
-            inv.setItem(CONFIRM_SLOT, randomDungeonButton());
+            inv.setItem(CONFIRM_SLOT, needMapButton());
             return;
         }
         DungeonTemplate tpl = DungeonMap.templateOf(plugin, map);
@@ -158,20 +158,17 @@ public final class PortalEntryGUI implements Listener {
         return s;
     }
 
-    private ItemStack randomDungeonButton() {
-        ItemStack s = new ItemStack(Material.YELLOW_STAINED_GLASS_PANE);
+    private ItemStack needMapButton() {
+        ItemStack s = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta m = s.getItemMeta();
         if (m != null) {
-            m.setDisplayName(Text.color("&e&l▶ Enter Random Dungeon"));
+            m.setDisplayName(Text.color("&7&l✗ Need an Abyss Map"));
             List<String> lore = new ArrayList<>();
-            lore.add(Text.color("&7No map in the slot."));
-            lore.add(Text.color("&7You'll be sent to a random"));
-            lore.add(Text.color("&7playable dungeon template."));
+            lore.add(Text.color("&7You need a map to enter."));
+            lore.add(Text.color("&7Drop one into the center slot."));
             lore.add("");
-            lore.add(Text.color("&8Drop an Abyss Map in the center"));
-            lore.add(Text.color("&8slot to pick a specific dungeon."));
-            lore.add("");
-            lore.add(Text.color("&eClick to confirm."));
+            lore.add(Text.color("&8Maps drop rarely from Abyss mobs"));
+            lore.add(Text.color("&8or can be granted by admins."));
             m.setLore(lore);
             s.setItemMeta(m);
         }
@@ -282,10 +279,13 @@ public final class PortalEntryGUI implements Listener {
         }
 
         ItemStack map = inv.getItem(MAP_SLOT);
-        DungeonTemplate template = (map == null) ? null : DungeonMap.templateOf(plugin, map);
-
-        // Broken map check
-        if (map != null && DungeonMap.isMap(map) && template == null) {
+        if (map == null || map.getType() == Material.AIR) {
+            // No random fallback — players need a map.
+            p.sendMessage(Text.color("&cYou need an Abyss Map to enter."));
+            return;
+        }
+        DungeonTemplate template = DungeonMap.templateOf(plugin, map);
+        if (template == null) {
             p.sendMessage(Text.color("&cThat map points to a deleted dungeon."));
             return;
         }
@@ -299,9 +299,8 @@ public final class PortalEntryGUI implements Listener {
             party = List.of(p);
         }
 
-        // Consume the map FIRST so a failed start doesn't lose it (we put it
-        // back below if start can't proceed). Set the slot to null so the
-        // close handler doesn't return it again.
+        // Consume the map. Set the slot to null so the close handler doesn't
+        // return it.
         inv.setItem(MAP_SLOT, null);
         p.closeInventory();
 
@@ -309,13 +308,8 @@ public final class PortalEntryGUI implements Listener {
         // event processes cleanly first.
         final DungeonTemplate finalTemplate = template;
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (finalTemplate != null) {
-                p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + finalTemplate.name() + ")"));
-                plugin.dungeonManager().start(party, finalTemplate);
-            } else {
-                p.sendMessage(Text.color("&5&lThe Abyss &7is opening..."));
-                plugin.dungeonManager().start(party);
-            }
+            p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + finalTemplate.name() + ")"));
+            plugin.dungeonManager().start(party, finalTemplate);
         });
     }
 
