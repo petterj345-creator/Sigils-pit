@@ -163,11 +163,34 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         return -1;
     }
 
+    /**
+     * Marker locations are stored at "stand on top" position — i.e. one block
+     * ABOVE the actual marker block (see {@link #centerOf(Block)} and the
+     * various callers that pass {@code player.getLocation()}, whose feet sit
+     * on top of the block they're standing on).
+     *
+     * So when the admin right-clicks a block with the wand and we ask "is this
+     * block the player/boss/spawn marker?", we compare the clicked block
+     * against the block one tile BELOW the stored location.
+     *
+     * Without this -1 offset, the inspection would always say "Nothing marked
+     * here." even on a block that had just been marked, because floor(65.0)
+     * does not equal block.y=64.
+     *
+     * We also accept an exact match (no offset) as a fallback, just in case
+     * something stored a location at exactly block coordinates (legacy data
+     * or non-standard callers).
+     */
     private static boolean sameBlock(Location loc, Block b) {
         if (loc == null) return false;
-        return Math.floor(loc.getX()) == b.getX()
-                && Math.floor(loc.getY()) == b.getY()
-                && Math.floor(loc.getZ()) == b.getZ();
+        int lx = (int) Math.floor(loc.getX());
+        int ly = (int) Math.floor(loc.getY());
+        int lz = (int) Math.floor(loc.getZ());
+        if (lx != b.getX() || lz != b.getZ()) return false;
+        // Standard: stored Y is one above the marker block (stand-on-top).
+        if (ly - 1 == b.getY()) return true;
+        // Fallback: stored Y equals the marker block exactly.
+        return ly == b.getY();
     }
 
     private static Location centerOf(Block b) {
