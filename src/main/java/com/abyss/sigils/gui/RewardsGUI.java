@@ -14,33 +14,40 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Rewards editor. Drag-and-drop items into the top area to add them to the
- * pool; click an item to edit its chance%/count range; shift-click to remove.
+ * pool; click an item to edit its chance %/count range; shift-click to remove.
  *
  * Layout (54 slots, 6 rows):
  *   Rows 0–2 (slots 0–26)  — drop zone for reward items. 27 slot capacity.
  *   Row 3 (slots 27–35)    — separator (filler)
  *   Row 4 (36..44)         — money + xp config
- *      36 max items, 38 money min/max, 39 money chance,
- *      41 xp min/max, 42 xp chance, 44 back arrow
- *   Row 5 (slots 45–53)    — filler border
+ *      36 max items, 38 money min/max+chance, 41 xp min/max+chance, 44 back arrow
+ *   Row 5 (slots 45–53)    — filler border + help book
  *
- * Special handling:
- *  - "Lore overlay" — when we display an entry in the pool, we clone the
- *    ItemStack and append a "Chance: X%  Count: A-B" line so the admin can
- *    see what each pool item is configured for at a glance.
- *  - Click handling is more involved than other GUIs because we need to allow
- *    real placing/removing of items in the top 27 slots.
+ * --- How click safety works ---
+ * Each open instance attaches a {@link Holder} as the inventory's holder. The
+ * single listener identifies our inventory by checking
+ * {@code top.getHolder() instanceof Holder} — reference-stable, no map needed.
+ * If we recognise the inventory at all, we ALWAYS cancel clicks in the top
+ * half BEFORE any routing logic runs. Earlier versions of this class kept a
+ * UUID→Session map and compared {@code top.equals(session.inv)}, which under
+ * some Paper builds led to the cancel-vs-route logic getting skipped (the
+ * click then went through as a normal item move — that's the "I click the
+ * gold ingot and it just gets picked up" bug). The holder-based check fixes
+ * that for good.
  */
 public final class RewardsGUI implements Listener {
 
     private static RewardsGUI INSTANCE;
+
     public static void register(AbyssPlugin plugin) {
         if (INSTANCE != null) return;
         INSTANCE = new RewardsGUI(plugin);
@@ -49,20 +56,28 @@ public final class RewardsGUI implements Listener {
 
     public static void openFor(AbyssPlugin plugin, Player p, DungeonTemplate t) {
         register(plugin);
-        Inventory inv = INSTANCE.build(t);
-        INSTANCE.viewers.put(p.getUniqueId(), new Session(t, inv));
+        Holder holder = new Holder(t);
+        Inventory inv = INSTANCE.build(holder, t);
+        holder.setInventory(inv);
         p.openInventory(inv);
     }
 
     private final AbyssPlugin plugin;
-    private final Map<UUID, Session> viewers = new HashMap<>();
 
     private RewardsGUI(AbyssPlugin plugin) { this.plugin = plugin; }
 
-    private static class Session {
-        final DungeonTemplate template;
-        final Inventory inv;
-        Session(DungeonTemplate t, Inventory inv) { this.template = t; this.inv = inv; }
+    /**
+     * The per-open holder. Carries the template the player is editing so we
+     * can recover state on every click without a side-map. Bukkit identifies
+     * inventories by holder reference, which is the safest pattern.
+     */
+    public static final class Holder implements InventoryHolder {
+        private final DungeonTemplate template;
+        private Inventory inv;
+        Holder(DungeonTemplate template) { this.template = template; }
+        void setInventory(Inventory inv) { this.inv = inv; }
+        public DungeonTemplate template() { return template; }
+        @Override public Inventory getInventory() { return inv; }
     }
 
     // ---- layout helpers ----
@@ -71,8 +86,8 @@ public final class RewardsGUI implements Listener {
     private static final int POOL_END_EX = 27; // 0..26 inclusive
     private static final int CONTROL_ROW = 36;
 
-    private Inventory build(DungeonTemplate t) {
-        Inventory inv = Bukkit.createInventory(null, 54, color("&5&lRewards: &f" + t.name()));
+    private Inventory build(Holder holder, DungeonTemplate t) {
+        Inventory inv = Bukkit.createInventory(holder, 54, color("&5&lRewards: &f" + t.name()));
 
         // Pool items
         List<RewardEntry> pool = t.rewardPool();
@@ -169,16 +184,24 @@ public final class RewardsGUI implements Listener {
         return org.bukkit.ChatColor.translateAlternateColorCodes('&', s);
     }
 
+    /** Identify our inventory by holder reference. Safer than inventory equals. */
+    private static Holder holderOf(Inventory top) {
+        if (top == null) return null;
+        InventoryHolder h = top.getHolder();
+        return (h instanceof Holder rh) ? rh : null;
+    }
+
     // ---- click handling ----
 
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
-        Session s = viewers.get(p.getUniqueId());
-        if (s == null || !e.getView().getTopInventory().equals(s.inv)) return;
+        Inventory top = e.getView().getTopInventory();
+        Holder holder = holderOf(top);
+        if (holder == null) return; // not our GUI
 
         int raw = e.getRawSlot();
-        int topSize = s.inv.getSize();
+        int topSize = top.getSize();
 
         // ---- Click in player inventory (bottom) ----
         if (raw >= topSize) {
@@ -187,9 +210,9 @@ public final class RewardsGUI implements Listener {
                 ItemStack toAdd = e.getCurrentItem();
                 if (toAdd != null && toAdd.getType() != Material.AIR) {
                     e.setCancelled(true);
-                    addToPool(s, toAdd);
+                    addToPool(holder, toAdd);
                     p.getInventory().setItem(e.getSlot(), null);
-                    rebuild(p, s);
+                    rebuild(holder);
                 }
             }
             // Otherwise let normal inventory interaction happen in the bottom inv
@@ -197,26 +220,30 @@ public final class RewardsGUI implements Listener {
         }
 
         // ---- Click in top inventory (our GUI) ----
-        // ALWAYS cancel — we own this inventory's contents entirely.
+        // ALWAYS cancel before routing. This is critical: if any branch below
+        // throws or returns early without cancelling, the click would still
+        // pick up the item. Doing it unconditionally up front guarantees the
+        // gold ingot, hopper, etc. can never be moved.
         e.setCancelled(true);
 
         // POOL ZONE
         if (raw >= POOL_START && raw < POOL_END_EX) {
-            handlePoolClick(e, s, p, raw);
+            handlePoolClick(e, holder, p, raw);
             return;
         }
         // CONTROLS
-        handleControlClick(e, s, p, raw);
+        handleControlClick(e, holder, p, raw);
     }
 
     @EventHandler
     public void onDrag(InventoryDragEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
-        Session s = viewers.get(p.getUniqueId());
-        if (s == null || !e.getView().getTopInventory().equals(s.inv)) return;
+        Inventory top = e.getView().getTopInventory();
+        Holder holder = holderOf(top);
+        if (holder == null) return;
 
         // Does the drag land in the top inventory at all?
-        int topSize = s.inv.getSize();
+        int topSize = top.getSize();
         boolean touchesTop = false;
         for (int slot : e.getRawSlots()) {
             if (slot < topSize) { touchesTop = true; break; }
@@ -227,38 +254,32 @@ public final class RewardsGUI implements Listener {
         e.setCancelled(true);
         ItemStack cursor = e.getOldCursor();
         if (cursor != null && cursor.getType() != Material.AIR) {
-            // Check if ANY drag target was in the pool zone — if so, add
             boolean dropInPool = false;
             for (int slot : e.getRawSlots()) {
                 if (slot >= POOL_START && slot < POOL_END_EX) { dropInPool = true; break; }
             }
             if (dropInPool) {
-                addToPool(s, cursor.clone());
+                addToPool(holder, cursor.clone());
                 e.getView().setCursor(null);
             }
-            // Force a redraw next tick so any visual artifacts from the
-            // attempted drag get cleaned up.
-            Bukkit.getScheduler().runTask(plugin, () -> rebuild(p, s));
+            Bukkit.getScheduler().runTask(plugin, () -> rebuild(holder));
         }
     }
 
-    private void handlePoolClick(InventoryClickEvent e, Session s, Player p, int slot) {
-        List<RewardEntry> pool = s.template.rewardPool();
+    private void handlePoolClick(InventoryClickEvent e, Holder holder, Player p, int slot) {
+        List<RewardEntry> pool = holder.template().rewardPool();
         ItemStack cursor = e.getView().getCursor();
 
         boolean cursorHasItem = cursor != null && cursor.getType() != Material.AIR;
 
         if (cursorHasItem) {
-            // Don't allow adding our own decorated icons (they're our display layer)
-            addToPool(s, cursor.clone());
+            addToPool(holder, cursor.clone());
             e.getView().setCursor(null);
-            rebuild(p, s);
+            rebuild(holder);
             return;
         }
 
         // Cursor is empty. If they clicked an empty pool slot, do nothing.
-        // Pool entries always pack into slots 0..pool.size()-1, so the visual
-        // slot index IS the pool index.
         if (slot >= pool.size()) return;
 
         RewardEntry entry = pool.get(slot);
@@ -266,31 +287,31 @@ public final class RewardsGUI implements Listener {
         if (e.isShiftClick()) {
             // Shift-click an entry → return it to your inventory + remove
             pool.remove(slot);
-            plugin.templates().save(s.template);
+            plugin.templates().save(holder.template());
             ItemStack original = entry.itemStack().clone();
-            Map<Integer, ItemStack> overflow = p.getInventory().addItem(original);
+            var overflow = p.getInventory().addItem(original);
             for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
-            rebuild(p, s);
+            rebuild(holder);
             p.sendMessage(color("&aRemoved &7" + entry.itemStack().getType() + "&a from pool."));
             return;
         }
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            promptCountRange(p, s, entry);
+            promptCountRange(p, holder, entry);
             return;
         }
         if (e.isRightClick()) {
-            promptCountRange(p, s, entry);
+            promptCountRange(p, holder, entry);
             return;
         }
         // Left-click → change chance %
         AnvilInput.open(plugin, p, "&fChance %", String.valueOf(entry.chancePercent()), text -> {
-            try { entry.setChancePercent(Double.parseDouble(text)); plugin.templates().save(s.template); }
+            try { entry.setChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, s);
+            reopenAfterAnvil(p, holder);
         });
     }
 
-    private void promptCountRange(Player p, Session s, RewardEntry entry) {
+    private void promptCountRange(Player p, Holder holder, RewardEntry entry) {
         AnvilInput.open(plugin, p, "&fCount range (e.g. 1-3)",
                 entry.minCount() + "-" + entry.maxCount(), text -> {
             try {
@@ -303,120 +324,119 @@ public final class RewardsGUI implements Listener {
                     int n = Integer.parseInt(text.trim());
                     entry.setCountRange(n, n);
                 }
-                plugin.templates().save(s.template);
+                plugin.templates().save(holder.template());
             } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5'")); }
-            reopenAfterAnvil(p, s);
+            reopenAfterAnvil(p, holder);
         });
     }
 
-    private void handleControlClick(InventoryClickEvent e, Session s, Player p, int slot) {
+    private void handleControlClick(InventoryClickEvent e, Holder holder, Player p, int slot) {
+        // Cancel was already done by the caller, but no harm doing it again.
         e.setCancelled(true);
         int relative = slot - CONTROL_ROW;
 
         if (relative == 8) {
-            // Back
-            TemplateEditorGUI.openFor(plugin, p, s.template);
+            TemplateEditorGUI.openFor(plugin, p, holder.template());
             return;
         }
         if (relative == 0) {
-            AnvilInput.open(plugin, p, "&fMax items per chest", String.valueOf(s.template.maxRewardItems()), text -> {
-                try { s.template.setMaxRewardItems(Integer.parseInt(text)); plugin.templates().save(s.template); }
+            AnvilInput.open(plugin, p, "&fMax items per chest", String.valueOf(holder.template().maxRewardItems()), text -> {
+                try { holder.template().setMaxRewardItems(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, s);
+                reopenAfterAnvil(p, holder);
             });
             return;
         }
         if (relative == 2) {
-            // Money
-            handleMoneyClick(e, s, p);
+            handleMoneyClick(e, holder, p);
             return;
         }
         if (relative == 5) {
-            // XP
-            handleXpClick(e, s, p);
+            handleXpClick(e, holder, p);
             return;
         }
+        // Any other slot in the control row (37, 39, 40, 42, 43) — no-op, click stays cancelled.
     }
 
-    private void handleMoneyClick(InventoryClickEvent e, Session s, Player p) {
+    private void handleMoneyClick(InventoryClickEvent e, Holder holder, Player p) {
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fMoney chance %", String.valueOf(s.template.moneyChancePercent()), text -> {
-                try { s.template.setMoneyChancePercent(Double.parseDouble(text)); plugin.templates().save(s.template); }
+            AnvilInput.open(plugin, p, "&fMoney chance %", String.valueOf(holder.template().moneyChancePercent()), text -> {
+                try { holder.template().setMoneyChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, s);
+                reopenAfterAnvil(p, holder);
             });
             return;
         }
         if (e.isRightClick()) {
-            AnvilInput.open(plugin, p, "&fMoney max", String.valueOf(s.template.moneyMax()), text -> {
-                try { s.template.setMoneyMax(Double.parseDouble(text)); plugin.templates().save(s.template); }
+            AnvilInput.open(plugin, p, "&fMoney max", String.valueOf(holder.template().moneyMax()), text -> {
+                try { holder.template().setMoneyMax(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, s);
+                reopenAfterAnvil(p, holder);
             });
             return;
         }
-        AnvilInput.open(plugin, p, "&fMoney min", String.valueOf(s.template.moneyMin()), text -> {
-            try { s.template.setMoneyMin(Double.parseDouble(text)); plugin.templates().save(s.template); }
+        AnvilInput.open(plugin, p, "&fMoney min", String.valueOf(holder.template().moneyMin()), text -> {
+            try { holder.template().setMoneyMin(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, s);
+            reopenAfterAnvil(p, holder);
         });
     }
 
-    private void handleXpClick(InventoryClickEvent e, Session s, Player p) {
+    private void handleXpClick(InventoryClickEvent e, Holder holder, Player p) {
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            AnvilInput.open(plugin, p, "&fXP chance %", String.valueOf(s.template.xpChancePercent()), text -> {
-                try { s.template.setXpChancePercent(Double.parseDouble(text)); plugin.templates().save(s.template); }
+            AnvilInput.open(plugin, p, "&fXP chance %", String.valueOf(holder.template().xpChancePercent()), text -> {
+                try { holder.template().setXpChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, s);
+                reopenAfterAnvil(p, holder);
             });
             return;
         }
         if (e.isRightClick()) {
-            AnvilInput.open(plugin, p, "&fXP levels max", String.valueOf(s.template.xpLevelsMax()), text -> {
-                try { s.template.setXpLevelsMax(Integer.parseInt(text)); plugin.templates().save(s.template); }
+            AnvilInput.open(plugin, p, "&fXP levels max", String.valueOf(holder.template().xpLevelsMax()), text -> {
+                try { holder.template().setXpLevelsMax(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
                 catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopenAfterAnvil(p, s);
+                reopenAfterAnvil(p, holder);
             });
             return;
         }
-        AnvilInput.open(plugin, p, "&fXP levels min", String.valueOf(s.template.xpLevelsMin()), text -> {
-            try { s.template.setXpLevelsMin(Integer.parseInt(text)); plugin.templates().save(s.template); }
+        AnvilInput.open(plugin, p, "&fXP levels min", String.valueOf(holder.template().xpLevelsMin()), text -> {
+            try { holder.template().setXpLevelsMin(Integer.parseInt(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-            reopenAfterAnvil(p, s);
+            reopenAfterAnvil(p, holder);
         });
     }
 
-    private void addToPool(Session s, ItemStack item) {
-        // Strip the "decorate" lore if for some reason it's in the cursor item
-        // (only possible if the player picked a decorated item up and dropped it back).
-        // We can't 100% detect this, so we just store the raw clone.
+    private void addToPool(Holder holder, ItemStack item) {
         ItemStack clean = item.clone();
         clean.setAmount(1);
-        s.template.rewardPool().add(new RewardEntry(clean, 50, 1, 1));
-        plugin.templates().save(s.template);
+        holder.template().rewardPool().add(new RewardEntry(clean, 50, 1, 1));
+        plugin.templates().save(holder.template());
     }
 
-    private void rebuild(Player p, Session s) {
-        Inventory fresh = build(s.template);
-        // Copy contents into existing inv to avoid closing/reopening
-        for (int i = 0; i < fresh.getSize(); i++) s.inv.setItem(i, fresh.getItem(i));
+    private void rebuild(Holder holder) {
+        // Rebuild fresh and copy contents into the existing inv (so we don't
+        // have to re-open and lose the viewer's cursor / scroll state).
+        Inventory fresh = build(holder, holder.template());
+        Inventory existing = holder.getInventory();
+        if (existing == null) return;
+        for (int i = 0; i < fresh.getSize(); i++) existing.setItem(i, fresh.getItem(i));
     }
 
-    private void reopenAfterAnvil(Player p, Session s) {
-        // After an anvil-input callback, we need to reopen the rewards GUI.
-        // The session map still has us — just rebuild and re-open.
-        Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, s.template));
+    private void reopenAfterAnvil(Player p, Holder holder) {
+        // After an anvil callback, open a fresh rewards GUI on the next tick.
+        Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, holder.template()));
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
         if (!(e.getPlayer() instanceof Player p)) return;
-        Session s = viewers.remove(p.getUniqueId());
-        if (s == null) return;
-        // Returns any cursor item if any (shouldn't happen since clicks cancel, but safety)
+        Inventory top = e.getView().getTopInventory();
+        Holder holder = holderOf(top);
+        if (holder == null) return;
+        // Return any cursor item if any (shouldn't happen since clicks cancel, but safety)
         ItemStack cursor = e.getView().getCursor();
         if (cursor != null && cursor.getType() != Material.AIR) {
-            Map<Integer, ItemStack> overflow = p.getInventory().addItem(cursor);
+            var overflow = p.getInventory().addItem(cursor);
             for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
             e.getView().setCursor(null);
         }
