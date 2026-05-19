@@ -34,6 +34,17 @@ public final class DungeonTemplate {
 
     private Location playerSpawn;
     private Location bossSpawn;
+    /**
+     * Where the upgrade altar + reward chest spawn after boss death.
+     * If null, falls back to the boss death location (legacy behaviour).
+     * Set via the editor wand in the template world.
+     */
+    private Location forgeSpawn;
+    /**
+     * Where the return portal block spawns after boss death.
+     * If null, falls back to an offset from the forge location.
+     */
+    private Location exitPortalSpawn;
 
     private final List<SpawnPoint> spawnPoints = new ArrayList<>();
     /** Fallback mobs used by spawn points that don't define their own list (MAP mode). */
@@ -91,6 +102,8 @@ public final class DungeonTemplate {
     public DungeonMode mode()         { return mode; }
     public Location playerSpawn()     { return playerSpawn == null ? null : playerSpawn.clone(); }
     public Location bossSpawn()       { return bossSpawn == null ? null : bossSpawn.clone(); }
+    public Location forgeSpawn()      { return forgeSpawn == null ? null : forgeSpawn.clone(); }
+    public Location exitPortalSpawn() { return exitPortalSpawn == null ? null : exitPortalSpawn.clone(); }
     public List<SpawnPoint> spawnPoints()     { return spawnPoints; }
     public List<MobEntry> defaultTrashMobs()  { return defaultTrashMobs; }
     public List<Wave> waves()                 { return waves; }
@@ -120,8 +133,12 @@ public final class DungeonTemplate {
     public void setMode(DungeonMode m)             { this.mode = m; }
     public void setPlayerSpawn(Location loc)       { this.playerSpawn = wipeWorld(loc); }
     public void setBossSpawn(Location loc)         { this.bossSpawn = wipeWorld(loc); }
+    public void setForgeSpawn(Location loc)        { this.forgeSpawn = wipeWorld(loc); }
+    public void setExitPortalSpawn(Location loc)   { this.exitPortalSpawn = wipeWorld(loc); }
     public void clearPlayerSpawn()                 { this.playerSpawn = null; }
     public void clearBossSpawn()                   { this.bossSpawn = null; }
+    public void clearForgeSpawn()                  { this.forgeSpawn = null; }
+    public void clearExitPortalSpawn()             { this.exitPortalSpawn = null; }
     public void addSpawnPoint(Location loc)        { spawnPoints.add(new SpawnPoint(wipeWorld(loc))); }
     public void removeSpawnPoint(int index)        { if (index >= 0 && index < spawnPoints.size()) spawnPoints.remove(index); }
     public void clearSpawnPoints()                 { spawnPoints.clear(); }
@@ -196,6 +213,8 @@ public final class DungeonTemplate {
 
         if (playerSpawn != null) writeLoc(cfg, "player-spawn", playerSpawn);
         if (bossSpawn   != null) writeLoc(cfg, "boss-spawn",   bossSpawn);
+        if (forgeSpawn  != null) writeLoc(cfg, "forge-spawn",  forgeSpawn);
+        if (exitPortalSpawn != null) writeLoc(cfg, "exit-portal-spawn", exitPortalSpawn);
 
         // Spawn points (each with its own mob list)
         List<java.util.Map<String, Object>> sps = new ArrayList<>();
@@ -273,6 +292,8 @@ public final class DungeonTemplate {
         this.keepInventory = cfg.getBoolean("keep-inventory", true);
         this.playerSpawn = readLoc(cfg.getConfigurationSection("player-spawn"));
         this.bossSpawn = readLoc(cfg.getConfigurationSection("boss-spawn"));
+        this.forgeSpawn = readLoc(cfg.getConfigurationSection("forge-spawn"));
+        this.exitPortalSpawn = readLoc(cfg.getConfigurationSection("exit-portal-spawn"));
 
         spawnPoints.clear();
         List<java.util.Map<?, ?>> sps = cfg.getMapList("spawn-points");

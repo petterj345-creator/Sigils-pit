@@ -40,7 +40,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         return color("&5Block @ " + block.getX() + "," + block.getY() + "," + block.getZ());
     }
 
-    @Override protected int size() { return 27; }
+    @Override protected int size() { return 45; }
 
     @Override protected void build(Player viewer) {
         fillBorder();
@@ -51,11 +51,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 existing.isEmpty() ? "&7Nothing marked here." : "&7Currently marked as:"),
             null);
         if (!existing.isEmpty()) {
-            // Reuse slot 4's lore — rebuild with concrete state
             ItemStack info = icon(Material.PAPER, "&fBlock Inspection",
                     existing.toArray(String[]::new));
             getInventory().setItem(4, info);
         }
+
+        // ---- Row 1: original spawns + spawn point ----
 
         // 10 → player spawn
         set(10, icon(Material.LIME_BED, "&aSet as Player Spawn",
@@ -120,9 +121,41 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 TemplateEditorGUI.openFor(plugin, p, template);
             });
 
-        // 22 → remove all markers at this block
+        // ---- Row 2: post-boss placements ----
+
+        // 28 → forge spawn (where the lodestone + chest spawn after boss death)
+        set(28, icon(Material.LODESTONE,
+                sameForgeSpawn() ? "&6Forge Spawn (set)" : "&6Set as Forge Spawn",
+                "&7Where the upgrade altar + reward chest",
+                "&7spawn when the boss dies.",
+                samePlayerSpawn() ? "" : "",
+                sameForgeSpawn() ? "&7&oAlready set here" : "&7Click to mark"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                template.setForgeSpawn(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aForge spawn set."));
+                refresh(p);
+            });
+
+        // 30 → exit portal spawn
+        set(30, icon(Material.END_GATEWAY,
+                sameExitPortalSpawn() ? "&dExit Portal Spawn (set)" : "&dSet as Exit Portal Spawn",
+                "&7Where the return portal spawns",
+                "&7when the boss dies.",
+                "",
+                sameExitPortalSpawn() ? "&7&oAlready set here" : "&7Click to mark"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                template.setExitPortalSpawn(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aExit portal spawn set."));
+                refresh(p);
+            });
+
+        // 32 → remove all markers at this block
         if (!existing.isEmpty()) {
-            set(22, icon(Material.BARRIER, "&cRemove ALL markers here",
+            set(32, icon(Material.BARRIER, "&cRemove ALL markers here",
                     "&7Removes whatever this block",
                     "&7was marked as."),
                 e -> {
@@ -137,8 +170,10 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private List<String> describeMarkers() {
         List<String> out = new ArrayList<>();
-        if (samePlayerSpawn()) out.add(color("&8• &aPlayer spawn"));
-        if (sameBossSpawn())   out.add(color("&8• &cBoss spawn"));
+        if (samePlayerSpawn())     out.add(color("&8• &aPlayer spawn"));
+        if (sameBossSpawn())       out.add(color("&8• &cBoss spawn"));
+        if (sameForgeSpawn())      out.add(color("&8• &6Forge spawn"));
+        if (sameExitPortalSpawn()) out.add(color("&8• &dExit portal spawn"));
         int idx = findSpawnPointIndex();
         if (idx >= 0) {
             SpawnPoint sp = template.spawnPoints().get(idx);
@@ -153,6 +188,14 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private boolean sameBossSpawn() {
         return template.bossSpawn() != null && sameBlock(template.bossSpawn(), block);
+    }
+
+    private boolean sameForgeSpawn() {
+        return template.forgeSpawn() != null && sameBlock(template.forgeSpawn(), block);
+    }
+
+    private boolean sameExitPortalSpawn() {
+        return template.exitPortalSpawn() != null && sameBlock(template.exitPortalSpawn(), block);
     }
 
     private int findSpawnPointIndex() {
@@ -211,6 +254,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         }
         if (t.bossSpawn() != null && sameBlock(t.bossSpawn(), b)) {
             t.clearBossSpawn(); removed++;
+        }
+        if (t.forgeSpawn() != null && sameBlock(t.forgeSpawn(), b)) {
+            t.clearForgeSpawn(); removed++;
+        }
+        if (t.exitPortalSpawn() != null && sameBlock(t.exitPortalSpawn(), b)) {
+            t.clearExitPortalSpawn(); removed++;
         }
         List<SpawnPoint> sps = t.spawnPoints();
         for (int i = sps.size() - 1; i >= 0; i--) {

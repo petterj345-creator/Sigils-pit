@@ -44,12 +44,14 @@ public final class RewardChestManager implements Listener {
 
     public RewardChestManager(AbyssPlugin plugin) { this.plugin = plugin; }
 
-    /** Called by DungeonManager when the boss dies. Places the chest one block away. */
-    public void placeChest(DungeonSession session, Location bossLoc) {
-        // Place the chest beside the upgrade block (which sits at bossLoc + 1Y).
-        // Try a few offsets to find a free block.
-        Location base = bossLoc.clone();
-        int[][] offsets = {{1,1,0},{-1,1,0},{0,1,1},{0,1,-1},{2,1,0},{0,1,2}};
+    /** Called by DungeonManager when the boss dies. Places the chest one block beside the forge. */
+    public void placeChest(DungeonSession session, Location forgeLoc) {
+        // forgeLoc is the actual forge BLOCK position (floor level). Place the
+        // chest at the same Y so both sit on the floor — historically this
+        // was at Y+1 (boss head height) and chests would end up floating
+        // when the boss died mid-air.
+        Location base = forgeLoc.clone();
+        int[][] offsets = {{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{2,0,0},{0,0,2}};
         Location placed = null;
         for (int[] o : offsets) {
             Location candidate = base.clone().add(o[0], o[1], o[2]);
@@ -61,8 +63,8 @@ public final class RewardChestManager implements Listener {
             }
         }
         if (placed == null) {
-            // Fall back: replace whatever's there at bossLoc + 1Y + 1X
-            placed = base.clone().add(1, 1, 0);
+            // Fall back: replace whatever's there at forge + 1X
+            placed = base.clone().add(1, 0, 0);
             placed.getBlock().setType(Material.CHEST);
         }
         chestToSession.put(placed.getBlock().getLocation(), session.id());

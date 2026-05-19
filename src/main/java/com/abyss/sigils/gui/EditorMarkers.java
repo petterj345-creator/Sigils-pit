@@ -66,6 +66,16 @@ public final class EditorMarkers implements Listener {
             Location l = boundTo(t.bossSpawn(), w);
             spawnMarker(l, Material.RED_WOOL, "§c§lBoss Spawn");
         }
+        // Forge spawn (where upgrade altar + chest go on boss death)
+        if (t.forgeSpawn() != null) {
+            Location l = boundTo(t.forgeSpawn(), w);
+            spawnMarker(l, Material.ORANGE_WOOL, "§6§lForge Spawn");
+        }
+        // Exit portal spawn (where return portal goes on boss death)
+        if (t.exitPortalSpawn() != null) {
+            Location l = boundTo(t.exitPortalSpawn(), w);
+            spawnMarker(l, Material.MAGENTA_WOOL, "§d§lExit Portal Spawn");
+        }
         // Spawn points
         List<SpawnPoint> sps = t.spawnPoints();
         for (int i = 0; i < sps.size(); i++) {
@@ -97,6 +107,8 @@ public final class EditorMarkers implements Listener {
                 case LIME_WOOL       -> Color.LIME;
                 case RED_WOOL        -> Color.RED;
                 case LIGHT_BLUE_WOOL -> Color.AQUA;
+                case ORANGE_WOOL     -> Color.ORANGE;
+                case MAGENTA_WOOL    -> Color.FUCHSIA;
                 default              -> Color.WHITE;
             });
             // CRITICAL: don't persist these to disk. If they were persistent, the

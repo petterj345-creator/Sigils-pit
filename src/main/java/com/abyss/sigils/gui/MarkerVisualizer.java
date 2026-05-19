@@ -92,6 +92,22 @@ public final class MarkerVisualizer implements Listener {
             renderFake(p, l.clone().add(0, 2, 0), Material.RED_STAINED_GLASS_PANE, newRendered);
         }
 
+        // Forge spawn — orange glass + pane beam
+        if (t.forgeSpawn() != null) {
+            Location l = bindBelowFeet(t.forgeSpawn(), w);
+            renderFake(p, l, Material.ORANGE_STAINED_GLASS, newRendered);
+            renderFake(p, l.clone().add(0, 1, 0), Material.ORANGE_STAINED_GLASS_PANE, newRendered);
+            renderFake(p, l.clone().add(0, 2, 0), Material.ORANGE_STAINED_GLASS_PANE, newRendered);
+        }
+
+        // Exit portal spawn — magenta glass + pane beam
+        if (t.exitPortalSpawn() != null) {
+            Location l = bindBelowFeet(t.exitPortalSpawn(), w);
+            renderFake(p, l, Material.MAGENTA_STAINED_GLASS, newRendered);
+            renderFake(p, l.clone().add(0, 1, 0), Material.PURPLE_STAINED_GLASS_PANE, newRendered);
+            renderFake(p, l.clone().add(0, 2, 0), Material.PURPLE_STAINED_GLASS_PANE, newRendered);
+        }
+
         // Spawn points — blue glass + magenta pane beam
         int i = 1;
         for (SpawnPoint sp : t.spawnPoints()) {

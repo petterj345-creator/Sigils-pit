@@ -425,40 +425,47 @@ public final class DungeonManager implements Listener {
         session.setPhase(DungeonSession.Phase.COMPLETE);
         broadcast(session, "&6&lThe boss falls. The forge awakens.");
 
-        Block block = at.clone().add(0, 1, 0).getBlock();
+        DungeonTemplate t = plugin.templates().get(session.templateName());
+        World instanceWorld = session.world();
+
+        // ----- FORGE LOCATION -----
+        // Prefer admin-marked forge spawn (set via wand). The marker stores
+        // the "stand on top" location (same convention as player/boss spawns),
+        // so the actual block we replace is one below. If unset, fall back
+        // to the boss death position — but land on the FLOOR, not the boss's
+        // head: walk downward until we hit a solid block.
+        Location forgeLoc;
+        if (t != null && t.forgeSpawn() != null) {
+            Location marker = bindToWorld(t.forgeSpawn(), instanceWorld);
+            // Marker is "stand on top" — actual block is at Y - 1
+            forgeLoc = marker.clone().add(0, -1, 0);
+        } else {
+            forgeLoc = findFloor(at);
+        }
+        Block forgeBlock = forgeLoc.getBlock();
         Material upgradeMat = Material.matchMaterial(
                 plugin.getConfig().getString("upgrade-block.block-type", "LODESTONE"));
         if (upgradeMat == null) upgradeMat = Material.LODESTONE;
-        block.setType(upgradeMat);
-        session.setUpgradeBlock(block.getLocation());
+        forgeBlock.setType(upgradeMat);
+        session.setUpgradeBlock(forgeBlock.getLocation());
 
-        // Spawn the reward chest next to the upgrade block
-        plugin.rewardChests().placeChest(session, at);
+        // Spawn the reward chest next to the forge block (not the boss loc)
+        plugin.rewardChests().placeChest(session, forgeBlock.getLocation());
 
-        // Return portal — placed FAR from the forge/chest so players can't
-        // accidentally click it. We pick the first free block from a list of
-        // offsets that don't overlap the chest's spawn zone (which lives at
-        // bossLoc + (±1, 1, ±1)). If all are occupied, fall back to (5,1,0).
+        // ----- RETURN PORTAL LOCATION -----
+        // Prefer admin-marked exit spawn. Otherwise pick the first free,
+        // floor-level block from a fan of offsets around the forge that
+        // don't collide with the chest's spawn zone.
+        Block returnBlock;
+        if (t != null && t.exitPortalSpawn() != null) {
+            Location marker = bindToWorld(t.exitPortalSpawn(), instanceWorld);
+            returnBlock = marker.clone().add(0, -1, 0).getBlock();
+        } else {
+            returnBlock = findReturnPortalSlot(forgeBlock.getLocation());
+        }
         Material returnMat = Material.matchMaterial(
                 plugin.getConfig().getString("return-portal.block-type", "END_GATEWAY"));
         if (returnMat == null) returnMat = Material.END_GATEWAY;
-        int[][] returnOffsets = {
-                {4, 1, 0}, {-4, 1, 0}, {0, 1, 4}, {0, 1, -4},
-                {5, 1, 0}, {-5, 1, 0}, {0, 1, 5}, {0, 1, -5},
-                {3, 1, 3}, {-3, 1, 3}, {3, 1, -3}, {-3, 1, -3}
-        };
-        Block returnBlock = null;
-        for (int[] o : returnOffsets) {
-            Block candidate = at.clone().add(o[0], o[1], o[2]).getBlock();
-            if (candidate.getType() == Material.AIR) {
-                returnBlock = candidate;
-                break;
-            }
-        }
-        if (returnBlock == null) {
-            // Last resort — replace whatever's there at +5 X
-            returnBlock = at.clone().add(5, 1, 0).getBlock();
-        }
         returnBlock.setType(returnMat);
         session.setReturnPortalBlock(returnBlock.getLocation());
         spawnReturnPortalHologram(returnBlock.getLocation());
@@ -466,6 +473,47 @@ public final class DungeonManager implements Listener {
         session.progressBar().setBossHealth(0, 1);
         broadcast(session, "&7An upgrade altar has appeared. Right-click it to forge.");
         broadcast(session, "&aA &dreturn portal &ahas appeared. Right-click it to leave.");
+    }
+
+    /**
+     * Walk DOWN from the given location until we hit a solid block (or world
+     * bottom). Returns the first non-solid air position above that solid
+     * block — i.e. the "floor" the player would stand on. Used when no
+     * admin-marked forge spawn is set, to avoid placing the altar at the
+     * boss's head height when they die mid-air.
+     */
+    private Location findFloor(Location start) {
+        Location probe = start.clone();
+        int minY = probe.getWorld().getMinHeight();
+        while (probe.getBlockY() > minY) {
+            Block below = probe.clone().add(0, -1, 0).getBlock();
+            if (!below.getType().isAir() && below.getType().isSolid()) {
+                return probe; // first air block above the floor
+            }
+            probe.add(0, -1, 0);
+        }
+        // No floor found — give up and return the original
+        return start.clone();
+    }
+
+    /**
+     * Find a free block to place the return portal in, given the forge
+     * location. Tries 12 offsets at floor level (Y=0 relative to forge),
+     * keeps clear of the chest's spawn zone, and falls back to a fixed
+     * offset if every candidate is occupied.
+     */
+    private Block findReturnPortalSlot(Location forgeAt) {
+        int[][] offsets = {
+                {4, 0, 0}, {-4, 0, 0}, {0, 0, 4}, {0, 0, -4},
+                {5, 0, 0}, {-5, 0, 0}, {0, 0, 5}, {0, 0, -5},
+                {3, 0, 3}, {-3, 0, 3}, {3, 0, -3}, {-3, 0, -3}
+        };
+        for (int[] o : offsets) {
+            Block candidate = forgeAt.clone().add(o[0], o[1], o[2]).getBlock();
+            if (candidate.getType() == Material.AIR) return candidate;
+        }
+        // Last resort — replace whatever's there at +5 X
+        return forgeAt.clone().add(5, 0, 0).getBlock();
     }
 
     /**
@@ -549,15 +597,22 @@ public final class DungeonManager implements Listener {
      * Where to put the player when they leave a dungeon.
      *
      * Priority:
-     *   1. dungeon.exit.x/y/z/world if all set and non-default
-     *   2. otherwise the configured portal location +1 on Y (stand on the
-     *      portal block) — that's almost always what you want, since the
-     *      portal is where they came in.
-     *   3. otherwise (no portal configured either) the primary world's spawn
+     *   1. Portal location +1 on Y (stand on the portal block) — that's the
+     *      "you come out where you went in" default, almost always what
+     *      admins want.
+     *   2. If {@code dungeon.exit.use-custom: true} is set in config, use
+     *      the explicit dungeon.exit.x/y/z/world instead. This is an opt-in
+     *      override for admins who want exits to land somewhere specific
+     *      (a town spawn, a hub island, etc.).
+     *   3. If no portal is configured AND no custom exit is set, fall back
+     *      to the primary world's spawn so we never teleport into the void.
      */
     private Location resolveExitLocation() {
         ConfigurationSection ex = plugin.getConfig().getConfigurationSection("dungeon.exit");
-        if (ex != null && ex.isSet("x") && ex.isSet("y") && ex.isSet("z")) {
+        boolean useCustom = ex != null && ex.getBoolean("use-custom", false);
+
+        // 2. Custom exit — only if explicitly opted in
+        if (useCustom && ex.isSet("x") && ex.isSet("y") && ex.isSet("z")) {
             World w = Bukkit.getWorld(ex.getString("world", "world"));
             if (w != null) {
                 return new Location(w,
@@ -566,9 +621,10 @@ public final class DungeonManager implements Listener {
                         ex.getDouble("z"));
             }
         }
-        // Fall back to standing on top of the portal block
-        String pw = plugin.getConfig().getString("portal.world", null);
-        if (pw != null && plugin.getConfig().isSet("portal.x")) {
+
+        // 1. Portal location (default) — stand on top of the portal block
+        if (plugin.getConfig().isSet("portal.x")) {
+            String pw = plugin.getConfig().getString("portal.world", "world");
             World w = Bukkit.getWorld(pw);
             if (w != null) {
                 return new Location(w,
@@ -577,7 +633,8 @@ public final class DungeonManager implements Listener {
                         plugin.getConfig().getInt("portal.z") + 0.5);
             }
         }
-        // Last resort — primary world spawn
+
+        // 3. Last resort — primary world spawn
         World fallback = Bukkit.getWorlds().get(0);
         return fallback.getSpawnLocation();
     }

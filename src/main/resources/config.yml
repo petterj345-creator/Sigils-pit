@@ -80,13 +80,15 @@ book:
 
 dungeon:
   # Where players return to when they leave a dungeon.
-  # Leave x/y/z unset to default to standing on top of the portal block —
-  # that's almost always what you want (you come out where you went in).
+  # By DEFAULT the exit lands on top of the portal block — "you come out
+  # where you went in". To override that and use the custom x/y/z below,
+  # set use-custom to true.
   exit:
+    use-custom: false
     world: "world"
-    # x: 0.5
-    # y: 70.0
-    # z: 0.5
+    x: 0.5
+    y: 70.0
+    z: 0.5
 
 portal:
   block-type: "END_PORTAL_FRAME"
