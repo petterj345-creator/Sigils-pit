@@ -212,6 +212,21 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         com.abyss.sigils.gui.MythicDropsGUI.openFor(plugin, p);
     }
 
+    /** Manually refresh the visual editor markers in the current template world. */
+    private void handleMarkers(CommandSender sender) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+        String wname = p.getWorld().getName();
+        if (!wname.startsWith("abyss_tpl_")) {
+            p.sendMessage(Text.color("&cYou're not in an editor world."));
+            return;
+        }
+        DungeonTemplate t = plugin.templates().get(wname.substring("abyss_tpl_".length()));
+        if (t == null) { p.sendMessage(Text.color("&cTemplate not loaded.")); return; }
+        plugin.editorMarkers().refreshFor(t);
+        p.sendMessage(Text.color("&aMarkers refreshed."));
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Text.color("&5&lAbyss commands:"));
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
@@ -237,7 +252,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             "help","sigils","leave","enterabyss",
             "create","edit","delete","list",
             "givesigil","givedust","givebook","reload",
-            "sigil","mythicdrops"
+            "sigil","mythicdrops","markers"
     );
 
     @Override

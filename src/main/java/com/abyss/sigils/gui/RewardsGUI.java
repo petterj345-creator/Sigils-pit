@@ -267,11 +267,11 @@ public final class RewardsGUI implements Listener {
             // Shift-click an entry → return it to your inventory + remove
             pool.remove(slot);
             plugin.templates().save(s.template);
-            ItemStack original = entry.item().clone();
+            ItemStack original = entry.itemStack().clone();
             Map<Integer, ItemStack> overflow = p.getInventory().addItem(original);
             for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
             rebuild(p, s);
-            p.sendMessage(color("&aRemoved &7" + entry.item().getType() + "&a from pool."));
+            p.sendMessage(color("&aRemoved &7" + entry.itemStack().getType() + "&a from pool."));
             return;
         }
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
