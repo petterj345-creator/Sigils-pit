@@ -128,7 +128,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 sameForgeSpawn() ? "&6Forge Spawn (set)" : "&6Set as Forge Spawn",
                 "&7Where the upgrade altar + reward chest",
                 "&7spawn when the boss dies.",
-                samePlayerSpawn() ? "" : "",
+                "",
                 sameForgeSpawn() ? "&7&oAlready set here" : "&7Click to mark"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
@@ -139,7 +139,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
             });
 
         // 30 → exit portal spawn
-        set(30, icon(Material.END_GATEWAY,
+        set(30, icon(Material.PURPLE_STAINED_GLASS,
                 sameExitPortalSpawn() ? "&dExit Portal Spawn (set)" : "&dSet as Exit Portal Spawn",
                 "&7Where the return portal spawns",
                 "&7when the boss dies.",
