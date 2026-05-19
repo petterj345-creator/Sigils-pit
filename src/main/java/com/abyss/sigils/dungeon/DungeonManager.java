@@ -415,12 +415,22 @@ public final class DungeonManager implements Listener {
 
     public void leave(Player p) {
         DungeonSession s = sessionOf(p);
-        if (s == null) { p.sendMessage(Text.color("&7You're not in The Abyss.")); return; }
-        if (s.progressBar() != null) s.progressBar().removePlayer(p);
-        teleportOut(p);
-        playerToSession.remove(p.getUniqueId());
-        s.players().remove(p.getUniqueId());
-        if (s.players().isEmpty()) endSession(s);
+        if (s != null) {
+            if (s.progressBar() != null) s.progressBar().removePlayer(p);
+            teleportOut(p);
+            playerToSession.remove(p.getUniqueId());
+            s.players().remove(p.getUniqueId());
+            if (s.players().isEmpty()) endSession(s);
+            return;
+        }
+        // Not in an active session — are they in a template (editor) world?
+        if (p.getWorld().getName().startsWith("abyss_tpl_")) {
+            teleportOut(p);
+            // The wand is auto-removed by EditorWandListener on world change.
+            p.sendMessage(Text.color("&aLeft the template editor."));
+            return;
+        }
+        p.sendMessage(Text.color("&7You're not in The Abyss."));
     }
 
     public void endSession(DungeonSession s) {

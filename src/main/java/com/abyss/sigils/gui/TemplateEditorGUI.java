@@ -241,6 +241,18 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 p.sendMessage(color("&aTeleported into &f" + template.name() + "&a."));
             });
 
+        // 46 Save & Leave
+        set(46, icon(Material.OAK_DOOR,
+                "&6&lSave & Leave",
+                "&7Saves the template and teleports",
+                "&7you out of the editor world."),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                save();
+                p.closeInventory();
+                plugin.dungeonManager().leave(p);
+            });
+
         // 47 Rewards
         set(47, icon(Material.CHEST,
                 "&6&lRewards",

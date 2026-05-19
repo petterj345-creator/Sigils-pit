@@ -110,10 +110,17 @@ public final class RewardsGUI implements Listener {
 
         inv.setItem(CONTROL_ROW + 8, icon(Material.ARROW, "&7← Back to editor"));
 
-        // Bottom border
+        // Bottom border with a help tile in the middle
         for (int i = 45; i < 54; i++) {
             if (inv.getItem(i) == null) inv.setItem(i, filler());
         }
+        inv.setItem(49, icon(Material.BOOK, "&e&lHow it works",
+                "&7Drop or click items into the top area",
+                "&7to add them as possible rewards.",
+                "",
+                "&7Left-click an entry → set chance %",
+                "&7Right-click an entry → set count range",
+                "&7Shift-click an entry → return + remove"));
         return inv;
     }
 
@@ -170,31 +177,36 @@ public final class RewardsGUI implements Listener {
         Session s = viewers.get(p.getUniqueId());
         if (s == null || !e.getView().getTopInventory().equals(s.inv)) return;
 
-        int slot = e.getRawSlot();
+        int raw = e.getRawSlot();
+        int topSize = s.inv.getSize();
 
-        // Top inventory interaction
-        if (e.getClickedInventory() == s.inv) {
-            // POOL ZONE (drag/drop)
-            if (slot >= POOL_START && slot < POOL_END_EX) {
-                handlePoolClick(e, s, p, slot);
-                return;
+        // ---- Click in player inventory (bottom) ----
+        if (raw >= topSize) {
+            // Shift-click from player inv → add the clicked item to the pool
+            if (e.isShiftClick()) {
+                ItemStack toAdd = e.getCurrentItem();
+                if (toAdd != null && toAdd.getType() != Material.AIR) {
+                    e.setCancelled(true);
+                    addToPool(s, toAdd);
+                    p.getInventory().setItem(e.getSlot(), null);
+                    rebuild(p, s);
+                }
             }
-            // CONTROLS
-            handleControlClick(e, s, p, slot);
+            // Otherwise let normal inventory interaction happen in the bottom inv
             return;
         }
 
-        // Bottom inventory: a shift-click would try to dump into the top inv.
-        // If the destination is the pool zone, allow it (it ADDS to the pool).
-        if (e.isShiftClick()) {
-            ItemStack toAdd = e.getCurrentItem();
-            if (toAdd != null && toAdd.getType() != Material.AIR) {
-                e.setCancelled(true);
-                addToPool(s, toAdd);
-                e.getWhoClicked().getInventory().setItem(e.getSlot(), null);
-                rebuild(p, s);
-            }
+        // ---- Click in top inventory (our GUI) ----
+        // ALWAYS cancel — we own this inventory's contents entirely.
+        e.setCancelled(true);
+
+        // POOL ZONE
+        if (raw >= POOL_START && raw < POOL_END_EX) {
+            handlePoolClick(e, s, p, raw);
+            return;
         }
+        // CONTROLS
+        handleControlClick(e, s, p, raw);
     }
 
     @EventHandler
@@ -203,67 +215,66 @@ public final class RewardsGUI implements Listener {
         Session s = viewers.get(p.getUniqueId());
         if (s == null || !e.getView().getTopInventory().equals(s.inv)) return;
 
-        // Whether any of the drag targets land in the top inventory at all
+        // Does the drag land in the top inventory at all?
+        int topSize = s.inv.getSize();
         boolean touchesTop = false;
         for (int slot : e.getRawSlots()) {
-            if (slot < s.inv.getSize()) { touchesTop = true; break; }
+            if (slot < topSize) { touchesTop = true; break; }
         }
-        if (!touchesTop) return; // drag stayed in player inv — no-op
+        if (!touchesTop) return; // drag stayed in player inv — let it happen
 
-        // Always cancel — we manage the pool, not Bukkit
+        // Drag into our GUI — always cancel, then maybe add to pool
         e.setCancelled(true);
-
-        // Take whatever was on the cursor before the drag and try to add it
         ItemStack cursor = e.getOldCursor();
         if (cursor != null && cursor.getType() != Material.AIR) {
-            addToPool(s, cursor.clone());
-            e.getView().setCursor(null);
+            // Check if ANY drag target was in the pool zone — if so, add
+            boolean dropInPool = false;
+            for (int slot : e.getRawSlots()) {
+                if (slot >= POOL_START && slot < POOL_END_EX) { dropInPool = true; break; }
+            }
+            if (dropInPool) {
+                addToPool(s, cursor.clone());
+                e.getView().setCursor(null);
+            }
+            // Force a redraw next tick so any visual artifacts from the
+            // attempted drag get cleaned up.
             Bukkit.getScheduler().runTask(plugin, () -> rebuild(p, s));
         }
     }
 
     private void handlePoolClick(InventoryClickEvent e, Session s, Player p, int slot) {
         List<RewardEntry> pool = s.template.rewardPool();
-        ItemStack current = s.inv.getItem(slot);
         ItemStack cursor = e.getView().getCursor();
 
-        // Cursor has an item we're trying to add
         boolean cursorHasItem = cursor != null && cursor.getType() != Material.AIR;
-        boolean slotHasItem = current != null && current.getType() != Material.AIR;
 
         if (cursorHasItem) {
-            // Adding to pool
-            e.setCancelled(true);
+            // Don't allow adding our own decorated icons (they're our display layer)
             addToPool(s, cursor.clone());
             e.getView().setCursor(null);
             rebuild(p, s);
             return;
         }
 
-        if (!slotHasItem) {
-            e.setCancelled(true);
-            return;
-        }
+        // Cursor is empty. If they clicked an empty pool slot, do nothing.
+        // Pool entries always pack into slots 0..pool.size()-1, so the visual
+        // slot index IS the pool index.
+        if (slot >= pool.size()) return;
 
-        // Cursor empty, slot has an item — interaction with existing entry
-        // The slot index in the pool == slot (since we display 0..26)
-        if (slot >= pool.size()) {
-            e.setCancelled(true);
-            return;
-        }
         RewardEntry entry = pool.get(slot);
-        e.setCancelled(true);
 
         if (e.isShiftClick()) {
-            // Remove
+            // Shift-click an entry → return it to your inventory + remove
             pool.remove(slot);
             plugin.templates().save(s.template);
+            ItemStack original = entry.item().clone();
+            Map<Integer, ItemStack> overflow = p.getInventory().addItem(original);
+            for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
             rebuild(p, s);
-            p.sendMessage(color("&aRemoved reward."));
+            p.sendMessage(color("&aRemoved &7" + entry.item().getType() + "&a from pool."));
             return;
         }
         if (e.getClick() == ClickType.DROP || e.getClick() == ClickType.CONTROL_DROP) {
-            // No bound action — fall through to count edit on drop key for entries
             promptCountRange(p, s, entry);
             return;
         }
@@ -271,7 +282,7 @@ public final class RewardsGUI implements Listener {
             promptCountRange(p, s, entry);
             return;
         }
-        // Left-click → change chance
+        // Left-click → change chance %
         AnvilInput.open(plugin, p, "&fChance %", String.valueOf(entry.chancePercent()), text -> {
             try { entry.setChancePercent(Double.parseDouble(text)); plugin.templates().save(s.template); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
