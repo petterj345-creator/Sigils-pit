@@ -1,0 +1,43 @@
+# Maven build output
+target/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+bin/
+
+# VS Code
+.vscode/
+
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Logs / temp
+*.log
+hs_err_pid*
+
+# Local dev server (if you copy a paper jar in here to test)
+server/
+run/
+*.jar.local

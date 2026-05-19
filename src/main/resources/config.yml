@@ -1,0 +1,36 @@
+# =========================================
+# AbyssSigils — global config
+# =========================================
+
+socket:
+  # Number of small sockets (minor sigils only)
+  small-slots: 10
+  # Number of big sockets (major sigils only)
+  big-slots: 3
+  gui-title: "&5&lBook of Sigils"
+  # Give a Book of Sigils to new players on first join?
+  give-book-on-join: true
+
+dungeon:
+  # Where players return to when they leave a dungeon.
+  exit:
+    world: "world"
+    x: 0.5
+    y: 70.0
+    z: 0.5
+
+portal:
+  block-type: "END_PORTAL_FRAME"
+  world: "world"
+  x: 100
+  y: 70
+  z: 100
+
+upgrade-block:
+  block-type: "LODESTONE"
+
+upgrade:
+  xp-level-cost: 5
+  dust-cost: 3
+  substat-chance: 0.25
+  max-tier: 5

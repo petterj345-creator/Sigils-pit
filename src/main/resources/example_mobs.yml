@@ -1,0 +1,65 @@
+# Drop this into plugins/MythicMobs/Mobs/abyss_mobs.yml
+#
+# Drop syntax:
+#   abyss_sigil{id=ID;tier=N}            ← a specific sigil
+#   abyss_sigil{id=random;tier=N}        ← any random sigil
+#   abyss_sigil{id=random;rank=MINOR}    ← random minor sigil only
+#   abyss_sigil{id=random;rank=MAJOR}    ← random major sigil only
+#   abyss_sigil_dust                     ← Sigil Dust (upgrade material)
+
+AbyssSkeleton:
+  Type: WITHER_SKELETON
+  Display: '&8&lAbyss Skeleton'
+  Health: 40
+  Damage: 6
+  Options:
+    PreventOtherDrops: true
+  Drops:
+    - abyss_sigil_dust 1 0.30
+    - abyss_sigil{id=random;rank=MINOR;tier=1} 1 0.02
+
+AbyssZombie:
+  Type: ZOMBIE
+  Display: '&8&lAbyss Husk'
+  Health: 55
+  Damage: 8
+  Options:
+    PreventOtherDrops: true
+  Drops:
+    - abyss_sigil_dust 1 0.30
+    - abyss_sigil{id=random;rank=MINOR;tier=1} 1 0.02
+
+AbyssWitch:
+  Type: WITCH
+  Display: '&5&lAbyss Witch'
+  Health: 35
+  Damage: 5
+  Options:
+    PreventOtherDrops: true
+  Drops:
+    - abyss_sigil_dust 2 0.50
+    - abyss_sigil{id=random;rank=MINOR;tier=1} 1 0.05
+    - abyss_sigil{id=random;rank=MAJOR;tier=1} 1 0.01
+
+AbyssOverlord:
+  Type: WITHER_SKELETON
+  Display: '&4&lThe Overlord of the Abyss'
+  Health: 500
+  Damage: 18
+  MountedEntity: SKELETON_HORSE
+  Faction: AbyssBoss
+  Options:
+    PreventOtherDrops: true
+    MovementSpeed: 0.30
+    Despawn: false
+  Skills:
+    - message{m="&4The Overlord roars!"} @PIR{r=40} ~onSpawn
+  Drops:
+    # Always drops dust and a minor sigil
+    - abyss_sigil_dust 6 1.0
+    - abyss_sigil{id=random;rank=MINOR;tier=2} 1 1.0
+    # Guaranteed major sigil at higher rarity
+    - abyss_sigil{id=random;rank=MAJOR;tier=1} 1 0.5
+    # Very rare named drops
+    - abyss_sigil{id=annihilation;tier=2} 1 0.05
+    - abyss_sigil{id=prosperity;tier=2} 1 0.05

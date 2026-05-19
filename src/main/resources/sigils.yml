@@ -1,0 +1,156 @@
+# =========================================
+# Sigil definitions
+# =========================================
+#
+# Each sigil has:
+#   display:        shown name (& color codes)
+#   material:       icon material
+#   model-data:     optional custom model data int
+#   rank:           MINOR (small socket) or MAJOR (big socket)
+#   stat:           main stat granted (see list below)
+#   tier-values:    value at each tier; length = max tier
+#   substat-pool:   stats that can roll as sub-stats on upgrade
+#
+# Stat rules:
+#   - MINOR sigils can ONLY have stats that are not major-only.
+#   - MAJOR sigils can have any stat (including all the major-only ones).
+#
+# Supported stats:
+#   COMBAT (any rank):
+#     DAMAGE_PERCENT, DEFENSE_PERCENT, MAX_HEALTH,
+#     SPEED_PERCENT, CRIT_CHANCE
+#   COMBAT (MAJOR only):
+#     DAMAGE_PERCENT_BIG, LIFESTEAL_PERCENT, THORNS_PERCENT, EXTRA_CRIT_DAMAGE
+#   GATHERING (any rank):
+#     WOOD_MULTIPLIER, ORE_MULTIPLIER, CROP_MULTIPLIER
+#   GATHERING (MAJOR only):
+#     LUCKY_FIND, FORTUNE_AURA
+#   MMOITEMS (MAJOR only, requires MMOItems installed):
+#     MMO_ATTACK_DAMAGE, MMO_MAGIC_DAMAGE,
+#     MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER,
+#     MMO_PVE_DAMAGE, MMO_PVP_DAMAGE
+
+sigils:
+
+  # ----- MINOR sigils -----
+  wrath:
+    display: "&c&lSigil of Wrath"
+    material: REDSTONE
+    rank: MINOR
+    stat: DAMAGE_PERCENT
+    tier-values: [3, 5, 8, 11, 15]
+    substat-pool: [CRIT_CHANCE, SPEED_PERCENT]
+
+  bulwark:
+    display: "&9&lSigil of the Bulwark"
+    material: IRON_INGOT
+    rank: MINOR
+    stat: DEFENSE_PERCENT
+    tier-values: [3, 5, 7, 10, 14]
+    substat-pool: [MAX_HEALTH]
+
+  vitality:
+    display: "&a&lSigil of Vitality"
+    material: GHAST_TEAR
+    rank: MINOR
+    stat: MAX_HEALTH
+    tier-values: [4, 6, 10, 14, 20]
+    substat-pool: [DEFENSE_PERCENT]
+
+  swiftness:
+    display: "&e&lSigil of Swiftness"
+    material: FEATHER
+    rank: MINOR
+    stat: SPEED_PERCENT
+    tier-values: [3, 6, 9, 12, 16]
+    substat-pool: [CRIT_CHANCE]
+
+  edge:
+    display: "&6&lSigil of the Edge"
+    material: PRISMARINE_SHARD
+    rank: MINOR
+    stat: CRIT_CHANCE
+    tier-values: [3, 6, 10, 14, 20]
+    substat-pool: [DAMAGE_PERCENT]
+
+  woodsman:
+    display: "&2&lSigil of the Woodsman"
+    material: OAK_LOG
+    rank: MINOR
+    stat: WOOD_MULTIPLIER
+    tier-values: [10, 15, 25, 35, 50]
+    substat-pool: [SPEED_PERCENT]
+
+  miner:
+    display: "&b&lSigil of the Miner"
+    material: DIAMOND
+    rank: MINOR
+    stat: ORE_MULTIPLIER
+    tier-values: [8, 15, 22, 30, 45]
+    substat-pool: [SPEED_PERCENT]
+
+  farmer:
+    display: "&a&lSigil of Harvest"
+    material: WHEAT
+    rank: MINOR
+    stat: CROP_MULTIPLIER
+    tier-values: [15, 25, 40, 55, 75]
+    substat-pool: [MAX_HEALTH]
+
+  # ----- MAJOR sigils -----
+  annihilation:
+    display: "&4&lSigil of Annihilation"
+    material: NETHERITE_INGOT
+    rank: MAJOR
+    stat: DAMAGE_PERCENT_BIG
+    tier-values: [25, 35, 50, 70, 100]
+    substat-pool: [EXTRA_CRIT_DAMAGE, LIFESTEAL_PERCENT, MMO_ATTACK_DAMAGE]
+
+  leech:
+    display: "&4&lSigil of the Leech"
+    material: GHAST_TEAR
+    rank: MAJOR
+    stat: LIFESTEAL_PERCENT
+    tier-values: [5, 10, 15, 25, 40]
+    substat-pool: [MAX_HEALTH, DAMAGE_PERCENT_BIG]
+
+  retribution:
+    display: "&7&lSigil of Retribution"
+    material: SHIELD
+    rank: MAJOR
+    stat: THORNS_PERCENT
+    tier-values: [10, 20, 30, 45, 65]
+    substat-pool: [DEFENSE_PERCENT, MAX_HEALTH]
+
+  prosperity:
+    display: "&d&lSigil of Prosperity"
+    material: GOLD_INGOT
+    rank: MAJOR
+    stat: FORTUNE_AURA
+    tier-values: [10, 18, 28, 40, 60]
+    substat-pool: [LUCKY_FIND, WOOD_MULTIPLIER, ORE_MULTIPLIER]
+
+  fortune_hunter:
+    display: "&d&lSigil of the Fortune Hunter"
+    material: ENDER_EYE
+    rank: MAJOR
+    stat: LUCKY_FIND
+    tier-values: [5, 10, 18, 28, 45]
+    substat-pool: [FORTUNE_AURA, ORE_MULTIPLIER]
+
+  # ----- MAJOR sigils that lean into MMOItems -----
+  mage:
+    display: "&5&lSigil of the Mage"
+    material: BLAZE_ROD
+    rank: MAJOR
+    stat: MMO_MAGIC_DAMAGE
+    tier-values: [5, 10, 18, 30, 50]
+    substat-pool: [MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER]
+
+  warrior:
+    display: "&c&lSigil of the Warrior"
+    material: NETHERITE_SWORD
+    rank: MAJOR
+    stat: MMO_ATTACK_DAMAGE
+    tier-values: [4, 8, 14, 22, 35]
+    substat-pool: [MMO_PVE_DAMAGE, LIFESTEAL_PERCENT]

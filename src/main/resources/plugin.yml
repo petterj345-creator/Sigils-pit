@@ -1,0 +1,28 @@
+name: AbyssSigils
+version: '${project.version}'
+main: com.abyss.sigils.AbyssPlugin
+api-version: '1.21'
+authors: [you]
+description: Sigil socket system + The Abyss instanced dungeons
+depend: [MythicMobs]
+softdepend: [MMOItems, Vault]
+
+commands:
+  abyss:
+    description: Main Abyss command
+    usage: /abyss <sigils|givesigil|reload|enterabyss>
+    permission: abyss.use
+  sigils:
+    description: Open your sigil socket menu
+    permission: abyss.sigils.use
+
+permissions:
+  abyss.use:
+    default: true
+  abyss.sigils.use:
+    default: true
+  abyss.admin:
+    default: op
+    children:
+      abyss.givesigil: true
+      abyss.reload: true

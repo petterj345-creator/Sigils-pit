@@ -1,0 +1,439 @@
+package com.abyss.sigils.dungeon;
+
+import com.abyss.sigils.AbyssPlugin;
+import com.abyss.sigils.util.Text;
+import io.lumine.mythic.api.mobs.MythicMob;
+import io.lumine.mythic.bukkit.BukkitAdapter;
+import io.lumine.mythic.bukkit.MythicBukkit;
+import io.lumine.mythic.bukkit.events.MythicMobDeathEvent;
+import io.lumine.mythic.core.mobs.ActiveMob;
+import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+import java.util.logging.Level;
+import java.util.stream.Stream;
+
+/**
+ * Creates per-party instanced dungeons (cloned from a DungeonTemplate's world),
+ * runs the dungeon in either MAP or WAVES mode, shows progress on a boss bar,
+ * and spawns the upgrade block on boss death.
+ *
+ * Implements Listener so we can hook EntityDamageEvent to update boss HP on the bar.
+ */
+public final class DungeonManager implements Listener {
+
+    private final AbyssPlugin plugin;
+    private final Map<UUID, DungeonSession> sessions = new HashMap<>();
+    private final Map<UUID, UUID> playerToSession = new HashMap<>();
+    private final Map<UUID, List<BukkitTask>> sessionTasks = new HashMap<>();
+
+    public DungeonManager(AbyssPlugin plugin) { this.plugin = plugin; }
+
+    public DungeonSession sessionOf(Player p) {
+        UUID sid = playerToSession.get(p.getUniqueId());
+        return sid == null ? null : sessions.get(sid);
+    }
+
+    public DungeonSession sessionById(UUID id) { return sessions.get(id); }
+
+    /** Pick a random playable template and start. */
+    public void start(Collection<Player> party) {
+        DungeonTemplate template = plugin.templates().randomPlayable();
+        if (template == null) {
+            for (Player p : party) p.sendMessage(Text.color("&cNo playable Abyss templates are configured."));
+            return;
+        }
+        start(party, template);
+    }
+
+    public void start(Collection<Player> party, DungeonTemplate template) {
+        if (party.isEmpty()) return;
+        for (Player p : party) {
+            if (playerToSession.containsKey(p.getUniqueId())) {
+                p.sendMessage(Text.color("&cSomeone in your party is already in The Abyss."));
+                return;
+            }
+        }
+        String err = template.validationError();
+        if (err != null) {
+            for (Player p : party) p.sendMessage(Text.color("&cTemplate '" + template.name() + "' is invalid: " + err));
+            return;
+        }
+
+        World tplWorld = Bukkit.getWorld(template.worldName());
+        if (tplWorld == null) tplWorld = plugin.templates().loadWorld(template);
+        if (tplWorld == null) {
+            for (Player p : party) p.sendMessage(Text.color("&cTemplate world is missing on disk."));
+            return;
+        }
+
+        String instanceName = "abyss_inst_" + UUID.randomUUID().toString().substring(0, 8);
+        World instance;
+        try { instance = cloneWorld(tplWorld, instanceName); }
+        catch (IOException ex) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to clone template world", ex);
+            for (Player p : party) p.sendMessage(Text.color("&cCouldn't create your Abyss instance."));
+            return;
+        }
+
+        DungeonSession session = new DungeonSession(instance, party);
+        session.setTemplateName(template.name());
+        sessions.put(session.id(), session);
+        sessionTasks.put(session.id(), new ArrayList<>());
+
+        // Progress bar
+        ProgressBar bar = new ProgressBar("§5§lThe Abyss");
+        session.setProgressBar(bar);
+
+        Location spawn = bindToWorld(template.playerSpawn(), instance);
+        for (Player p : party) {
+            playerToSession.put(p.getUniqueId(), session.id());
+            p.teleport(spawn);
+            bar.addPlayer(p);
+            p.sendMessage(Text.color("&5&lThe Abyss &7welcomes you to &f" + template.name() + "&7."));
+        }
+
+        if (template.mode() == DungeonMode.MAP) {
+            session.setPhase(DungeonSession.Phase.TRASH);
+            bar.setKillProgress(0, template.mobsBeforeBoss());
+            startMapWaves(session, template);
+        } else {
+            session.setPhase(DungeonSession.Phase.WAVES);
+            startNextWave(session, template);
+        }
+        scheduleTimeout(session, template);
+    }
+
+    // ============================================================
+    // MAP mode
+    // ============================================================
+
+    private void startMapWaves(DungeonSession session, DungeonTemplate t) {
+        long ticks = t.waveIntervalSeconds() * 20L;
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
+                () -> spawnMapTick(session, t), 40L, ticks);
+        addTask(session, task);
+    }
+
+    private void spawnMapTick(DungeonSession session, DungeonTemplate t) {
+        if (session.phase() != DungeonSession.Phase.TRASH) return;
+        int canSpawn = Math.max(0, t.maxConcurrentMobs() - session.aliveMobs().size());
+        int toSpawn = Math.min(t.mobsPerWave(), canSpawn);
+        if (toSpawn == 0) return;
+        if (t.spawnPoints().isEmpty()) return;
+
+        Random rng = new Random();
+        for (int i = 0; i < toSpawn; i++) {
+            SpawnPoint sp = t.spawnPoints().get(rng.nextInt(t.spawnPoints().size()));
+            // Per-spawn-point mob list, fallback to template default
+            List<MobEntry> pool = sp.mobs().isEmpty() ? t.defaultTrashMobs() : sp.mobs();
+            if (pool.isEmpty()) continue;
+            MobEntry e = pool.get(rng.nextInt(pool.size()));
+            Location loc = sp.boundTo(session.world());
+            spawnMythic(e.mythicId(), loc, e.level())
+                    .ifPresent(ent -> session.aliveMobs().add(ent.getUniqueId()));
+        }
+    }
+
+    // ============================================================
+    // WAVES mode
+    // ============================================================
+
+    private void startNextWave(DungeonSession session, DungeonTemplate t) {
+        int nextIdx = session.currentWaveIndex() + 1;
+        if (nextIdx >= t.waves().size()) {
+            triggerBoss(session, t);
+            return;
+        }
+        Wave w = t.waves().get(nextIdx);
+        int totalMobs = w.totalMobs();
+        session.setCurrentWave(nextIdx, totalMobs);
+        session.progressBar().setWaveProgress(nextIdx + 1, t.waves().size(), 0, totalMobs);
+
+        broadcast(session, "&5&lWave " + (nextIdx + 1) + "/" + t.waves().size());
+
+        // Spawn all wave mobs, distributed across spawn points
+        Random rng = new Random();
+        List<SpawnPoint> points = t.spawnPoints();
+        for (MobEntry e : w.mobs()) {
+            for (int i = 0; i < e.count(); i++) {
+                SpawnPoint sp = points.get(rng.nextInt(points.size()));
+                spawnMythic(e.mythicId(), sp.boundTo(session.world()), e.level())
+                        .ifPresent(ent -> session.aliveMobs().add(ent.getUniqueId()));
+            }
+        }
+    }
+
+    private void onWaveMobKilled(DungeonSession session, DungeonTemplate t) {
+        session.incrementWaveKilled();
+        session.progressBar().setWaveProgress(
+                session.currentWaveIndex() + 1, t.waves().size(),
+                session.currentWaveKilled(), session.currentWaveTotal());
+        if (session.isWaveCleared()) {
+            Wave w = t.waves().get(session.currentWaveIndex());
+            int delay = w.delayAfterSeconds();
+            broadcast(session, "&aWave cleared! Next in " + delay + "s...");
+            BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin,
+                    () -> startNextWave(session, t), delay * 20L);
+            addTask(session, task);
+        }
+    }
+
+    // ============================================================
+    // Shared
+    // ============================================================
+
+    private Optional<Entity> spawnMythic(String internalName, Location loc, int level) {
+        try {
+            Optional<MythicMob> opt = MythicBukkit.inst().getMobManager().getMythicMob(internalName);
+            if (opt.isEmpty()) {
+                plugin.getLogger().warning("Unknown MythicMob: " + internalName);
+                return Optional.empty();
+            }
+            ActiveMob am = opt.get().spawn(BukkitAdapter.adapt(loc), level);
+            return Optional.of(am.getEntity().getBukkitEntity());
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "Failed to spawn MythicMob " + internalName, t);
+            return Optional.empty();
+        }
+    }
+
+    public void handleMythicMobDeath(MythicMobDeathEvent e) {
+        Entity ent = e.getEntity();
+        if (ent == null) return;
+        World w = ent.getWorld();
+        DungeonSession session = sessionByWorld(w);
+        if (session == null) return;
+
+        UUID entId = ent.getUniqueId();
+        if (entId.equals(session.bossEntityId())) {
+            onBossDeath(session, ent.getLocation());
+            return;
+        }
+        if (!session.aliveMobs().remove(entId)) return;
+
+        DungeonTemplate t = plugin.templates().get(session.templateName());
+        if (t == null) return;
+
+        if (t.mode() == DungeonMode.MAP) {
+            session.incrementKills();
+            int threshold = t.mobsBeforeBoss();
+            session.progressBar().setKillProgress(session.kills(), threshold);
+            if (session.kills() >= threshold && session.phase() == DungeonSession.Phase.TRASH) {
+                triggerBoss(session, t);
+            }
+        } else if (t.mode() == DungeonMode.WAVES && session.phase() == DungeonSession.Phase.WAVES) {
+            onWaveMobKilled(session, t);
+        }
+    }
+
+    /** Listen to damage events to keep the boss bar HP fraction in sync. */
+    @EventHandler
+    public void onDamage(EntityDamageEvent e) {
+        if (!(e.getEntity() instanceof LivingEntity le)) return;
+        DungeonSession session = sessionByWorld(le.getWorld());
+        if (session == null) return;
+        if (session.bossEntityId() == null || !le.getUniqueId().equals(session.bossEntityId())) return;
+
+        // Use the post-damage HP (run next tick)
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (le.isDead()) return;
+            double max;
+            try { max = le.getAttribute(org.bukkit.Registry.ATTRIBUTE.get(
+                    org.bukkit.NamespacedKey.minecraft("max_health"))).getValue(); }
+            catch (Throwable ex) { max = 20; }
+            session.progressBar().setBossHealth(le.getHealth(), max);
+        });
+    }
+
+    private DungeonSession sessionByWorld(World w) {
+        for (DungeonSession s : sessions.values()) if (s.world().equals(w)) return s;
+        return null;
+    }
+
+    private void triggerBoss(DungeonSession session, DungeonTemplate t) {
+        session.setPhase(DungeonSession.Phase.BOSS);
+        broadcast(session, "&4&l" + t.bossMobId().toUpperCase() + " AWAKENS");
+
+        // Kill any leftover trash
+        for (UUID id : new HashSet<>(session.aliveMobs())) {
+            Entity ent = Bukkit.getEntity(id);
+            if (ent != null) ent.remove();
+        }
+        session.aliveMobs().clear();
+
+        Location loc = bindToWorld(t.bossSpawn(), session.world());
+        spawnMythic(t.bossMobId(), loc, t.bossLevel()).ifPresent(e -> {
+            session.setBossEntityId(e.getUniqueId());
+            session.progressBar().setBossPhase(t.bossMobId());
+            if (e instanceof LivingEntity le) {
+                double max;
+                try { max = le.getAttribute(org.bukkit.Registry.ATTRIBUTE.get(
+                        org.bukkit.NamespacedKey.minecraft("max_health"))).getValue(); }
+                catch (Throwable ex) { max = le.getHealth(); }
+                session.progressBar().setBossHealth(le.getHealth(), max);
+            }
+        });
+    }
+
+    private void onBossDeath(DungeonSession session, Location at) {
+        session.setPhase(DungeonSession.Phase.COMPLETE);
+        broadcast(session, "&6&lThe boss falls. The forge awakens.");
+
+        Block block = at.clone().add(0, 1, 0).getBlock();
+        Material upgradeMat = Material.matchMaterial(
+                plugin.getConfig().getString("upgrade-block.block-type", "LODESTONE"));
+        if (upgradeMat == null) upgradeMat = Material.LODESTONE;
+        block.setType(upgradeMat);
+        session.setUpgradeBlock(block.getLocation());
+
+        // Spawn the reward chest next to the upgrade block
+        plugin.rewardChests().placeChest(session, at);
+
+        session.progressBar().setBossHealth(0, 1);
+        broadcast(session, "&7An upgrade altar has appeared. Right-click it to forge.");
+        broadcast(session, "&7Type &f/abyss leave &7when ready to exit.");
+    }
+
+    private void scheduleTimeout(DungeonSession session, DungeonTemplate t) {
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (session.phase() != DungeonSession.Phase.COMPLETE) {
+                session.setPhase(DungeonSession.Phase.FAILED);
+                broadcast(session, "&c&lTime has run out.");
+                endSession(session);
+            }
+        }, t.timeLimitMinutes() * 60L * 20L);
+        addTask(session, task);
+    }
+
+    public void leave(Player p) {
+        DungeonSession s = sessionOf(p);
+        if (s == null) { p.sendMessage(Text.color("&7You're not in The Abyss.")); return; }
+        if (s.progressBar() != null) s.progressBar().removePlayer(p);
+        teleportOut(p);
+        playerToSession.remove(p.getUniqueId());
+        s.players().remove(p.getUniqueId());
+        if (s.players().isEmpty()) endSession(s);
+    }
+
+    public void endSession(DungeonSession s) {
+        List<BukkitTask> tasks = sessionTasks.remove(s.id());
+        if (tasks != null) for (BukkitTask t : tasks) t.cancel();
+
+        for (UUID uid : new HashSet<>(s.players())) {
+            Player p = Bukkit.getPlayer(uid);
+            if (p != null) teleportOut(p);
+            playerToSession.remove(uid);
+        }
+        if (s.progressBar() != null) s.progressBar().removeAll();
+        plugin.rewardChests().cleanupSession(s.id());
+        sessions.remove(s.id());
+
+        World w = s.world();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            String name = w.getName();
+            if (Bukkit.unloadWorld(w, false)) {
+                try { deleteRecursive(w.getWorldFolder().toPath()); }
+                catch (IOException e) {
+                    plugin.getLogger().warning("Couldn't delete instance " + name + ": " + e.getMessage());
+                }
+            }
+        }, 40L);
+    }
+
+    private void addTask(DungeonSession s, BukkitTask t) {
+        sessionTasks.computeIfAbsent(s.id(), k -> new ArrayList<>()).add(t);
+    }
+
+    private void teleportOut(Player p) {
+        ConfigurationSection ex = plugin.getConfig().getConfigurationSection("dungeon.exit");
+        World w = ex == null ? null : Bukkit.getWorld(ex.getString("world", "world"));
+        if (w == null) w = Bukkit.getWorlds().get(0);
+        double x = ex == null ? 0.5 : ex.getDouble("x", 0.5);
+        double y = ex == null ? 80  : ex.getDouble("y", 80);
+        double z = ex == null ? 0.5 : ex.getDouble("z", 0.5);
+        p.teleport(new Location(w, x, y, z));
+    }
+
+    private void broadcast(DungeonSession s, String msg) {
+        for (UUID id : s.players()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) p.sendMessage(Text.color(msg));
+        }
+    }
+
+    public Collection<DungeonSession> sessions() { return sessions.values(); }
+
+    public void shutdown() {
+        for (DungeonSession s : new ArrayList<>(sessions.values())) endSession(s);
+    }
+
+    private static Location bindToWorld(Location l, World w) {
+        if (l == null) return null;
+        return new Location(w, l.getX(), l.getY(), l.getZ(), l.getYaw(), l.getPitch());
+    }
+
+    // ----- world clone -----
+
+    private World cloneWorld(World template, String newName) throws IOException {
+        template.save();
+        File src = template.getWorldFolder();
+        File dst = new File(Bukkit.getWorldContainer(), newName);
+        if (dst.exists()) deleteRecursive(dst.toPath());
+        copyDir(src.toPath(), dst.toPath());
+        new File(dst, "uid.dat").delete();
+        new File(dst, "session.lock").delete();
+
+        WorldCreator wc = new WorldCreator(newName);
+        wc.environment(template.getEnvironment());
+        wc.seed(template.getSeed());
+        World w = Bukkit.createWorld(wc);
+        if (w != null) {
+            w.setAutoSave(false);
+            w.setDifficulty(Difficulty.HARD);
+            w.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
+            w.setGameRule(GameRule.DO_MOB_SPAWNING, false);
+            w.setGameRule(GameRule.KEEP_INVENTORY, true);
+        }
+        return w;
+    }
+
+    private static void copyDir(Path src, Path dst) throws IOException {
+        try (Stream<Path> stream = Files.walk(src)) {
+            stream.forEach(p -> {
+                try {
+                    Path rel = src.relativize(p);
+                    String name = rel.getFileName() == null ? "" : rel.getFileName().toString();
+                    if (name.equals("session.lock") || name.equals("uid.dat")) return;
+                    Path target = dst.resolve(rel);
+                    if (Files.isDirectory(p)) Files.createDirectories(target);
+                    else {
+                        Files.createDirectories(target.getParent());
+                        Files.copy(p, target, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException ex) { throw new RuntimeException(ex); }
+            });
+        }
+    }
+
+    private static void deleteRecursive(Path p) throws IOException {
+        if (!Files.exists(p)) return;
+        try (Stream<Path> stream = Files.walk(p)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(f -> {
+                try { Files.delete(f); } catch (IOException ignored) {}
+            });
+        }
+    }
+}
