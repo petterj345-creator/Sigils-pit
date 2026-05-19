@@ -58,6 +58,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
             case "setportal"  -> handleSetPortal(sender);
+            case "removeportal","unsetportal" -> handleRemovePortal(sender);
             case "reload"     -> {
                 if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return true; }
                 plugin.reloadConfig();
@@ -331,6 +332,43 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         p.sendMessage(Text.color("&7Right-click the block to enter The Abyss."));
     }
 
+    /**
+     * /abyss removeportal — clears the portal configuration so no block in
+     * the world is treated as a portal. Also despawns the floating hologram
+     * and stops the particle effect. The world's block is left untouched
+     * (we never owned it; admins can break it themselves if they want).
+     */
+    private void handleRemovePortal(CommandSender sender) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (!plugin.getConfig().isSet("portal.x")) {
+            sender.sendMessage(Text.color("&7No portal is currently configured."));
+            return;
+        }
+        // Capture old coords for the confirmation message
+        String oldWorld = plugin.getConfig().getString("portal.world", "?");
+        int ox = plugin.getConfig().getInt("portal.x");
+        int oy = plugin.getConfig().getInt("portal.y");
+        int oz = plugin.getConfig().getInt("portal.z");
+
+        plugin.getConfig().set("portal.x", null);
+        plugin.getConfig().set("portal.y", null);
+        plugin.getConfig().set("portal.z", null);
+        // Keep portal.world and portal.block-type so the keys still exist as
+        // defaults if the admin later runs /abyss setportal. Wipe them too if
+        // you want a totally clean slate.
+        plugin.saveConfig();
+
+        // Refresh the hologram system — with no coords set, it removes its
+        // entities from all worlds and shuts down its particle task.
+        if (plugin.portalHologram() != null) {
+            plugin.portalHologram().refreshFromConfig();
+        }
+
+        sender.sendMessage(Text.color("&aPortal removed &7(was at &f"
+                + ox + ", " + oy + ", " + oz + " &7in &f" + oldWorld + "&7)."));
+        sender.sendMessage(Text.color("&8The block itself wasn't broken — remove it manually if you want."));
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Text.color("&5&lAbyss commands:"));
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
@@ -348,6 +386,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.color("  &f/abyss sigil list|create [id]|edit <id> &8— sigil creator"));
             sender.sendMessage(Text.color("  &f/abyss mythicdrops &8— add sigil drops to mythic mobs"));
             sender.sendMessage(Text.color("  &f/abyss setportal &8— set portal block to the one you're looking at"));
+            sender.sendMessage(Text.color("  &f/abyss removeportal &8— clear the portal so no block opens a dungeon"));
             sender.sendMessage(Text.color("  &f/abyss reload"));
         }
     }
@@ -358,7 +397,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             "help","sigils","leave","enterabyss",
             "create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","reload",
-            "sigil","mythicdrops","markers","setportal"
+            "sigil","mythicdrops","markers","setportal","removeportal"
     );
 
     @Override

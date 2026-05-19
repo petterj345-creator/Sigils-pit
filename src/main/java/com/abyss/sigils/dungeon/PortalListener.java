@@ -25,11 +25,22 @@ public final class PortalListener implements Listener {
     private final AbyssPlugin plugin;
     public PortalListener(AbyssPlugin plugin) { this.plugin = plugin; }
 
+    /**
+     * Anti-spam debounce. Right-click events on a block can fire twice per
+     * physical click on some Paper builds (once for main hand, once for off
+     * hand), and players can also click rapidly. We dedupe by tracking the
+     * last click timestamp per player and ignoring anything within 500ms.
+     */
+    private final java.util.Map<java.util.UUID, Long> lastPortalClick = new java.util.HashMap<>();
+
     @EventHandler
     public void onClick(PlayerInteractEvent e) {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block b = e.getClickedBlock();
         if (b == null) return;
+
+        // Only respond to the main hand to avoid the double-fire (main + off).
+        if (e.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
 
         // Upgrade block first (takes priority when player is inside a dungeon)
         if (handleUpgrade(e, b)) return;
@@ -40,50 +51,26 @@ public final class PortalListener implements Listener {
         e.setCancelled(true);
 
         Player p = e.getPlayer();
-        List<Player> party;
-        if (p.isSneaking()) {
-            party = p.getWorld().getNearbyEntitiesByType(Player.class, p.getLocation(), 8)
-                    .stream().toList();
-        } else {
-            party = List.of(p);
-        }
 
-        // If the player is holding an Abyss Map, enter THAT template and consume one.
-        // Look in the hand actually used (main or off) to interact with the portal.
-        org.bukkit.inventory.ItemStack heldMap = mapInHand(e);
-        if (heldMap != null) {
-            DungeonTemplate mapTemplate = DungeonMap.templateOf(plugin, heldMap);
-            if (mapTemplate == null) {
-                p.sendMessage(Text.color("&cThis Abyss Map references a dungeon that no longer exists."));
-                return;
-            }
-            // Consume one map BEFORE starting — if start() fails, we'll restore it.
-            int beforeAmount = heldMap.getAmount();
-            heldMap.setAmount(beforeAmount - 1);
-            p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + mapTemplate.name() + ")"));
-            plugin.dungeonManager().start(party, mapTemplate);
-            return;
-        }
+        // Debounce: 500ms between portal clicks. Without this, even with the
+        // GUI in front, very fast/double-click patterns could spawn the GUI
+        // twice — and players reported "boss bars all over the place" which
+        // was the direct-start path before this GUI existed.
+        long now = System.currentTimeMillis();
+        Long last = lastPortalClick.get(p.getUniqueId());
+        if (last != null && now - last < 500) return;
+        lastPortalClick.put(p.getUniqueId(), now);
 
-        // No map — legacy behaviour: random playable template.
-        p.sendMessage(Text.color("&5&lThe Abyss &7is opening..."));
-        plugin.dungeonManager().start(party);
-    }
-
-    /**
-     * Return the Abyss Map ItemStack the player used to click the portal, if
-     * any. Checks main hand first, then off hand. We modify the returned
-     * ItemStack directly to decrement its count.
-     */
-    private org.bukkit.inventory.ItemStack mapInHand(PlayerInteractEvent e) {
-        org.bukkit.inventory.ItemStack main = e.getPlayer().getInventory().getItemInMainHand();
-        if (DungeonMap.isMap(main)) return main;
-        org.bukkit.inventory.ItemStack off = e.getPlayer().getInventory().getItemInOffHand();
-        if (DungeonMap.isMap(off)) return off;
-        return null;
+        // Hand off to the confirmation GUI. The GUI handles map slot, broken
+        // maps, party-with-sneak, and the actual start() call.
+        plugin.portalEntryGUI().openFor(p);
     }
 
     private boolean isPortalBlock(Block b) {
+        // No portal configured → nothing matches. Without this check, getInt
+        // returns 0 for unset keys and players could trigger entry by clicking
+        // any matching block at world coord (0,0,0).
+        if (!plugin.getConfig().isSet("portal.x")) return false;
         Material mat = Material.matchMaterial(plugin.getConfig().getString("portal.block-type", "END_PORTAL_FRAME"));
         if (mat == null || b.getType() != mat) return false;
         String w = plugin.getConfig().getString("portal.world", "world");

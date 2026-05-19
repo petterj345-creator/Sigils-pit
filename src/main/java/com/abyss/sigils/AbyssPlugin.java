@@ -48,6 +48,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private UpgradeGUI upgradeGUI;
     private com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener;
     private com.abyss.sigils.dungeon.PortalHologram portalHologram;
+    private com.abyss.sigils.dungeon.PortalEntryGUI portalEntryGUI;
     private MythicHook mythicHook;
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private EditorWandListener editorWandListener;
@@ -102,6 +103,9 @@ public final class AbyssPlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(portalHologram, this);
         // Try to spawn it now; if chunks aren't loaded yet, onChunkLoad picks it up.
         portalHologram.refreshFromConfig();
+
+        portalEntryGUI = new com.abyss.sigils.dungeon.PortalEntryGUI(this);
+        Bukkit.getPluginManager().registerEvents(portalEntryGUI, this);
 
         EditorGUI.register(this);
         AnvilInput.register(this);
@@ -163,6 +167,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public UpgradeGUI upgradeGUI() { return upgradeGUI; }
     public com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener() { return mapRefreshListener; }
     public com.abyss.sigils.dungeon.PortalHologram portalHologram() { return portalHologram; }
+    public com.abyss.sigils.dungeon.PortalEntryGUI portalEntryGUI() { return portalEntryGUI; }
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
