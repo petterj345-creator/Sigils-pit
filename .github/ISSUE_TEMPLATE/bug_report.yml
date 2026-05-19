@@ -1,0 +1,44 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Clear, short description.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. /abyss create test
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: paper
+    attributes:
+      label: Paper version
+      placeholder: 1.21.4
+    validations:
+      required: true
+  - type: input
+    id: mythic
+    attributes:
+      label: MythicMobs version
+      placeholder: 5.6.1
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server console / error log
+      description: Paste any relevant stack traces from the console.
+      render: shell
+  - type: textarea
+    id: plugins
+    attributes:
+      label: Other plugins installed
+      description: Output of /plugins is fine.
