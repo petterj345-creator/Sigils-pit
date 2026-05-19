@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.abyss</groupId>
@@ -22,18 +25,13 @@
             <id>mythiccraft</id>
             <url>https://mvn.lumine.io/repository/maven-public/</url>
         </repository>
-        <repository>
-            <id>nexus</id>
-            <url>https://nexus.phoenixdevt.fr/repository/maven-public/</url>
-        </repository>
-        <repository>
-            <id>jitpack</id>
-            <url>https://jitpack.io</url>
-        </repository>
     </repositories>
 
     <dependencies>
-        <!-- Paper API -->
+        <!--
+            Paper API. Provides Bukkit + Paper extensions.
+            Provided scope: the server gives us this at runtime.
+        -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -41,7 +39,10 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- MythicMobs -->
+        <!--
+            MythicMobs distribution jar (API + impl).
+            We use ActiveMob from .core, so we need the dist jar (not just api).
+        -->
         <dependency>
             <groupId>io.lumine</groupId>
             <artifactId>Mythic-Dist</artifactId>
@@ -49,13 +50,26 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- MMOItems (optional integration) -->
-        <dependency>
-            <groupId>net.Indyuce</groupId>
-            <artifactId>MMOItems-API</artifactId>
-            <version>6.10-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
+        <!--
+          MMOItems is intentionally NOT a compile-time dependency. The
+          MMOItemsHook uses Class.forName() reflection so the plugin compiles
+          and runs without MMOItems being installed. If you want to develop
+          against the MMOItems API directly, uncomment this and add the
+          phoenixdevt repository above:
+
+            <repository>
+              <id>phoenixdevt</id>
+              <url>https://nexus.phoenixdevt.fr/repository/maven-public/</url>
+            </repository>
+
+            <dependency>
+              <groupId>net.Indyuce</groupId>
+              <artifactId>MMOItems-API</artifactId>
+              <version>6.9.4-SNAPSHOT</version>
+              <scope>provided</scope>
+              <optional>true</optional>
+            </dependency>
+        -->
     </dependencies>
 
     <build>
@@ -69,6 +83,10 @@
                     <execution>
                         <phase>package</phase>
                         <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

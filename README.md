@@ -1,8 +1,26 @@
 # AbyssSigils
 
+[![Build](https://github.com/YOUR_USER/AbyssSigils/actions/workflows/build.yml/badge.svg)](https://github.com/YOUR_USER/AbyssSigils/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Paper 1.21.x](https://img.shields.io/badge/paper-1.21.x-orange.svg)](https://papermc.io)
+
 Diablo-style sigil sockets + MythicDungeons-style per-party instanced dungeons (The Abyss) for Paper 1.21.x with MythicMobs.
 
 The dungeon editor is a chest-GUI with anvil inputs — like MythicDungeons. You build a template world, click slots in the editor to set spawn points, mob lists, waves, thresholds, etc. Templates clone to a fresh instance world on entry and that instance is deleted when the party leaves.
+
+## Install
+
+**From a release:** Download `AbyssSigils-X.Y.Z.jar` from the [Releases page](../../releases), drop it in `plugins/`, restart.
+
+**From source:**
+```bash
+git clone https://github.com/YOUR_USER/AbyssSigils.git
+cd AbyssSigils
+mvn clean package
+# Resulting jar: target/AbyssSigils-1.0.0.jar
+```
+
+Replace `YOUR_USER` in the badges and links above with your actual GitHub username/org once you've forked or pushed.
 
 ## Requires
 
