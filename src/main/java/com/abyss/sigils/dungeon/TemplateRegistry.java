@@ -2,8 +2,6 @@ package com.abyss.sigils.dungeon;
 
 import com.abyss.sigils.AbyssPlugin;
 import org.bukkit.*;
-import org.bukkit.generator.ChunkGenerator;
-import org.bukkit.generator.WorldInfo;
 
 import java.io.File;
 import java.io.IOException;
@@ -90,18 +88,13 @@ public final class TemplateRegistry {
             WorldCreator wc = new WorldCreator(worldName);
             wc.environment(World.Environment.NORMAL);
             wc.type(WorldType.FLAT);
-            wc.generator(new VoidGenerator());
+            // Default Bukkit flat = grass/dirt/stone layers — great for building dungeons.
+            // (No VoidGenerator override: that was producing an empty void.)
             wc.generateStructures(false);
             World w = Bukkit.createWorld(wc);
             if (w != null) {
-                // Place a small starter platform so the admin doesn't fall into the void
-                int y = 64;
-                for (int x = -2; x <= 2; x++) {
-                    for (int z = -2; z <= 2; z++) {
-                        w.getBlockAt(x, y, z).setType(Material.STONE);
-                    }
-                }
-                w.setSpawnLocation(0, y + 1, 0);
+                int spawnY = w.getHighestBlockYAt(0, 0) + 1;
+                w.setSpawnLocation(0, spawnY, 0);
                 w.setAutoSave(true);
                 w.setDifficulty(Difficulty.PEACEFUL);
                 w.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
@@ -125,8 +118,8 @@ public final class TemplateRegistry {
             return null;
         }
         WorldCreator wc = new WorldCreator(t.worldName());
-        // Use the same void generator so it can be re-loaded without regenerating
-        wc.generator(new VoidGenerator());
+        wc.environment(World.Environment.NORMAL);
+        wc.type(WorldType.FLAT);
         return Bukkit.createWorld(wc);
     }
 
@@ -153,6 +146,13 @@ public final class TemplateRegistry {
         catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "Couldn't save template " + t.name(), e);
         }
+        // If markers are currently shown in this template world, refresh them
+        // to reflect spawn-point changes.
+        if (plugin.editorMarkers() != null
+                && Bukkit.getWorld(t.worldName()) != null
+                && !Bukkit.getWorld(t.worldName()).getPlayers().isEmpty()) {
+            plugin.editorMarkers().refreshFor(t);
+        }
     }
 
     // -----
@@ -163,20 +163,5 @@ public final class TemplateRegistry {
             if (kids != null) for (File k : kids) deleteRecursive(k);
         }
         f.delete();
-    }
-
-    /** Empty void world generator so create() makes a fully empty world. */
-    private static class VoidGenerator extends ChunkGenerator {
-        @Override
-        public void generateNoise(WorldInfo worldInfo, Random random, int chunkX, int chunkZ, ChunkData chunkData) {
-            // intentionally empty — void
-        }
-        @Override public boolean shouldGenerateNoise()     { return false; }
-        @Override public boolean shouldGenerateSurface()   { return false; }
-        @Override public boolean shouldGenerateBedrock()   { return false; }
-        @Override public boolean shouldGenerateCaves()     { return false; }
-        @Override public boolean shouldGenerateDecorations(){ return false; }
-        @Override public boolean shouldGenerateMobs()      { return false; }
-        @Override public boolean shouldGenerateStructures(){ return false; }
     }
 }

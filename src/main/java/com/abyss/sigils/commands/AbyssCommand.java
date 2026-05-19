@@ -55,6 +55,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "givebook"   -> handleGiveBook(sender, args);
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
+            case "markers"    -> handleMarkers(sender);
             case "reload"     -> {
                 if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return true; }
                 plugin.reloadConfig();
@@ -81,7 +82,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             p.sendMessage(Text.color("&aCreated template &f" + name + "&a. Opening editor..."));
             World w = Bukkit.getWorld(t.worldName());
             if (w != null) {
-                p.teleport(new Location(w, 0.5, 66, 0.5));
+                int y = w.getHighestBlockYAt(0, 0) + 1;
+                p.teleport(new Location(w, 0.5, y, 0.5));
                 p.setGameMode(GameMode.CREATIVE);
                 plugin.editorWandListener().giveWand(p);
             }
@@ -101,7 +103,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         // Load world + tp + give wand + open editor
         org.bukkit.World w = plugin.templates().loadWorld(t);
         if (w == null) { p.sendMessage(Text.color("&cTemplate world missing on disk.")); return; }
-        p.teleport(new org.bukkit.Location(w, 0.5, 66, 0.5));
+        int y = w.getHighestBlockYAt(0, 0) + 1;
+        p.teleport(new org.bukkit.Location(w, 0.5, y, 0.5));
         plugin.editorWandListener().giveWand(p);
         com.abyss.sigils.gui.TemplateEditorGUI.openFor(plugin, p, t);
     }

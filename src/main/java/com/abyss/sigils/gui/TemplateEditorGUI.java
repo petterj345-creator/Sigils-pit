@@ -113,7 +113,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&7ID: &f" + template.bossMobId(),
                 "&7Level: &f" + template.bossLevel(),
                 "",
-                "&eLeft-click &7to change ID",
+                "&eLeft-click &7to pick mob",
                 "&eRight-click &7to change level"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
@@ -124,9 +124,16 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                         open(p);
                     });
                 } else {
-                    AnvilInput.open(plugin, p, "&fBoss MythicMob ID", template.bossMobId(), s -> {
-                        template.setBossMobId(s.trim()); save(); open(p);
-                    });
+                    // Use the picker. The count from MobConfigGUI is ignored
+                    // for boss (always 1), but we re-use level if the user set one.
+                    MobPickerGUI.openFor(plugin, p, picked -> {
+                        if (picked != null) {
+                            template.setBossMobId(picked.mythicId());
+                            template.setBossLevel(picked.level());
+                            save();
+                        }
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
+                    }, () -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p)));
                 }
             });
 
@@ -228,7 +235,8 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 World w = plugin.templates().loadWorld(template);
                 if (w == null) { p.sendMessage(color("&cWorld is missing on disk!")); return; }
                 p.closeInventory();
-                p.teleport(new Location(w, 0.5, 66, 0.5));
+                int y = w.getHighestBlockYAt(0, 0) + 1;
+                p.teleport(new Location(w, 0.5, y, 0.5));
                 p.setGameMode(GameMode.CREATIVE);
                 p.sendMessage(color("&aTeleported into &f" + template.name() + "&a."));
             });
@@ -250,6 +258,37 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 err == null ? "&a&l✓ Ready to play" : "&c&l✗ Not playable",
                 err == null ? "&7All required fields are set." : "&c" + err),
             null);
+
+        // 50 Lives
+        set(50, icon(Material.TOTEM_OF_UNDYING, "&c&l❤ Lives Per Player",
+                "&7Currently: &f" + (template.lives() == 0 ? "&aunlimited" : template.lives()),
+                "&7Players lose one on death.",
+                "&7Set to 0 for unlimited (just respawn).",
+                "",
+                "&eClick &7to change"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                com.abyss.sigils.gui.AnvilInput.open(plugin, p,
+                        "&fLives (0 = unlimited)",
+                        String.valueOf(template.lives()),
+                        text -> {
+                            try { template.setLives(Integer.parseInt(text)); save(); }
+                            catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                        });
+            });
+
+        // 51 Keep Inventory toggle
+        set(51, icon(template.keepInventory() ? Material.LIME_DYE : Material.GRAY_DYE,
+                "&fKeep Inventory: " + (template.keepInventory() ? "&aON" : "&cOFF"),
+                "&7Players keep their items when they die.",
+                "",
+                "&eClick &7to toggle"),
+            e -> {
+                template.setKeepInventory(!template.keepInventory());
+                save();
+                refresh((Player) e.getWhoClicked());
+            });
 
         // 53 Test
         set(53, icon(Material.NETHER_STAR,

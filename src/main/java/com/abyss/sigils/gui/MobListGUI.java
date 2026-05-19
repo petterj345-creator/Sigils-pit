@@ -77,17 +77,20 @@ public final class MobListGUI extends EditorGUI.Holder {
             slot++;
         }
 
-        // Add new entry
+        // Add new entry — open the picker
         set(49, icon(Material.EMERALD_BLOCK,
                 "&a&lAdd Mob Entry",
-                "&7Adds a new entry to this list."),
+                "&7Browse your MythicMobs",
+                "&7and pick one with a search."),
             e -> {
                 Player p = (Player) e.getWhoClicked();
-                AnvilInput.open(plugin, p, "&fMythicMob ID", "MobId", id -> {
-                    list.add(new MobEntry(id.trim(), 1, 1));
-                    plugin.templates().save(template);
-                    open(p);
-                });
+                MobPickerGUI.openFor(plugin, p, picked -> {
+                    if (picked != null) {
+                        list.add(picked);
+                        plugin.templates().save(template);
+                    }
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
+                }, () -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p)));
             });
 
         // Back
@@ -121,9 +124,14 @@ public final class MobListGUI extends EditorGUI.Holder {
             });
             return;
         }
-        // Left-click → change ID
-        AnvilInput.open(plugin, p, "&fMythicMob ID", entry.mythicId(), id -> {
-            entry.setMythicId(id.trim()); plugin.templates().save(template); open(p);
-        });
+        // Left-click → change ID via picker
+        MobPickerGUI.openFor(plugin, p, picked -> {
+            if (picked != null) {
+                entry.setMythicId(picked.mythicId());
+                // keep existing count + level (user said "change ID" not "reconfigure")
+                plugin.templates().save(template);
+            }
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
+        }, () -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p)));
     }
 }

@@ -16,6 +16,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -80,18 +82,36 @@ public final class DungeonManager implements Listener {
         }
 
         String instanceName = "abyss_inst_" + UUID.randomUUID().toString().substring(0, 8);
+
+        // Remove editor markers from the template world BEFORE cloning, so the
+        // clone doesn't have them. We'll re-spawn them next tick if admins are
+        // still inside.
+        if (plugin.editorMarkers() != null) plugin.editorMarkers().clearFor(tplWorld);
+
         World instance;
         try { instance = cloneWorld(tplWorld, instanceName); }
         catch (IOException ex) {
             plugin.getLogger().log(Level.SEVERE, "Failed to clone template world", ex);
             for (Player p : party) p.sendMessage(Text.color("&cCouldn't create your Abyss instance."));
+            // Restore markers in template world
+            if (plugin.editorMarkers() != null) plugin.editorMarkers().refreshFor(template);
             return;
         }
+
+        // Re-spawn markers in the template world so admins editing still see them.
+        if (plugin.editorMarkers() != null) plugin.editorMarkers().refreshFor(template);
+
+        // Also defensively strip from the cloned world (in case markers had been
+        // persisted to disk previously).
+        if (plugin.editorMarkers() != null) plugin.editorMarkers().stripFromInstance(instance);
 
         DungeonSession session = new DungeonSession(instance, party);
         session.setTemplateName(template.name());
         sessions.put(session.id(), session);
         sessionTasks.put(session.id(), new ArrayList<>());
+
+        // Apply per-template game rules
+        instance.setGameRule(GameRule.KEEP_INVENTORY, template.keepInventory());
 
         // Progress bar
         ProgressBar bar = new ProgressBar("§5§lThe Abyss");
@@ -100,9 +120,15 @@ public final class DungeonManager implements Listener {
         Location spawn = bindToWorld(template.playerSpawn(), instance);
         for (Player p : party) {
             playerToSession.put(p.getUniqueId(), session.id());
+            session.setLives(p.getUniqueId(), template.lives()); // 0 = unlimited
             p.teleport(spawn);
             bar.addPlayer(p);
             p.sendMessage(Text.color("&5&lThe Abyss &7welcomes you to &f" + template.name() + "&7."));
+            if (template.lives() > 0) {
+                p.sendMessage(Text.color("&7You have &c" + template.lives() + " ❤ &7lives."));
+            } else {
+                p.sendMessage(Text.color("&7Lives: &aunlimited&7."));
+            }
         }
 
         if (template.mode() == DungeonMode.MAP) {
@@ -258,6 +284,75 @@ public final class DungeonManager implements Listener {
         });
     }
 
+    /**
+     * When a player dies inside a dungeon, decrement their lives. If they're
+     * out, eliminate them (kick to exit on respawn). Otherwise they respawn
+     * normally inside the dungeon.
+     */
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent e) {
+        Player p = e.getEntity();
+        DungeonSession session = sessionOf(p);
+        if (session == null) return;
+        DungeonTemplate t = plugin.templates().get(session.templateName());
+        if (t == null) return;
+
+        // Unlimited lives → just respawn (no decrement)
+        if (t.lives() == 0) {
+            broadcast(session, "&7" + p.getName() + " &cdied &7(unlimited lives)");
+            return;
+        }
+
+        boolean stillAlive = session.decrementLife(p.getUniqueId());
+        int left = session.livesOf(p.getUniqueId());
+        if (stillAlive) {
+            broadcast(session, "&7" + p.getName() + " &cdied &7— &c" + left + " ❤ &7left");
+        } else {
+            broadcast(session, "&4" + p.getName() + " has been eliminated.");
+            session.eliminate(p.getUniqueId());
+            // Check if everyone's out
+            int active = 0;
+            for (UUID uid : session.players()) if (!session.isEliminated(uid)) active++;
+            if (active == 0) {
+                session.setPhase(DungeonSession.Phase.FAILED);
+                broadcast(session, "&c&lYour party has fallen. The Abyss claims you.");
+                // Schedule cleanup after a short delay so respawn message is seen
+                Bukkit.getScheduler().runTaskLater(plugin, () -> endSession(session), 60L);
+            }
+        }
+    }
+
+    /**
+     * Respawn players inside the dungeon (if they still have lives) or at the
+     * exit location (if they're eliminated).
+     */
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent e) {
+        Player p = e.getPlayer();
+        DungeonSession session = sessionOf(p);
+        if (session == null) return;
+        DungeonTemplate t = plugin.templates().get(session.templateName());
+        if (t == null) return;
+
+        if (session.isEliminated(p.getUniqueId())) {
+            // Kick out: respawn at exit + remove from session
+            org.bukkit.configuration.ConfigurationSection ex =
+                    plugin.getConfig().getConfigurationSection("dungeon.exit");
+            World w = ex == null ? null : Bukkit.getWorld(ex.getString("world", "world"));
+            if (w == null) w = Bukkit.getWorlds().get(0);
+            double x = ex == null ? 0.5 : ex.getDouble("x", 0.5);
+            double y = ex == null ? 80  : ex.getDouble("y", 80);
+            double z = ex == null ? 0.5 : ex.getDouble("z", 0.5);
+            e.setRespawnLocation(new Location(w, x, y, z));
+            playerToSession.remove(p.getUniqueId());
+            session.players().remove(p.getUniqueId());
+            if (session.progressBar() != null) session.progressBar().removePlayer(p);
+            return;
+        }
+        // Still in the dungeon — respawn at the template's player spawn
+        e.setRespawnLocation(bindToWorld(t.playerSpawn(), session.world()));
+    }
+
     private DungeonSession sessionByWorld(World w) {
         for (DungeonSession s : sessions.values()) if (s.world().equals(w)) return s;
         return null;
@@ -405,7 +500,7 @@ public final class DungeonManager implements Listener {
             w.setDifficulty(Difficulty.HARD);
             w.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
             w.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-            w.setGameRule(GameRule.KEEP_INVENTORY, true);
+            // KEEP_INVENTORY is set in start() based on the template's keepInventory setting.
         }
         return w;
     }

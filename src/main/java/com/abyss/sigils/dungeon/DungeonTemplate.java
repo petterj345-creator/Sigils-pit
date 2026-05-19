@@ -50,6 +50,10 @@ public final class DungeonTemplate {
     private int mobsPerWave = 4;           // MAP mode: trash mobs per spawn tick
     private int waveIntervalSeconds = 8;   // MAP mode: tick interval
 
+    // ----- death rules -----
+    private int lives = 3;                 // per-player lives; 0 = unlimited
+    private boolean keepInventory = true;  // drop items on death?
+
     // ----- rewards (rolled on dungeon complete) -----
     private final List<RewardEntry> rewardPool = new ArrayList<>();
     private int maxRewardItems = 3;
@@ -83,6 +87,8 @@ public final class DungeonTemplate {
     public int maxConcurrentMobs()    { return maxConcurrentMobs; }
     public int mobsPerWave()          { return mobsPerWave; }
     public int waveIntervalSeconds()  { return waveIntervalSeconds; }
+    public int lives()                { return lives; }
+    public boolean keepInventory()    { return keepInventory; }
 
     // Reward getters
     public List<RewardEntry> rewardPool()  { return rewardPool; }
@@ -113,6 +119,8 @@ public final class DungeonTemplate {
     public void setMaxConcurrentMobs(int n)        { this.maxConcurrentMobs = Math.max(1, n); }
     public void setMobsPerWave(int n)              { this.mobsPerWave = Math.max(1, n); }
     public void setWaveIntervalSeconds(int n)      { this.waveIntervalSeconds = Math.max(1, n); }
+    public void setLives(int n)                    { this.lives = Math.max(0, n); }
+    public void setKeepInventory(boolean b)        { this.keepInventory = b; }
 
     // Reward setters
     public void setMaxRewardItems(int n)           { this.maxRewardItems = Math.max(0, n); }
@@ -164,6 +172,8 @@ public final class DungeonTemplate {
         cfg.set("max-concurrent-mobs", maxConcurrentMobs);
         cfg.set("mobs-per-wave", mobsPerWave);
         cfg.set("wave-interval-seconds", waveIntervalSeconds);
+        cfg.set("lives", lives);
+        cfg.set("keep-inventory", keepInventory);
 
         if (playerSpawn != null) writeLoc(cfg, "player-spawn", playerSpawn);
         if (bossSpawn   != null) writeLoc(cfg, "boss-spawn",   bossSpawn);
@@ -238,6 +248,8 @@ public final class DungeonTemplate {
         this.maxConcurrentMobs = cfg.getInt("max-concurrent-mobs", 20);
         this.mobsPerWave = cfg.getInt("mobs-per-wave", 4);
         this.waveIntervalSeconds = cfg.getInt("wave-interval-seconds", 8);
+        this.lives = cfg.getInt("lives", 3);
+        this.keepInventory = cfg.getBoolean("keep-inventory", true);
         this.playerSpawn = readLoc(cfg.getConfigurationSection("player-spawn"));
         this.bossSpawn = readLoc(cfg.getConfigurationSection("boss-spawn"));
 

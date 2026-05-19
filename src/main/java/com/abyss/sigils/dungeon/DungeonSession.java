@@ -23,6 +23,11 @@ public final class DungeonSession {
     private Location upgradeBlock;
     private String templateName;
 
+    /** Per-player remaining lives. */
+    private final Map<UUID, Integer> livesRemaining = new HashMap<>();
+    /** Players who've been kicked out (out of lives). */
+    private final Set<UUID> eliminated = new HashSet<>();
+
     // MAP mode
     private int kills = 0;
     /** Trash mobs alive right now. */
@@ -72,4 +77,19 @@ public final class DungeonSession {
 
     public ProgressBar progressBar() { return progressBar; }
     public void setProgressBar(ProgressBar bar) { this.progressBar = bar; }
+
+    /** Per-player lives. */
+    public Map<UUID, Integer> livesRemaining() { return livesRemaining; }
+    public Set<UUID> eliminated() { return eliminated; }
+
+    public int livesOf(UUID id) { return livesRemaining.getOrDefault(id, 0); }
+    public void setLives(UUID id, int n) { livesRemaining.put(id, Math.max(0, n)); }
+    /** Returns true if the player still has lives left after decrementing. */
+    public boolean decrementLife(UUID id) {
+        int now = livesRemaining.getOrDefault(id, 0) - 1;
+        livesRemaining.put(id, Math.max(0, now));
+        return now > 0;
+    }
+    public boolean isEliminated(UUID id) { return eliminated.contains(id); }
+    public void eliminate(UUID id) { eliminated.add(id); }
 }

@@ -9,6 +9,7 @@ import com.abyss.sigils.dungeon.UpgradeGUI;
 import com.abyss.sigils.gui.AnvilInput;
 import com.abyss.sigils.gui.EditorGUI;
 import com.abyss.sigils.gui.EditorWandListener;
+import com.abyss.sigils.gui.MarkerVisualizer;
 import com.abyss.sigils.gui.RewardsGUI;
 import com.abyss.sigils.gui.SigilCreatorGUI;
 import com.abyss.sigils.integration.MMOItemsHook;
@@ -46,6 +47,8 @@ public final class AbyssPlugin extends JavaPlugin {
     private MythicHook mythicHook;
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private EditorWandListener editorWandListener;
+    private com.abyss.sigils.gui.EditorMarkers editorMarkers;
+    private MarkerVisualizer markerVisualizer;
 
     @Override
     public void onEnable() {
@@ -91,6 +94,12 @@ public final class AbyssPlugin extends JavaPlugin {
         editorWandListener = new EditorWandListener(this);
         Bukkit.getPluginManager().registerEvents(editorWandListener, this);
 
+        editorMarkers = new com.abyss.sigils.gui.EditorMarkers(this);
+        Bukkit.getPluginManager().registerEvents(editorMarkers, this);
+
+        markerVisualizer = new MarkerVisualizer(this);
+        Bukkit.getPluginManager().registerEvents(markerVisualizer, this);
+
         PortalListener portal = new PortalListener(this);
         Bukkit.getPluginManager().registerEvents(portal, this);
 
@@ -135,6 +144,8 @@ public final class AbyssPlugin extends JavaPlugin {
     public UpgradeGUI upgradeGUI() { return upgradeGUI; }
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
+    public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
+    public MarkerVisualizer markerVisualizer() { return markerVisualizer; }
 
     /** Gives new players the Book of Sigils on first join (if configured). */
     public static class BookOnJoinListener implements Listener {
