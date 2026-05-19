@@ -297,6 +297,35 @@ public final class DungeonManager implements Listener {
         DungeonTemplate t = plugin.templates().get(session.templateName());
         if (t == null) return;
 
+        // Always preserve the Book of Sigils across death — even when the
+        // template has keep-inventory off. The book is core to the player's
+        // identity (their socketed sigils), not a "loot" item, so losing it
+        // mid-dungeon feels punishing in a bad way.
+        //
+        // Pull any books out of the drop list and stash them; we re-add them
+        // to the player's inventory on the next tick (after Bukkit clears
+        // their inventory as part of the death flow).
+        java.util.List<org.bukkit.inventory.ItemStack> savedBooks = new java.util.ArrayList<>();
+        java.util.Iterator<org.bukkit.inventory.ItemStack> it = e.getDrops().iterator();
+        while (it.hasNext()) {
+            org.bukkit.inventory.ItemStack drop = it.next();
+            if (drop != null && com.abyss.sigils.sigils.SigilItem.isBook(drop)) {
+                savedBooks.add(drop.clone());
+                it.remove();
+            }
+        }
+        if (!savedBooks.isEmpty()) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!p.isOnline()) return;
+                for (org.bukkit.inventory.ItemStack book : savedBooks) {
+                    var overflow = p.getInventory().addItem(book);
+                    for (org.bukkit.inventory.ItemStack o : overflow.values()) {
+                        p.getWorld().dropItemNaturally(p.getLocation(), o);
+                    }
+                }
+            });
+        }
+
         // Unlimited lives → just respawn (no decrement)
         if (t.lives() == 0) {
             broadcast(session, "&7" + p.getName() + " &cdied &7(unlimited lives)");
@@ -310,6 +339,11 @@ public final class DungeonManager implements Listener {
         } else {
             broadcast(session, "&4" + p.getName() + " has been eliminated.");
             session.eliminate(p.getUniqueId());
+            // Remove from the boss bar right now AND after a short delay.
+            // Doing it twice — once on death, once a tick after respawn — is
+            // belt-and-braces: clients sometimes ignore boss-bar removal that
+            // arrives mid-respawn-transition, leaving a ghost bar on screen.
+            if (session.progressBar() != null) session.progressBar().removePlayer(p);
             // Check if everyone's out
             int active = 0;
             for (UUID uid : session.players()) if (!session.isEliminated(uid)) active++;
@@ -347,6 +381,17 @@ public final class DungeonManager implements Listener {
             playerToSession.remove(p.getUniqueId());
             session.players().remove(p.getUniqueId());
             if (session.progressBar() != null) session.progressBar().removePlayer(p);
+            // Belt-and-braces: re-issue the removal a few ticks AFTER respawn
+            // actually finishes. PlayerRespawnEvent fires before the player is
+            // fully respawned, so a bar.removePlayer call here can be swallowed
+            // by the client transition — leaving a ghost bar on screen even
+            // though the server thinks it removed it.
+            final ProgressBar pb = session.progressBar();
+            if (pb != null) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (p.isOnline()) pb.removePlayer(p);
+                }, 5L);
+            }
             return;
         }
         // Still in the dungeon — respawn at the template's player spawn
