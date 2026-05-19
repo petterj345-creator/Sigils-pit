@@ -7,6 +7,7 @@ import com.abyss.sigils.dungeon.RewardChestManager;
 import com.abyss.sigils.dungeon.TemplateRegistry;
 import com.abyss.sigils.dungeon.UpgradeGUI;
 import com.abyss.sigils.gui.AnvilInput;
+import com.abyss.sigils.gui.ChatInput;
 import com.abyss.sigils.gui.EditorGUI;
 import com.abyss.sigils.gui.EditorWandListener;
 import com.abyss.sigils.gui.MarkerVisualizer;
