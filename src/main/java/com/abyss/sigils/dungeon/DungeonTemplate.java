@@ -71,6 +71,13 @@ public final class DungeonTemplate {
      */
     private int upgradeAttemptsPerClear = -1;
 
+    // ----- map drops -----
+    /**
+     * Chance (0-100) that each mob killed in this dungeon drops a map for
+     * this template. 0 = mobs never drop a map (admin-issued only).
+     */
+    private double mapDropChancePercent = 0.0;
+
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
         this.configFile = configFile;
@@ -107,6 +114,7 @@ public final class DungeonTemplate {
     public int xpLevelsMax()               { return xpLevelsMax; }
     public double xpChancePercent()        { return xpChancePercent; }
     public int upgradeAttemptsPerClear()   { return upgradeAttemptsPerClear; }
+    public double mapDropChancePercent()   { return mapDropChancePercent; }
 
     // ----- setters -----
     public void setMode(DungeonMode m)             { this.mode = m; }
@@ -140,6 +148,7 @@ public final class DungeonTemplate {
     public void setXpChancePercent(double p)       { this.xpChancePercent = clampPct(p); }
     /** -1 = inherit from config, otherwise clamped to [0, +inf). */
     public void setUpgradeAttemptsPerClear(int n)  { this.upgradeAttemptsPerClear = (n < 0) ? -1 : n; }
+    public void setMapDropChancePercent(double p)  { this.mapDropChancePercent = clampPct(p); }
 
     private static double clampPct(double p) { return p < 0 ? 0 : (p > 100 ? 100 : p); }
 
@@ -229,6 +238,7 @@ public final class DungeonTemplate {
         cfg.set("rewards.xp.max", xpLevelsMax);
         cfg.set("rewards.xp.chance", xpChancePercent);
         cfg.set("upgrade.attempts-per-clear", upgradeAttemptsPerClear);
+        cfg.set("map.drop-chance-percent", mapDropChancePercent);
         // We store the pool under a section, one entry per index, so Bukkit
         // can serialize the ItemStack natively (preserving NBT/PDC).
         cfg.set("rewards.pool", null); // clear stale
@@ -319,6 +329,7 @@ public final class DungeonTemplate {
         this.xpLevelsMax       = cfg.getInt("rewards.xp.max", 0);
         this.xpChancePercent   = cfg.getDouble("rewards.xp.chance", 100);
         this.upgradeAttemptsPerClear = cfg.getInt("upgrade.attempts-per-clear", -1);
+        this.mapDropChancePercent = cfg.getDouble("map.drop-chance-percent", 0.0);
 
         rewardPool.clear();
         ConfigurationSection pool = cfg.getConfigurationSection("rewards.pool");

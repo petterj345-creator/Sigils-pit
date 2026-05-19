@@ -56,6 +56,14 @@ public final class MythicHook implements Listener {
                         .getMethod("registerItem", String.class, java.util.function.Function.class)
                         .invoke(items, "abyss_sigil_dust",
                                 (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildDust);
+                items.getClass()
+                        .getMethod("registerItem", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_map",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildMap);
+                items.getClass()
+                        .getMethod("registerItem", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_book",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildBook);
             } catch (NoSuchMethodException nsme) {
                 items.getClass()
                         .getMethod("registerItemType", String.class, java.util.function.Function.class)
@@ -65,8 +73,16 @@ public final class MythicHook implements Listener {
                         .getMethod("registerItemType", String.class, java.util.function.Function.class)
                         .invoke(items, "abyss_sigil_dust",
                                 (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildDust);
+                items.getClass()
+                        .getMethod("registerItemType", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_map",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildMap);
+                items.getClass()
+                        .getMethod("registerItemType", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_book",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildBook);
             }
-            plugin.getLogger().info("Registered MythicMobs item types: abyss_sigil, abyss_sigil_dust");
+            plugin.getLogger().info("Registered MythicMobs item types: abyss_sigil, abyss_sigil_dust, abyss_map, abyss_book");
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING,
                     "Couldn't register MythicMobs item types (Mythic API version mismatch?): " + t.getMessage());
@@ -104,6 +120,41 @@ public final class MythicHook implements Listener {
     /** Builds the Sigil Dust item. Amount controlled by the Drops line (e.g. `abyss_sigil_dust 3`). */
     private AbstractItemStack buildDust(MythicLineConfig line) {
         return BukkitAdapter.adapt(SigilItem.createDust(1));
+    }
+
+    /**
+     * Builds an Abyss Map item for a specific template. YAML syntax:
+     *   abyss_map{template=&lt;name&gt;} &lt;amount&gt; &lt;chance&gt;
+     * If the template doesn't exist (anymore), nothing is dropped — Mythic
+     * gets a null and skips the line. We don't crash the mob death.
+     */
+    private AbstractItemStack buildMap(MythicLineConfig line) {
+        String tplName = line.getString(new String[]{"template", "tpl"}, null);
+        if (tplName == null) {
+            plugin.getLogger().warning("abyss_map drop missing template= argument");
+            return null;
+        }
+        com.abyss.sigils.dungeon.DungeonTemplate tpl = plugin.templates().get(tplName);
+        if (tpl == null) {
+            plugin.getLogger().warning("abyss_map drop references unknown template: " + tplName);
+            return null;
+        }
+        ItemStack stack = com.abyss.sigils.dungeon.DungeonMap.create(tpl);
+        return stack == null ? null : BukkitAdapter.adapt(stack);
+    }
+
+    /**
+     * Builds an Abyss Book item at the given tier. YAML syntax:
+     *   abyss_book{tier=N} 1 0.001
+     * Tier defaults to 1. We clamp to [1, book.max-tier].
+     */
+    private AbstractItemStack buildBook(MythicLineConfig line) {
+        int tier = line.getInteger(new String[]{"tier"}, 1);
+        int max = plugin.bookTiers().maxTier();
+        if (tier < 1) tier = 1;
+        if (tier > max) tier = max;
+        ItemStack stack = SigilItem.createBook(tier);
+        return stack == null ? null : BukkitAdapter.adapt(stack);
     }
 
     @EventHandler

@@ -33,6 +33,8 @@ public final class PortalListener implements Listener {
 
         // Upgrade block first (takes priority when player is inside a dungeon)
         if (handleUpgrade(e, b)) return;
+        // Return portal (placed when boss dies) — sends player out
+        if (handleReturnPortal(e, b)) return;
 
         if (!isPortalBlock(b)) return;
         e.setCancelled(true);
@@ -46,8 +48,39 @@ public final class PortalListener implements Listener {
             party = List.of(p);
         }
 
+        // If the player is holding an Abyss Map, enter THAT template and consume one.
+        // Look in the hand actually used (main or off) to interact with the portal.
+        org.bukkit.inventory.ItemStack heldMap = mapInHand(e);
+        if (heldMap != null) {
+            DungeonTemplate mapTemplate = DungeonMap.templateOf(plugin, heldMap);
+            if (mapTemplate == null) {
+                p.sendMessage(Text.color("&cThis Abyss Map references a dungeon that no longer exists."));
+                return;
+            }
+            // Consume one map BEFORE starting — if start() fails, we'll restore it.
+            int beforeAmount = heldMap.getAmount();
+            heldMap.setAmount(beforeAmount - 1);
+            p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + mapTemplate.name() + ")"));
+            plugin.dungeonManager().start(party, mapTemplate);
+            return;
+        }
+
+        // No map — legacy behaviour: random playable template.
         p.sendMessage(Text.color("&5&lThe Abyss &7is opening..."));
         plugin.dungeonManager().start(party);
+    }
+
+    /**
+     * Return the Abyss Map ItemStack the player used to click the portal, if
+     * any. Checks main hand first, then off hand. We modify the returned
+     * ItemStack directly to decrement its count.
+     */
+    private org.bukkit.inventory.ItemStack mapInHand(PlayerInteractEvent e) {
+        org.bukkit.inventory.ItemStack main = e.getPlayer().getInventory().getItemInMainHand();
+        if (DungeonMap.isMap(main)) return main;
+        org.bukkit.inventory.ItemStack off = e.getPlayer().getInventory().getItemInOffHand();
+        if (DungeonMap.isMap(off)) return off;
+        return null;
     }
 
     private boolean isPortalBlock(Block b) {
@@ -69,6 +102,21 @@ public final class PortalListener implements Listener {
         if (!b.getLocation().equals(up)) return false;
         e.setCancelled(true);
         plugin.upgradeGUI().open(p);
+        return true;
+    }
+
+    /**
+     * Right-clicking the return-portal block (placed at boss death) sends the
+     * player back to the overworld portal location, same as /abyss leave.
+     */
+    private boolean handleReturnPortal(PlayerInteractEvent e, Block b) {
+        Player p = e.getPlayer();
+        DungeonSession s = plugin.dungeonManager().sessionOf(p);
+        if (s == null || s.returnPortalBlock() == null) return false;
+        if (!b.getLocation().equals(s.returnPortalBlock())) return false;
+        e.setCancelled(true);
+        p.sendMessage(Text.color("&7Returning to the overworld..."));
+        plugin.dungeonManager().leave(p);
         return true;
     }
 }

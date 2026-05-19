@@ -125,6 +125,31 @@ public final class UpgradeGUI implements Listener {
         return s;
     }
 
+    /** Book-flavoured version of the green forge button. */
+    private ItemStack buttonGreenBook(int tier, int maxTier, int successPct, int xpCost,
+                                       int attemptsRemaining, int attemptsCap) {
+        ItemStack s = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+        ItemMeta m = s.getItemMeta();
+        if (m != null) {
+            m.setDisplayName(Text.color("&a&lFORGE BOOK"));
+            List<String> lore = new ArrayList<>();
+            lore.add(Text.color("&5Book of Sigils"));
+            lore.add(Text.color("&7T" + tier + " &8→ &fT" + Math.min(tier + 1, maxTier)));
+            lore.add(Text.color("&7Success: " + colorPct(successPct) + successPct + "%"));
+            if (xpCost > 0) lore.add(Text.color("&7Cost: &f" + xpCost + " XP levels"));
+            if (attemptsCap >= 0) {
+                lore.add(Text.color("&7Attempts left: &f" + attemptsRemaining + "&7/" + attemptsCap));
+            }
+            lore.add("");
+            lore.add(Text.color("&c&oBook upgrades are rare."));
+            lore.add(Text.color("&c&oFailure leaves the book unchanged."));
+            lore.add(Text.color("&8Click to attempt upgrade."));
+            m.setLore(lore);
+            s.setItemMeta(m);
+        }
+        return s;
+    }
+
     /** Colour the success number based on how risky it is — green/yellow/red. */
     private String colorPct(int pct) {
         if (pct >= 90) return "&a";
@@ -146,32 +171,31 @@ public final class UpgradeGUI implements Listener {
         // ---- Clicks in player inventory (bottom) ----
         if (!isTopClick) {
             // Block shift-clicks from below — they'd dump items into our fillers.
-            // Only allow a shift-click of a sigil, and route it to the sigil slot.
+            // Only allow a shift-click of a sigil OR book, routed to the sigil slot.
             if (e.isShiftClick()) {
                 ItemStack moving = e.getCurrentItem();
-                if (moving != null && SigilItem.isSigil(moving) && top.getItem(SIGIL_SLOT) == null) {
+                boolean canForge = moving != null && (SigilItem.isSigil(moving) || SigilItem.isBook(moving));
+                if (canForge && top.getItem(SIGIL_SLOT) == null) {
                     e.setCancelled(true);
                     top.setItem(SIGIL_SLOT, moving.clone());
                     p.getInventory().setItem(e.getSlot(), null);
                     Bukkit.getScheduler().runTask(plugin, () -> refreshButton(top));
                 } else {
-                    // Any other shift-click from player inv into our GUI: block it.
                     e.setCancelled(true);
                 }
             }
-            return; // normal bottom-inv interaction is fine otherwise
+            return;
         }
 
         // ---- Clicks in top inventory (our GUI) ----
         if (raw == SIGIL_SLOT) {
-            // Only allow sigils to be placed, anything else is blocked.
+            // Allow sigils OR books to be placed.
             ItemStack cursor = e.getView().getCursor();
-            if (cursor != null && cursor.getType() != Material.AIR && !SigilItem.isSigil(cursor)) {
+            if (cursor != null && cursor.getType() != Material.AIR
+                    && !SigilItem.isSigil(cursor) && !SigilItem.isBook(cursor)) {
                 e.setCancelled(true);
                 return;
             }
-            // Allow the click to go through (place/take the sigil), then
-            // refresh the button on the next tick to reflect new state.
             Bukkit.getScheduler().runTask(plugin, () -> refreshButton(top));
             return;
         }
@@ -194,13 +218,43 @@ public final class UpgradeGUI implements Listener {
             if (h instanceof Player pl) { viewer = pl; break; }
         }
 
-        ItemStack sigilItem = inv.getItem(SIGIL_SLOT);
-        SigilInstance inst = SigilItem.fromItem(sigilItem);
+        ItemStack input = inv.getItem(SIGIL_SLOT);
 
         int xpCost = plugin.getConfig().getInt("upgrade.xp-level-cost", 0);
+
+        // Branch on what's in the slot — sigil or book
+        if (input == null || input.getType() == Material.AIR) {
+            inv.setItem(BUTTON_SLOT, buttonRed("Insert a sigil or book"));
+            return;
+        }
+
+        // Book branch
+        if (SigilItem.isBook(input)) {
+            int bookTier = SigilItem.bookTierOf(input);
+            int maxBookTier = plugin.bookTiers().maxTier();
+            if (bookTier >= maxBookTier) {
+                inv.setItem(BUTTON_SLOT, buttonRed("Book already max tier"));
+                return;
+            }
+            int successPct = plugin.bookTiers().successPercentFor(bookTier);
+            DungeonSession sForBook = (viewer != null) ? plugin.dungeonManager().sessionOf(viewer) : null;
+            int capForBook = resolveAttemptsCap(sForBook);
+            if (capForBook >= 0 && viewer != null && sForBook != null) {
+                int used = sForBook.upgradeAttemptsUsed(viewer.getUniqueId());
+                int remaining = Math.max(0, capForBook - used);
+                if (remaining == 0) { inv.setItem(BUTTON_SLOT, buttonRed("No attempts left")); return; }
+                inv.setItem(BUTTON_SLOT, buttonGreenBook(bookTier, maxBookTier, successPct, xpCost, remaining, capForBook));
+            } else {
+                inv.setItem(BUTTON_SLOT, buttonGreenBook(bookTier, maxBookTier, successPct, xpCost, -1, -1));
+            }
+            return;
+        }
+
+        // Sigil branch (legacy)
+        SigilInstance inst = SigilItem.fromItem(input);
         int maxTierCap = plugin.getConfig().getInt("upgrade.max-tier", 5);
 
-        if (inst == null) { inv.setItem(BUTTON_SLOT, buttonRed("Insert a sigil")); return; }
+        if (inst == null) { inv.setItem(BUTTON_SLOT, buttonRed("Insert a sigil or book")); return; }
         SigilDefinition def = plugin.sigils().get(inst.definitionId());
         if (def == null) { inv.setItem(BUTTON_SLOT, buttonRed("Unknown sigil")); return; }
 
@@ -272,9 +326,21 @@ public final class UpgradeGUI implements Listener {
     }
 
     private void attemptUpgrade(Player p, Inventory inv) {
-        ItemStack sigilItem = inv.getItem(SIGIL_SLOT);
-        SigilInstance inst = SigilItem.fromItem(sigilItem);
-        if (inst == null) { p.sendMessage(Text.color("&cInsert a sigil first.")); return; }
+        ItemStack input = inv.getItem(SIGIL_SLOT);
+        if (input == null || input.getType() == Material.AIR) {
+            p.sendMessage(Text.color("&cInsert a sigil or book first."));
+            return;
+        }
+
+        // Book branch
+        if (SigilItem.isBook(input)) {
+            attemptBookUpgrade(p, inv, input);
+            return;
+        }
+
+        // Sigil branch
+        SigilInstance inst = SigilItem.fromItem(input);
+        if (inst == null) { p.sendMessage(Text.color("&cInsert a sigil or book first.")); return; }
 
         SigilDefinition def = plugin.sigils().get(inst.definitionId());
         if (def == null) { p.sendMessage(Text.color("&cUnknown sigil.")); return; }
@@ -314,7 +380,6 @@ public final class UpgradeGUI implements Listener {
         }
 
         if (!succeeded) {
-            // User-asked behaviour: sigil stays unchanged, just retry.
             p.sendMessage(Text.color("&c&l✗ The forging failed. &7Your sigil is unchanged."));
             p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.6f);
             refreshButton(inv);
@@ -334,6 +399,65 @@ public final class UpgradeGUI implements Listener {
 
         inv.setItem(SIGIL_SLOT, SigilItem.toItem(inst));
         p.sendMessage(Text.color("&a&lForged! &7" + def.id() + " is now T" + inst.tier() + "."));
+        p.getWorld().strikeLightningEffect(p.getLocation());
+        refreshButton(inv);
+    }
+
+    /**
+     * Book upgrade flow — mirrors the sigil flow but uses book.success-chance-per-tier,
+     * book.max-tier, and the BookTiers lookup. On success we rebuild the item via
+     * {@link SigilItem#createBook(int)} so its lore reflects the new socket counts.
+     */
+    private void attemptBookUpgrade(Player p, Inventory inv, ItemStack bookItem) {
+        int currentTier = SigilItem.bookTierOf(bookItem);
+        int maxTier = plugin.bookTiers().maxTier();
+        if (currentTier >= maxTier) {
+            p.sendMessage(Text.color("&cBook is already max tier."));
+            return;
+        }
+
+        // Same shared attempt budget as sigils
+        DungeonSession session = plugin.dungeonManager().sessionOf(p);
+        int attemptsCap = resolveAttemptsCap(session);
+        if (attemptsCap >= 0 && session != null) {
+            int used = session.upgradeAttemptsUsed(p.getUniqueId());
+            if (used >= attemptsCap) {
+                p.sendMessage(Text.color("&cYou've used all " + attemptsCap + " forge attempts for this clear."));
+                refreshButton(inv);
+                return;
+            }
+        }
+
+        int xpCost = plugin.getConfig().getInt("upgrade.xp-level-cost", 0);
+        boolean consumeXpOnFail = plugin.getConfig().getBoolean("upgrade.consume-xp-on-fail", true);
+
+        if (xpCost > 0 && p.getLevel() < xpCost) {
+            p.sendMessage(Text.color("&cNeed " + xpCost + " XP levels."));
+            return;
+        }
+
+        // Consume an attempt regardless of outcome
+        if (session != null) session.incrementUpgradeAttempts(p.getUniqueId());
+
+        int successPct = plugin.bookTiers().successPercentFor(currentTier);
+        boolean succeeded = rng.nextInt(100) < successPct;
+
+        if (xpCost > 0 && (succeeded || consumeXpOnFail)) {
+            p.setLevel(p.getLevel() - xpCost);
+        }
+
+        if (!succeeded) {
+            p.sendMessage(Text.color("&c&l✗ The book resists. &7It remains T" + currentTier + "."));
+            p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.6f);
+            refreshButton(inv);
+            return;
+        }
+
+        // SUCCESS — rebuild the book at the new tier (lore + PDC tier update)
+        int newTier = currentTier + 1;
+        ItemStack newBook = SigilItem.createBook(newTier);
+        inv.setItem(SIGIL_SLOT, newBook);
+        p.sendMessage(Text.color("&5&l✦ Book of Sigils &7is now &fT" + newTier + "&7."));
         p.getWorld().strikeLightningEffect(p.getLocation());
         refreshButton(inv);
     }

@@ -88,6 +88,18 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 refresh((Player) e.getWhoClicked());
             });
 
+        // 14 Map drops — pick which MythicMobs drop a map for THIS template
+        set(14, icon(Material.PAPER,
+                "&5&l⛧ Abyss Map Drops",
+                "&7Configure which MythicMobs drop",
+                "&7this dungeon's map, and at what chance.",
+                "",
+                "&7Maps can also be given via:",
+                "&8/abyss givemap " + template.name() + " <player> [n]",
+                "",
+                "&eClick &7to pick a mob"),
+            e -> MapDropMobPickerGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 19 Spawn points
         set(19, icon(Material.ENDER_EYE,
                 "&bSpawn Points &7(" + template.spawnPoints().size() + ")",

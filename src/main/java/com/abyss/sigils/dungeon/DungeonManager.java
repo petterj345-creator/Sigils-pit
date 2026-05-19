@@ -370,14 +370,7 @@ public final class DungeonManager implements Listener {
 
         if (session.isEliminated(p.getUniqueId())) {
             // Kick out: respawn at exit + remove from session
-            org.bukkit.configuration.ConfigurationSection ex =
-                    plugin.getConfig().getConfigurationSection("dungeon.exit");
-            World w = ex == null ? null : Bukkit.getWorld(ex.getString("world", "world"));
-            if (w == null) w = Bukkit.getWorlds().get(0);
-            double x = ex == null ? 0.5 : ex.getDouble("x", 0.5);
-            double y = ex == null ? 80  : ex.getDouble("y", 80);
-            double z = ex == null ? 0.5 : ex.getDouble("z", 0.5);
-            e.setRespawnLocation(new Location(w, x, y, z));
+            e.setRespawnLocation(resolveExitLocation());
             playerToSession.remove(p.getUniqueId());
             session.players().remove(p.getUniqueId());
             if (session.progressBar() != null) session.progressBar().removePlayer(p);
@@ -442,9 +435,54 @@ public final class DungeonManager implements Listener {
         // Spawn the reward chest next to the upgrade block
         plugin.rewardChests().placeChest(session, at);
 
+        // Return portal — placed FAR from the forge/chest so players can't
+        // accidentally click it. We pick the first free block from a list of
+        // offsets that don't overlap the chest's spawn zone (which lives at
+        // bossLoc + (±1, 1, ±1)). If all are occupied, fall back to (5,1,0).
+        Material returnMat = Material.matchMaterial(
+                plugin.getConfig().getString("return-portal.block-type", "END_GATEWAY"));
+        if (returnMat == null) returnMat = Material.END_GATEWAY;
+        int[][] returnOffsets = {
+                {4, 1, 0}, {-4, 1, 0}, {0, 1, 4}, {0, 1, -4},
+                {5, 1, 0}, {-5, 1, 0}, {0, 1, 5}, {0, 1, -5},
+                {3, 1, 3}, {-3, 1, 3}, {3, 1, -3}, {-3, 1, -3}
+        };
+        Block returnBlock = null;
+        for (int[] o : returnOffsets) {
+            Block candidate = at.clone().add(o[0], o[1], o[2]).getBlock();
+            if (candidate.getType() == Material.AIR) {
+                returnBlock = candidate;
+                break;
+            }
+        }
+        if (returnBlock == null) {
+            // Last resort — replace whatever's there at +5 X
+            returnBlock = at.clone().add(5, 1, 0).getBlock();
+        }
+        returnBlock.setType(returnMat);
+        session.setReturnPortalBlock(returnBlock.getLocation());
+        spawnReturnPortalHologram(returnBlock.getLocation());
+
         session.progressBar().setBossHealth(0, 1);
         broadcast(session, "&7An upgrade altar has appeared. Right-click it to forge.");
-        broadcast(session, "&7Type &f/abyss leave &7when ready to exit.");
+        broadcast(session, "&aA &dreturn portal &ahas appeared. Right-click it to leave.");
+    }
+
+    /**
+     * Floating "↩ Return to Overworld" label above the return portal block.
+     * Non-persistent so it disappears with the instance world's chunk unload.
+     */
+    private void spawnReturnPortalHologram(Location blockLoc) {
+        Location textLoc = blockLoc.clone().add(0.5, 1.6, 0.5);
+        textLoc.getWorld().spawn(textLoc, org.bukkit.entity.TextDisplay.class, e -> {
+            e.setText(Text.color("&a&l↩ &f&lReturn to Overworld &a&l↩"));
+            e.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+            e.setShadowed(true);
+            e.setSeeThrough(true);
+            e.setDefaultBackground(false);
+            e.setBackgroundColor(org.bukkit.Color.fromARGB(180, 0, 30, 10));
+            e.setPersistent(false);
+        });
     }
 
     private void scheduleTimeout(DungeonSession session, DungeonTemplate t) {
@@ -507,14 +545,45 @@ public final class DungeonManager implements Listener {
         sessionTasks.computeIfAbsent(s.id(), k -> new ArrayList<>()).add(t);
     }
 
-    private void teleportOut(Player p) {
+    /**
+     * Where to put the player when they leave a dungeon.
+     *
+     * Priority:
+     *   1. dungeon.exit.x/y/z/world if all set and non-default
+     *   2. otherwise the configured portal location +1 on Y (stand on the
+     *      portal block) — that's almost always what you want, since the
+     *      portal is where they came in.
+     *   3. otherwise (no portal configured either) the primary world's spawn
+     */
+    private Location resolveExitLocation() {
         ConfigurationSection ex = plugin.getConfig().getConfigurationSection("dungeon.exit");
-        World w = ex == null ? null : Bukkit.getWorld(ex.getString("world", "world"));
-        if (w == null) w = Bukkit.getWorlds().get(0);
-        double x = ex == null ? 0.5 : ex.getDouble("x", 0.5);
-        double y = ex == null ? 80  : ex.getDouble("y", 80);
-        double z = ex == null ? 0.5 : ex.getDouble("z", 0.5);
-        p.teleport(new Location(w, x, y, z));
+        if (ex != null && ex.isSet("x") && ex.isSet("y") && ex.isSet("z")) {
+            World w = Bukkit.getWorld(ex.getString("world", "world"));
+            if (w != null) {
+                return new Location(w,
+                        ex.getDouble("x"),
+                        ex.getDouble("y"),
+                        ex.getDouble("z"));
+            }
+        }
+        // Fall back to standing on top of the portal block
+        String pw = plugin.getConfig().getString("portal.world", null);
+        if (pw != null && plugin.getConfig().isSet("portal.x")) {
+            World w = Bukkit.getWorld(pw);
+            if (w != null) {
+                return new Location(w,
+                        plugin.getConfig().getInt("portal.x") + 0.5,
+                        plugin.getConfig().getInt("portal.y") + 1.0,
+                        plugin.getConfig().getInt("portal.z") + 0.5);
+            }
+        }
+        // Last resort — primary world spawn
+        World fallback = Bukkit.getWorlds().get(0);
+        return fallback.getSpawnLocation();
+    }
+
+    private void teleportOut(Player p) {
+        p.teleport(resolveExitLocation());
     }
 
     private void broadcast(DungeonSession s, String msg) {

@@ -20,6 +20,7 @@ public final class SigilItem {
     public static final NamespacedKey KEY_SUBS  = key("sigil_substats");
     public static final NamespacedKey KEY_DUST  = key("sigil_dust");
     public static final NamespacedKey KEY_BOOK  = key("sigil_book");
+    public static final NamespacedKey KEY_BOOK_TIER = key("sigil_book_tier");
 
     private static NamespacedKey key(String s) {
         return new NamespacedKey(AbyssPlugin.get(), s);
@@ -116,24 +117,61 @@ public final class SigilItem {
         return stack;
     }
 
-    /** The Book of Sigils — right-click to open the socket GUI. */
-    public static ItemStack createBook() {
+    /** The Book of Sigils — right-click to open the socket GUI. Tier 1 default. */
+    public static ItemStack createBook() { return createBook(1); }
+
+    /**
+     * Build a Book of Sigils at a specific tier. Tier dictates how many sockets
+     * unlock in the socket GUI (looked up via {@link BookTiers}). The tier is
+     * stored in PDC under {@link #KEY_BOOK_TIER} so the same physical paper
+     * stays distinct after rename/upgrade.
+     */
+    public static ItemStack createBook(int tier) {
+        if (tier < 1) tier = 1;
         ItemStack stack = new ItemStack(Material.ENCHANTED_BOOK);
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(Text.color("&5&lBook of Sigils"));
-            meta.setLore(List.of(
-                    Text.color("&7A relic of the Abyss."),
-                    Text.color("&7Bind sigils to its pages to"),
-                    Text.color("&7gain their power."),
-                    "",
-                    Text.color("&eRight-click &7to open"),
-                    Text.color("&8Soulbound — keep on death")));
+            String tierTag = "&7[T" + tier + "]";
+            meta.setDisplayName(Text.color("&5&lBook of Sigils " + tierTag));
+
+            BookTiers tiers = AbyssPlugin.get().bookTiers();
+            List<String> lore = new ArrayList<>();
+            lore.add(Text.color("&7A relic of the Abyss."));
+            lore.add(Text.color("&7Bind sigils to its pages to"));
+            lore.add(Text.color("&7gain their power."));
+            lore.add("");
+            if (tiers != null) {
+                int small = tiers.smallSlots(tier);
+                int big   = tiers.bigSlots(tier);
+                int grand = tiers.grandSlots(tier);
+                lore.add(Text.color("&7Sockets:"));
+                lore.add(Text.color("&8• &f" + small + " &7small &8(minor)"));
+                lore.add(Text.color("&8• &f" + big   + " &7big &8(major)"));
+                if (grand > 0) lore.add(Text.color("&8• &f" + grand + " &7grand &8(major)"));
+                lore.add("");
+            }
+            lore.add(Text.color("&eRight-click &7to open"));
+            if (tiers != null && tier < tiers.maxTier()) {
+                lore.add(Text.color("&7Forge to upgrade tier."));
+            } else if (tiers != null) {
+                lore.add(Text.color("&6Max tier"));
+            }
+            lore.add(Text.color("&8Soulbound — keep on death"));
+            meta.setLore(lore);
             meta.addItemFlags(ItemFlag.values());
-            meta.getPersistentDataContainer().set(KEY_BOOK, PersistentDataType.BYTE, (byte) 1);
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(KEY_BOOK, PersistentDataType.BYTE, (byte) 1);
+            pdc.set(KEY_BOOK_TIER, PersistentDataType.INTEGER, tier);
             stack.setItemMeta(meta);
         }
         return stack;
+    }
+
+    /** Return the tier of a Book of Sigils, or 1 for a legacy book missing the field. */
+    public static int bookTierOf(ItemStack item) {
+        if (!isBook(item)) return 0;
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        return pdc.getOrDefault(KEY_BOOK_TIER, PersistentDataType.INTEGER, 1);
     }
 
     // ----- substat encoding -----

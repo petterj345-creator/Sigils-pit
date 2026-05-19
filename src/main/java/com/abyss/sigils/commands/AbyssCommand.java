@@ -53,6 +53,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "givesigil"  -> handleGiveSigil(sender, args);
             case "givedust"   -> handleGiveDust(sender, args);
             case "givebook"   -> handleGiveBook(sender, args);
+            case "givemap"    -> handleGiveMap(sender, args);
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
@@ -61,6 +62,14 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                 plugin.reloadConfig();
                 plugin.sigils().load();
                 plugin.templates().loadAll();
+                // Push fresh metadata to every player so renamed/edited
+                // templates show up immediately on their existing maps.
+                if (plugin.mapRefreshListener() != null) {
+                    plugin.mapRefreshListener().refreshAllOnline();
+                }
+                if (plugin.portalHologram() != null) {
+                    plugin.portalHologram().refreshFromConfig();
+                }
                 sender.sendMessage(Text.color("&aAbyssSigils reloaded."));
             }
             default -> sender.sendMessage(Text.color("&cUnknown subcommand. Try /abyss help"));
@@ -167,11 +176,69 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
 
     private void handleGiveBook(CommandSender sender, String[] args) {
         if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
-        if (args.length < 2) { sender.sendMessage(Text.color("&7Usage: &f/abyss givebook <player>")); return; }
+        if (args.length < 2) {
+            sender.sendMessage(Text.color("&7Usage: &f/abyss givebook <player> [tier]"));
+            return;
+        }
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) { sender.sendMessage(Text.color("&cUnknown player.")); return; }
-        target.getInventory().addItem(SigilItem.createBook());
-        sender.sendMessage(Text.color("&aGave " + target.getName() + " a Book of Sigils."));
+        int tier = 1;
+        if (args.length >= 3) {
+            try { tier = Integer.parseInt(args[2]); }
+            catch (NumberFormatException ex) {
+                sender.sendMessage(Text.color("&cTier must be a number."));
+                return;
+            }
+            int max = plugin.bookTiers().maxTier();
+            if (tier < 1) tier = 1;
+            if (tier > max) tier = max;
+        }
+        target.getInventory().addItem(SigilItem.createBook(tier));
+        sender.sendMessage(Text.color("&aGave " + target.getName() + " a Book of Sigils (T" + tier + ")."));
+    }
+
+    /**
+     * /abyss givemap &lt;template&gt; [player] [amount]
+     *
+     * If [player] is omitted, gives to the sender (must be a player). Amount
+     * defaults to 1. Maps stack as paper items but the PDC ensures they keep
+     * pointing to the right template.
+     */
+    private void handleGiveMap(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (args.length < 2) {
+            sender.sendMessage(Text.color("&7Usage: &f/abyss givemap <template> [player] [amount]"));
+            return;
+        }
+        String tplName = args[1].toLowerCase(Locale.ROOT);
+        com.abyss.sigils.dungeon.DungeonTemplate tpl = plugin.templates().get(tplName);
+        if (tpl == null) {
+            sender.sendMessage(Text.color("&cUnknown template: " + tplName));
+            return;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) { sender.sendMessage(Text.color("&cUnknown player.")); return; }
+        } else if (sender instanceof Player p) {
+            target = p;
+        } else {
+            sender.sendMessage(Text.color("&cMust specify a player from console."));
+            return;
+        }
+        int amount = 1;
+        if (args.length >= 4) {
+            try { amount = Math.max(1, Math.min(64, Integer.parseInt(args[3]))); }
+            catch (NumberFormatException ex) {
+                sender.sendMessage(Text.color("&cAmount must be a number."));
+                return;
+            }
+        }
+        org.bukkit.inventory.ItemStack map = com.abyss.sigils.dungeon.DungeonMap.create(tpl);
+        map.setAmount(amount);
+        var overflow = target.getInventory().addItem(map);
+        for (var o : overflow.values()) target.getWorld().dropItemNaturally(target.getLocation(), o);
+        sender.sendMessage(Text.color("&aGave " + target.getName() + " " + amount + "x Abyss Map (" + tplName + ")."));
     }
 
     private void handleSigilSubcommand(CommandSender sender, String[] args) {
@@ -239,7 +306,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.color("  &f/abyss delete <name> confirm &8— wipe a template"));
             sender.sendMessage(Text.color("  &f/abyss givesigil <p> <id|random> [tier]"));
             sender.sendMessage(Text.color("  &f/abyss givedust <p> <n>"));
-            sender.sendMessage(Text.color("  &f/abyss givebook <p>"));
+            sender.sendMessage(Text.color("  &f/abyss givebook <p> [tier]"));
+            sender.sendMessage(Text.color("  &f/abyss givemap <template> [p] [n]"));
             sender.sendMessage(Text.color("  &f/abyss sigil list|create [id]|edit <id> &8— sigil creator"));
             sender.sendMessage(Text.color("  &f/abyss mythicdrops &8— add sigil drops to mythic mobs"));
             sender.sendMessage(Text.color("  &f/abyss reload"));
@@ -251,7 +319,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBS = List.of(
             "help","sigils","leave","enterabyss",
             "create","edit","delete","list",
-            "givesigil","givedust","givebook","reload",
+            "givesigil","givedust","givebook","givemap","reload",
             "sigil","mythicdrops","markers"
     );
 
@@ -265,6 +333,9 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             String sub = args[0].toLowerCase(Locale.ROOT);
             return switch (sub) {
                 case "edit","delete" -> plugin.templates().all().stream()
+                        .map(DungeonTemplate::name)
+                        .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
+                case "givemap" -> plugin.templates().all().stream()
                         .map(DungeonTemplate::name)
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 case "givesigil","givedust","givebook" -> Bukkit.getOnlinePlayers().stream()

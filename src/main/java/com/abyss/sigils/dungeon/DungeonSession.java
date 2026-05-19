@@ -21,6 +21,12 @@ public final class DungeonSession {
     private UUID bossEntityId;
     private long startedAt = System.currentTimeMillis();
     private Location upgradeBlock;
+    /**
+     * Block placed at boss death that players right-click to return to the
+     * overworld portal. Null until the boss is killed. Configured via
+     * `return-portal.block-type` in config.yml (default END_GATEWAY).
+     */
+    private Location returnPortalBlock;
     private String templateName;
 
     /** Per-player remaining lives. */
@@ -67,6 +73,8 @@ public final class DungeonSession {
     public long startedAt() { return startedAt; }
     public Location upgradeBlock() { return upgradeBlock; }
     public void setUpgradeBlock(Location loc) { this.upgradeBlock = loc; }
+    public Location returnPortalBlock() { return returnPortalBlock; }
+    public void setReturnPortalBlock(Location loc) { this.returnPortalBlock = loc; }
     public String templateName() { return templateName; }
     public void setTemplateName(String n) { this.templateName = n; }
 

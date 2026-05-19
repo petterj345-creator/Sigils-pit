@@ -78,20 +78,28 @@ public final class MythicDropWriter {
      */
     public boolean appendSigilDrop(String mobInternalName, String sigilId, int tier,
                                    int amount, double chance) {
+        return appendDrop(mobInternalName,
+                "abyss_sigil{id=" + sigilId + ";tier=" + tier + "} " + amount + " " + chance);
+    }
+
+    /**
+     * Append an Abyss Map drop line to a mob's Drops: list. The map is for the
+     * given template; whoever kills the mob has a `chance` (0..1) of getting
+     * one. Returns true on success.
+     */
+    public boolean appendMapDrop(String mobInternalName, String templateName,
+                                 int amount, double chance) {
+        return appendDrop(mobInternalName,
+                "abyss_map{template=" + templateName + "} " + amount + " " + chance);
+    }
+
+    /** Shared logic for appending any drop line under a mob's Drops: list. */
+    private boolean appendDrop(String mobInternalName, String dropLine) {
         File file = findMobFile(mobInternalName);
         if (file == null) {
             plugin.getLogger().warning("Couldn't find MythicMob '" + mobInternalName + "' in any file.");
             return false;
         }
-
-        // Build the drop string. Match MythicMobs Drops syntax:
-        //   "abyss_sigil{id=wrath;tier=2} 1 0.25"
-        String dropLine = "abyss_sigil{id=" + sigilId + ";tier=" + tier + "} "
-                + amount + " " + chance;
-
-        // We hand-edit the YAML file as text so we don't touch ANYTHING else in it
-        // (some Mythic configs contain special MM-only constructs that Bukkit's
-        // YamlConfiguration may reformat in a lossy way).
         try {
             List<String> lines = new ArrayList<>(Files.readAllLines(file.toPath()));
             int insertIndex = findInsertIndex(lines, mobInternalName);
@@ -99,7 +107,6 @@ public final class MythicDropWriter {
                 plugin.getLogger().warning("Couldn't locate mob entry '" + mobInternalName + "' in file.");
                 return false;
             }
-            // Insert with 4 leading spaces of indentation under Drops:
             String indented = "    - " + dropLine;
             lines.add(insertIndex, indented);
             Files.write(file.toPath(), lines);

@@ -48,6 +48,11 @@ public final class SocketGUI implements Listener {
 
     public static final int[] SMALL_SLOTS = {10, 11, 12, 13, 14, 19, 20, 21, 22, 23};
     public static final int[] BIG_SLOTS   = {16, 25, 34};
+    /**
+     * "Grand" sockets — unlocked at high book tiers (default T16+). They
+     * accept MAJOR sigils too, so they're effectively bonus big slots.
+     */
+    public static final int[] GRAND_SLOTS = {17, 26, 35};
 
     public SocketGUI(AbyssPlugin plugin, PlayerSigilStore store) {
         this.plugin = plugin;
@@ -67,25 +72,56 @@ public final class SocketGUI implements Listener {
         inv.setItem(45, bookCorner());
         inv.setItem(53, bookCorner());
 
-        // Small sockets
+        // What tier of book does the player have? We resolve by scanning their
+        // inventory for any book item and picking the highest tier among them.
+        // This way upgrading their book to T5 unlocks the slots even if the
+        // upgraded book ends up in slot 8 rather than the hotbar.
+        int bookTier = findHighestBookTier(p);
+        com.abyss.sigils.sigils.BookTiers tiers = plugin.bookTiers();
+        int smallUnlocked = Math.min(SMALL_SLOTS.length, tiers.smallSlots(bookTier));
+        int bigUnlocked   = Math.min(BIG_SLOTS.length,   tiers.bigSlots(bookTier));
+        int grandUnlocked = Math.min(GRAND_SLOTS.length, tiers.grandSlots(bookTier));
+
+        // Small sockets — unlocked + locked placeholders for the rest
         Map<Integer, Integer> sm = new HashMap<>();
         Map<Integer, SigilRank> sr = new HashMap<>();
         List<SigilInstance> smalls = store.getSmall(p.getUniqueId());
         for (int i = 0; i < SMALL_SLOTS.length; i++) {
             int rawSlot = SMALL_SLOTS[i];
-            sm.put(rawSlot, i);
-            sr.put(rawSlot, SigilRank.MINOR);
-            SigilInstance inst = i < smalls.size() ? smalls.get(i) : null;
-            inv.setItem(rawSlot, inst == null ? smallSlotEmpty(i + 1) : SigilItem.toItem(inst));
+            if (i < smallUnlocked) {
+                sm.put(rawSlot, i);
+                sr.put(rawSlot, SigilRank.MINOR);
+                SigilInstance inst = i < smalls.size() ? smalls.get(i) : null;
+                inv.setItem(rawSlot, inst == null ? smallSlotEmpty(i + 1) : SigilItem.toItem(inst));
+            } else {
+                inv.setItem(rawSlot, slotLocked(bookTier));
+            }
         }
         // Big sockets
         List<SigilInstance> bigs = store.getBig(p.getUniqueId());
         for (int i = 0; i < BIG_SLOTS.length; i++) {
             int rawSlot = BIG_SLOTS[i];
-            sm.put(rawSlot, i + 100); // +100 marks big-store index
-            sr.put(rawSlot, SigilRank.MAJOR);
-            SigilInstance inst = i < bigs.size() ? bigs.get(i) : null;
-            inv.setItem(rawSlot, inst == null ? bigSlotEmpty(i + 1) : SigilItem.toItem(inst));
+            if (i < bigUnlocked) {
+                sm.put(rawSlot, i + 100); // +100 marks big-store index
+                sr.put(rawSlot, SigilRank.MAJOR);
+                SigilInstance inst = i < bigs.size() ? bigs.get(i) : null;
+                inv.setItem(rawSlot, inst == null ? bigSlotEmpty(i + 1) : SigilItem.toItem(inst));
+            } else {
+                inv.setItem(rawSlot, slotLocked(bookTier));
+            }
+        }
+        // Grand sockets — share the big-store backing, indices BIG_SLOTS.length .. +grand
+        for (int i = 0; i < GRAND_SLOTS.length; i++) {
+            int rawSlot = GRAND_SLOTS[i];
+            if (i < grandUnlocked) {
+                int storeIdx = i + BIG_SLOTS.length;
+                sm.put(rawSlot, storeIdx + 100);
+                sr.put(rawSlot, SigilRank.MAJOR); // accepts major sigils (same as big)
+                SigilInstance inst = storeIdx < bigs.size() ? bigs.get(storeIdx) : null;
+                inv.setItem(rawSlot, inst == null ? grandSlotEmpty(i + 1) : SigilItem.toItem(inst));
+            } else {
+                inv.setItem(rawSlot, slotLocked(bookTier));
+            }
         }
 
         slotMap.put(p.getUniqueId(), sm);
@@ -134,6 +170,45 @@ public final class SocketGUI implements Listener {
         return icon(Material.YELLOW_STAINED_GLASS_PANE,
                 "&6Big Socket #" + n,
                 "&8Insert a major sigil");
+    }
+
+    private ItemStack grandSlotEmpty(int n) {
+        return icon(Material.PURPLE_STAINED_GLASS_PANE,
+                "&5&lGrand Socket #" + n,
+                "&8Insert a major sigil",
+                "&8Unlocked by high-tier book");
+    }
+
+    /**
+     * Tile shown in a socket position that the player's current book tier
+     * hasn't unlocked yet. Shows a hint about which tier to reach.
+     */
+    private ItemStack slotLocked(int currentTier) {
+        return icon(Material.BARRIER,
+                "&c&l✕ Locked",
+                "&7Upgrade your Book of Sigils",
+                "&7at the Forge to unlock more slots.",
+                "&7Current tier: &fT" + currentTier);
+    }
+
+    /**
+     * Scan the player's whole inventory (including hotbar and offhand) for
+     * any Book of Sigils, and return the highest tier found. Returns 1 as
+     * fallback if no book is present — we still render something useful.
+     */
+    private int findHighestBookTier(Player p) {
+        int max = 0;
+        for (ItemStack it : p.getInventory().getContents()) {
+            if (SigilItem.isBook(it)) {
+                int t = SigilItem.bookTierOf(it);
+                if (t > max) max = t;
+            }
+        }
+        if (SigilItem.isBook(p.getInventory().getItemInOffHand())) {
+            int t = SigilItem.bookTierOf(p.getInventory().getItemInOffHand());
+            if (t > max) max = t;
+        }
+        return Math.max(1, max);
     }
 
     private ItemStack decoFiller() {

@@ -37,6 +37,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public static AbyssPlugin get() { return instance; }
 
     private SigilRegistry sigils;
+    private com.abyss.sigils.sigils.BookTiers bookTiers;
     private PlayerSigilStore store;
     private SocketGUI socketGUI;
     private SigilStatApplier statApplier;
@@ -45,6 +46,8 @@ public final class AbyssPlugin extends JavaPlugin {
     private DungeonManager dungeonManager;
     private RewardChestManager rewardChests;
     private UpgradeGUI upgradeGUI;
+    private com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener;
+    private com.abyss.sigils.dungeon.PortalHologram portalHologram;
     private MythicHook mythicHook;
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private EditorWandListener editorWandListener;
@@ -59,8 +62,13 @@ public final class AbyssPlugin extends JavaPlugin {
         sigils = new SigilRegistry(this);
         sigils.load();
 
-        int smallSlots = getConfig().getInt("socket.small-slots", 10);
-        int bigSlots   = getConfig().getInt("socket.big-slots", 3);
+        bookTiers = new com.abyss.sigils.sigils.BookTiers(this);
+        // The store has to hold enough slots for the MAX possible book tier
+        // even when the player's current book is a lower tier — otherwise
+        // upgrading the book wouldn't recover previously-stored sigils.
+        int maxTier = bookTiers.maxTier();
+        int smallSlots = bookTiers.smallSlots(maxTier);
+        int bigSlots   = bookTiers.bigSlots(maxTier) + bookTiers.grandSlots(maxTier);
         store = new PlayerSigilStore(this, smallSlots, bigSlots);
 
         // MMOItems hook before stat applier (applier asks it for refreshes)
@@ -86,6 +94,14 @@ public final class AbyssPlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(rewardChests, this);
         upgradeGUI = new UpgradeGUI(this);
         Bukkit.getPluginManager().registerEvents(upgradeGUI, this);
+
+        mapRefreshListener = new com.abyss.sigils.dungeon.MapRefreshListener(this);
+        Bukkit.getPluginManager().registerEvents(mapRefreshListener, this);
+
+        portalHologram = new com.abyss.sigils.dungeon.PortalHologram(this);
+        Bukkit.getPluginManager().registerEvents(portalHologram, this);
+        // Try to spawn it now; if chunks aren't loaded yet, onChunkLoad picks it up.
+        portalHologram.refreshFromConfig();
 
         EditorGUI.register(this);
         AnvilInput.register(this);
@@ -136,6 +152,7 @@ public final class AbyssPlugin extends JavaPlugin {
     }
 
     public SigilRegistry sigils() { return sigils; }
+    public com.abyss.sigils.sigils.BookTiers bookTiers() { return bookTiers; }
     public PlayerSigilStore store() { return store; }
     public SocketGUI socketGUI() { return socketGUI; }
     public SigilStatApplier statApplier() { return statApplier; }
@@ -144,6 +161,8 @@ public final class AbyssPlugin extends JavaPlugin {
     public DungeonManager dungeonManager() { return dungeonManager; }
     public RewardChestManager rewardChests() { return rewardChests; }
     public UpgradeGUI upgradeGUI() { return upgradeGUI; }
+    public com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener() { return mapRefreshListener; }
+    public com.abyss.sigils.dungeon.PortalHologram portalHologram() { return portalHologram; }
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }

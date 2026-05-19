@@ -139,6 +139,11 @@ public final class TemplateRegistry {
         if (worldDir.exists()) deleteRecursive(worldDir);
         if (t.configFile().exists()) t.configFile().delete();
         templates.remove(t.name().toLowerCase(Locale.ROOT));
+        // Any existing maps pointing at this template are now broken; refresh
+        // online players so they see the "BROKEN" lore right away.
+        if (plugin.mapRefreshListener() != null) {
+            plugin.mapRefreshListener().refreshAllOnline();
+        }
     }
 
     public void save(DungeonTemplate t) {
@@ -152,6 +157,11 @@ public final class TemplateRegistry {
                 && Bukkit.getWorld(t.worldName()) != null
                 && !Bukkit.getWorld(t.worldName()).getPlayers().isEmpty()) {
             plugin.editorMarkers().refreshFor(t);
+        }
+        // Push fresh metadata to any Abyss Map items players are holding for
+        // this template. Cheap (no-op for players with no maps).
+        if (plugin.mapRefreshListener() != null) {
+            plugin.mapRefreshListener().refreshAllOnline();
         }
     }
 
