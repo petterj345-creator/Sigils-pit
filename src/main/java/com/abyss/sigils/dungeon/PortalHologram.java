@@ -42,6 +42,12 @@ public final class PortalHologram implements Listener {
             new NamespacedKey("abyss", "portal_hologram");
 
     private final AbyssPlugin plugin;
+    /**
+     * Repeating task that spawns blue particles above the portal. Stored so
+     * we can cancel + restart it whenever the portal location changes
+     * (config edit, /abyss setportal, /abyss reload).
+     */
+    private org.bukkit.scheduler.BukkitTask particleTask;
     public PortalHologram(AbyssPlugin plugin) { this.plugin = plugin; }
 
     /**
@@ -55,6 +61,13 @@ public final class PortalHologram implements Listener {
         // and any duplicates that snuck in.
         for (World w : Bukkit.getWorlds()) removeHologramsIn(w);
 
+        // Reset the particle loop too — same reason. We'll re-arm it below
+        // once we know the new portal location.
+        if (particleTask != null) {
+            try { particleTask.cancel(); } catch (Throwable ignored) {}
+            particleTask = null;
+        }
+
         Location loc = portalLocation();
         if (loc == null) {
             plugin.getLogger().info("Portal hologram: no portal.world/x/y/z configured, skipping.");
@@ -65,6 +78,41 @@ public final class PortalHologram implements Listener {
         if (loc.getWorld().isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) {
             spawnAt(loc);
         }
+        startParticleTask();
+    }
+
+    /**
+     * Spawn blue dust particles above the portal block every 8 ticks (~0.4s).
+     * The task reads {@link #portalLocation()} each tick, so renaming or
+     * moving the portal updates the particle position automatically.
+     *
+     * We use {@code DustOptions} with a custom RGB and large size for an
+     * "I am a magic portal" look, plus a small offset to scatter them.
+     */
+    private void startParticleTask() {
+        particleTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            Location loc = portalLocation();
+            if (loc == null) return;
+            World w = loc.getWorld();
+            if (w == null) return;
+            // Skip if no players in render range — saves cycles on empty servers
+            if (!w.isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) return;
+
+            // Blue dust cluster floating above the portal block
+            org.bukkit.Particle.DustOptions blueDust =
+                    new org.bukkit.Particle.DustOptions(Color.fromRGB(40, 140, 255), 1.6f);
+            // Origin slightly above the block — players can see it standing next to it
+            double cx = loc.getBlockX() + 0.5;
+            double cy = loc.getBlockY() + 1.3;
+            double cz = loc.getBlockZ() + 0.5;
+            w.spawnParticle(org.bukkit.Particle.DUST,
+                    cx, cy, cz, 12,
+                    0.35, 0.35, 0.35, 0, blueDust);
+            // Sparkle highlight (END_ROD particles are faintly bluish-white)
+            w.spawnParticle(org.bukkit.Particle.END_ROD,
+                    cx, cy, cz, 2,
+                    0.25, 0.25, 0.25, 0.01);
+        }, 20L, 8L); // first run after 1s, then every 8 ticks
     }
 
     /**
@@ -85,12 +133,12 @@ public final class PortalHologram implements Listener {
     /** Actually spawn the floating label. */
     private void spawnAt(Location loc) {
         loc.getWorld().spawn(loc, TextDisplay.class, e -> {
-            e.setText(Text.color("&5&l⛧ &d&lAbyss Portal &5&l⛧"));
+            e.setText(Text.color("&1&l⛧ &b&lAbyss Portal &1&l⛧"));
             e.setBillboard(Display.Billboard.CENTER);
             e.setShadowed(true);
             e.setSeeThrough(true);
             e.setDefaultBackground(false);
-            e.setBackgroundColor(Color.fromARGB(180, 20, 0, 30));
+            e.setBackgroundColor(Color.fromARGB(180, 0, 15, 40));
             // Non-persistent so chunk unload kills it cleanly — we'll respawn
             // it on the next chunk load. Without this, every reload would
             // accumulate ghost copies.

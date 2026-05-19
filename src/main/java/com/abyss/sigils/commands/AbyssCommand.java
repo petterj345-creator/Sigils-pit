@@ -57,6 +57,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
+            case "setportal"  -> handleSetPortal(sender);
             case "reload"     -> {
                 if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return true; }
                 plugin.reloadConfig();
@@ -294,6 +295,42 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         p.sendMessage(Text.color("&aMarkers refreshed."));
     }
 
+    /**
+     * /abyss setportal — sets the overworld portal location to the block the
+     * sender is looking at (up to 8 blocks away). Saves config, refreshes the
+     * floating hologram, and reports the new coords. Also auto-detects the
+     * block material so the player doesn't have to edit portal.block-type
+     * separately.
+     */
+    private void handleSetPortal(CommandSender sender) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+
+        org.bukkit.block.Block target = p.getTargetBlockExact(8);
+        if (target == null || target.getType().isAir()) {
+            p.sendMessage(Text.color("&cLook at a block within 8 blocks to use as the portal."));
+            return;
+        }
+
+        plugin.getConfig().set("portal.world", target.getWorld().getName());
+        plugin.getConfig().set("portal.x", target.getX());
+        plugin.getConfig().set("portal.y", target.getY());
+        plugin.getConfig().set("portal.z", target.getZ());
+        plugin.getConfig().set("portal.block-type", target.getType().name());
+        plugin.saveConfig();
+
+        // Re-spawn the hologram at the new spot
+        if (plugin.portalHologram() != null) {
+            plugin.portalHologram().refreshFromConfig();
+        }
+
+        p.sendMessage(Text.color("&5&lAbyss Portal &aset to &f"
+                + target.getType().name() + " &7at &f"
+                + target.getX() + ", " + target.getY() + ", " + target.getZ()
+                + " &7in &f" + target.getWorld().getName()));
+        p.sendMessage(Text.color("&7Right-click the block to enter The Abyss."));
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Text.color("&5&lAbyss commands:"));
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
@@ -310,6 +347,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.color("  &f/abyss givemap <template> [p] [n]"));
             sender.sendMessage(Text.color("  &f/abyss sigil list|create [id]|edit <id> &8— sigil creator"));
             sender.sendMessage(Text.color("  &f/abyss mythicdrops &8— add sigil drops to mythic mobs"));
+            sender.sendMessage(Text.color("  &f/abyss setportal &8— set portal block to the one you're looking at"));
             sender.sendMessage(Text.color("  &f/abyss reload"));
         }
     }
@@ -320,7 +358,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             "help","sigils","leave","enterabyss",
             "create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","reload",
-            "sigil","mythicdrops","markers"
+            "sigil","mythicdrops","markers","setportal"
     );
 
     @Override
