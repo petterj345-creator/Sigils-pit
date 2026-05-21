@@ -49,6 +49,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener;
     private com.abyss.sigils.dungeon.PortalHologram portalHologram;
     private com.abyss.sigils.dungeon.PortalEntryGUI portalEntryGUI;
+    private com.abyss.sigils.gui.SigilCreatorGUI sigilCreatorGUI;
     private MythicHook mythicHook;
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private EditorWandListener editorWandListener;
@@ -85,6 +86,9 @@ public final class AbyssPlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GatheringListener(this), this);
         Bukkit.getPluginManager().registerEvents(new BookListener(this), this);
         Bukkit.getPluginManager().registerEvents(new BookOnJoinListener(this), this);
+
+        sigilCreatorGUI = new com.abyss.sigils.gui.SigilCreatorGUI(this);
+        Bukkit.getPluginManager().registerEvents(sigilCreatorGUI, this);
 
         templates = new TemplateRegistry(this);
         templates.loadAll();
@@ -173,6 +177,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener() { return mapRefreshListener; }
     public com.abyss.sigils.dungeon.PortalHologram portalHologram() { return portalHologram; }
     public com.abyss.sigils.dungeon.PortalEntryGUI portalEntryGUI() { return portalEntryGUI; }
+    public com.abyss.sigils.gui.SigilCreatorGUI sigilCreatorGUI() { return sigilCreatorGUI; }
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }

@@ -34,26 +34,19 @@ import java.util.*;
  */
 public final class SigilCreatorGUI implements Listener {
 
-    private static SigilCreatorGUI INSTANCE;
-    public static void register(AbyssPlugin plugin) {
-        if (INSTANCE != null) return;
-        INSTANCE = new SigilCreatorGUI(plugin);
-        Bukkit.getPluginManager().registerEvents(INSTANCE, plugin);
-    }
-
     public static void openFor(AbyssPlugin plugin, Player p, SigilDraft draft) {
-        register(plugin);
+        SigilCreatorGUI gui = plugin.sigilCreatorGUI();
         Holder holder = new Holder();
-        Inventory inv = INSTANCE.build(draft, holder);
+        Inventory inv = gui.build(draft, holder);
         holder.inv = inv;
-        INSTANCE.viewers.put(p.getUniqueId(), new Session(draft, inv));
+        gui.viewers.put(p.getUniqueId(), new Session(draft, inv));
         p.openInventory(inv);
     }
 
     private final AbyssPlugin plugin;
     private final Map<UUID, Session> viewers = new HashMap<>();
 
-    private SigilCreatorGUI(AbyssPlugin plugin) { this.plugin = plugin; }
+    public SigilCreatorGUI(AbyssPlugin plugin) { this.plugin = plugin; }
 
     /** Marker holder so we can identify this GUI by reference, not by equals(). */
     public static final class Holder implements org.bukkit.inventory.InventoryHolder {
