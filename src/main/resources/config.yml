@@ -2,6 +2,9 @@
 # AbyssSigils — global config
 # =========================================
 
+# Set true to log GUI clicks + other diagnostics to console.
+debug: false
+
 socket:
   # Legacy slot counts — only used if a player has no Book of Sigils item
   # in their inventory (e.g. very old saves). Modern behaviour: slots come

@@ -47,7 +47,8 @@ public final class ChatInput implements Listener {
     private static ChatInput INSTANCE;
 
     public static void register(AbyssPlugin plugin) {
-        if (INSTANCE != null) return;
+        // Always (re)create on register so a plugin reload gives us a live
+        // listener instance instead of a stale one from a previous load.
         INSTANCE = new ChatInput(plugin);
         Bukkit.getPluginManager().registerEvents(INSTANCE, plugin);
     }

@@ -37,6 +37,7 @@ public final class SigilCreatorGUI implements Listener {
     public static void openFor(AbyssPlugin plugin, Player p, SigilDraft draft) {
         SigilCreatorGUI gui = plugin.sigilCreatorGUI();
         Holder holder = new Holder();
+        holder.draft = draft;
         Inventory inv = gui.build(draft, holder);
         holder.inv = inv;
         gui.viewers.put(p.getUniqueId(), new Session(draft, inv));
@@ -48,9 +49,10 @@ public final class SigilCreatorGUI implements Listener {
 
     public SigilCreatorGUI(AbyssPlugin plugin) { this.plugin = plugin; }
 
-    /** Marker holder so we can identify this GUI by reference, not by equals(). */
+    /** Marker holder so we can identify this GUI by reference, AND carry the draft. */
     public static final class Holder implements org.bukkit.inventory.InventoryHolder {
         Inventory inv;
+        SigilDraft draft;
         @Override public Inventory getInventory() { return inv; }
     }
 
@@ -204,24 +206,29 @@ public final class SigilCreatorGUI implements Listener {
         if (!(e.getWhoClicked() instanceof Player p)) return;
         Inventory top = e.getView().getTopInventory();
         // Identify by holder reference, NOT inventory equals().
-        if (!(top.getHolder() instanceof Holder)) return;
+        if (!(top.getHolder() instanceof Holder holder)) return;
 
         int slot = e.getRawSlot();
         boolean isTopClick = slot < top.getSize();
 
-        // Lock the GUI based on the HOLDER alone. Even if the session lookup
-        // below fails for any reason, a click in the top inventory must never
-        // pass through (that's what let icons get dragged around).
+        // Lock the GUI based on the HOLDER alone. A click in the top inventory
+        // must never pass through (that's what let icons get dragged around).
         if (isTopClick) {
             e.setCancelled(true);
         } else {
-            // Player's own inventory: block shift-clicks (they shovel into GUI)
             if (e.isShiftClick()) e.setCancelled(true);
             return;
         }
 
-        Session s = viewers.get(p.getUniqueId());
-        if (s == null) return; // already cancelled above; just can't route
+        // The draft lives ON the holder, so routing never depends on the
+        // viewers map (which could desync). Wrap it in a Session so the rest
+        // of the switch keeps working unchanged.
+        if (holder.draft == null) return;
+        Session s = new Session(holder.draft, top);
+
+        if (plugin.getConfig().getBoolean("debug", false)) {
+            plugin.getLogger().info("[SigilCreator] click slot=" + slot + " by " + p.getName());
+        }
 
         // Material set: click the icon slot while holding an item.
         if (slot == SLOT_MAT) {
