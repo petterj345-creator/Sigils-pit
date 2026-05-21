@@ -91,6 +91,9 @@ public final class AbyssPlugin extends JavaPlugin {
 
         dungeonManager = new DungeonManager(this);
         Bukkit.getPluginManager().registerEvents(dungeonManager, this);
+        // Lock down building inside play instances (abyss_inst_*).
+        Bukkit.getPluginManager().registerEvents(
+                new com.abyss.sigils.dungeon.DungeonProtectionListener(this), this);
         // Delete any abyss_inst_* worlds left over from a crash or hard stop.
         dungeonManager.cleanupOrphanInstances();
         rewardChests = new RewardChestManager(this);
