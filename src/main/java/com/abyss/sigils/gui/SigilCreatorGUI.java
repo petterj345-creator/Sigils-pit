@@ -43,7 +43,9 @@ public final class SigilCreatorGUI implements Listener {
 
     public static void openFor(AbyssPlugin plugin, Player p, SigilDraft draft) {
         register(plugin);
-        Inventory inv = INSTANCE.build(draft);
+        Holder holder = new Holder();
+        Inventory inv = INSTANCE.build(draft, holder);
+        holder.inv = inv;
         INSTANCE.viewers.put(p.getUniqueId(), new Session(draft, inv));
         p.openInventory(inv);
     }
@@ -52,6 +54,12 @@ public final class SigilCreatorGUI implements Listener {
     private final Map<UUID, Session> viewers = new HashMap<>();
 
     private SigilCreatorGUI(AbyssPlugin plugin) { this.plugin = plugin; }
+
+    /** Marker holder so we can identify this GUI by reference, not by equals(). */
+    public static final class Holder implements org.bukkit.inventory.InventoryHolder {
+        Inventory inv;
+        @Override public Inventory getInventory() { return inv; }
+    }
 
     private static class Session {
         final SigilDraft draft;
@@ -72,8 +80,8 @@ public final class SigilCreatorGUI implements Listener {
     private static final int SLOT_SAVE  = 49;
     private static final int SLOT_CANCEL = 50;
 
-    private Inventory build(SigilDraft d) {
-        Inventory inv = Bukkit.createInventory(null, 54, Text.color("&5&lSigil Creator: &f" + d.id()));
+    private Inventory build(SigilDraft d, Holder holder) {
+        Inventory inv = Bukkit.createInventory(holder, 54, Text.color("&5&lSigil Creator: &f" + d.id()));
 
         // Border filler
         for (int i = 0; i < 54; i++) inv.setItem(i, filler());
@@ -201,25 +209,40 @@ public final class SigilCreatorGUI implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
+        Inventory top = e.getView().getTopInventory();
+        // Identify by holder reference, NOT inventory equals() — equals() can
+        // match on contents and silently fail after a redraw, which let GUI
+        // icons get dragged around like real items.
+        if (!(top.getHolder() instanceof Holder)) return;
+
         Session s = viewers.get(p.getUniqueId());
-        if (s == null || !e.getView().getTopInventory().equals(s.inv)) return;
+        if (s == null) return;
 
         int slot = e.getRawSlot();
+        boolean isTopClick = slot < top.getSize();
 
-        // Material drop: drag any item into SLOT_MAT
-        if (slot == SLOT_MAT && e.getView().getCursor() != null
-                && e.getView().getCursor().getType() != Material.AIR) {
+        // Material drop: drop/click any item onto SLOT_MAT to set the icon.
+        if (slot == SLOT_MAT) {
             e.setCancelled(true);
-            s.draft.setMaterial(e.getView().getCursor().getType());
-            // Keep the player's item — don't consume it
-            redraw(p, s);
+            ItemStack cursor = e.getView().getCursor();
+            if (cursor != null && cursor.getType() != Material.AIR) {
+                s.draft.setMaterial(cursor.getType()); // keep the item, don't consume
+                redraw(p, s);
+            } else {
+                p.sendMessage(Text.color("&7Hold an item on your cursor and click this slot to set the icon."));
+            }
             return;
         }
 
-        if (e.getClickedInventory() != s.inv) {
+        // Clicks in the player's own inventory: allow normal behaviour, but
+        // block shift-clicks (they'd shovel items into the GUI).
+        if (!isTopClick) {
             if (e.isShiftClick()) e.setCancelled(true);
             return;
         }
+
+        // Any other click in the top GUI: cancel BEFORE routing so nothing
+        // can ever be picked up, then handle the button.
         e.setCancelled(true);
 
         switch (slot) {
@@ -297,7 +320,7 @@ public final class SigilCreatorGUI implements Listener {
     }
 
     private void redraw(Player p, Session s) {
-        Inventory fresh = build(s.draft);
+        Inventory fresh = build(s.draft, new Holder());
         for (int i = 0; i < fresh.getSize(); i++) s.inv.setItem(i, fresh.getItem(i));
     }
 
@@ -309,5 +332,19 @@ public final class SigilCreatorGUI implements Listener {
     public void onClose(InventoryCloseEvent e) {
         if (!(e.getPlayer() instanceof Player p)) return;
         viewers.remove(p.getUniqueId());
+    }
+
+    @EventHandler
+    public void onDrag(org.bukkit.event.inventory.InventoryDragEvent e) {
+        Inventory top = e.getView().getTopInventory();
+        if (!(top.getHolder() instanceof Holder)) return;
+        // Cancel any drag that touches the top GUI — except onto SLOT_MAT,
+        // which we still treat as "set icon" without consuming the item.
+        for (int raw : e.getRawSlots()) {
+            if (raw < top.getSize() && raw != SLOT_MAT) {
+                e.setCancelled(true);
+                return;
+            }
+        }
     }
 }

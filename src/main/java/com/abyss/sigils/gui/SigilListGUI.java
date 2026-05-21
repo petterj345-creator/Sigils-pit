@@ -84,6 +84,7 @@ public final class SigilListGUI extends EditorGUI.Holder {
                     lore.add(color("&7Max tier: &f" + def.maxTier()));
                     lore.add("");
                     lore.add(color("&eClick &7to edit"));
+                    lore.add(color("&aRight-click &7to get one"));
                     lore.add(color("&cShift-click &7to delete"));
                     meta.setLore(lore);
                     stack.setItemMeta(meta);
@@ -95,6 +96,16 @@ public final class SigilListGUI extends EditorGUI.Holder {
                     plugin.sigils().delete(def.id());
                     p.sendMessage(color("&aDeleted sigil &f" + def.id() + "&a."));
                     refresh(p);
+                } else if (e.isRightClick()) {
+                    // Hand the player a real T1 copy of this sigil
+                    SigilInstance give = new SigilInstance(def.id(), 1);
+                    ItemStack item = SigilItem.toItem(give);
+                    if (item != null) {
+                        var overflow = p.getInventory().addItem(item);
+                        for (ItemStack o : overflow.values())
+                            p.getWorld().dropItemNaturally(p.getLocation(), o);
+                        p.sendMessage(color("&aGave you &f" + def.id() + " &7(T1)&a."));
+                    }
                 } else {
                     SigilCreatorGUI.openFor(plugin, p, SigilDraft.from(def));
                 }
