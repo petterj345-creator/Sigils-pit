@@ -116,7 +116,7 @@ public final class SocketGUI implements Listener {
             if (i < grandUnlocked) {
                 int storeIdx = i + BIG_SLOTS.length;
                 sm.put(rawSlot, storeIdx + 100);
-                sr.put(rawSlot, SigilRank.MAJOR); // accepts major sigils (same as big)
+                sr.put(rawSlot, SigilRank.GRAND); // GRAND-only sigils
                 SigilInstance inst = storeIdx < bigs.size() ? bigs.get(storeIdx) : null;
                 inv.setItem(rawSlot, inst == null ? grandSlotEmpty(i + 1) : SigilItem.toItem(inst));
             } else {
@@ -175,7 +175,7 @@ public final class SocketGUI implements Listener {
     private ItemStack grandSlotEmpty(int n) {
         return icon(Material.PURPLE_STAINED_GLASS_PANE,
                 "&5&lGrand Socket #" + n,
-                "&8Insert a major sigil",
+                "&8Insert a grand sigil",
                 "&8Unlocked by high-tier book");
     }
 
@@ -296,8 +296,12 @@ public final class SocketGUI implements Listener {
             SigilRank cursorRank = SigilItem.rankOf(cursor);
             if (cursorRank != acceptedRank) {
                 e.setCancelled(true);
-                p.sendMessage(Text.color("&cThat socket only accepts "
-                        + (acceptedRank == SigilRank.MAJOR ? "major" : "minor") + " sigils."));
+                String rankWord = switch (acceptedRank) {
+                    case MINOR -> "minor";
+                    case MAJOR -> "major";
+                    case GRAND -> "grand";
+                };
+                p.sendMessage(Text.color("&cThat socket only accepts " + rankWord + " sigils."));
                 return;
             }
             e.setCancelled(true);
@@ -337,14 +341,24 @@ public final class SocketGUI implements Listener {
         SigilRank rank = SigilItem.rankOf(stack);
         if (rank == null) return;
 
-        int[] slots = rank == SigilRank.MAJOR ? BIG_SLOTS : SMALL_SLOTS;
-        boolean isBig = rank == SigilRank.MAJOR;
-        List<SigilInstance> list = isBig ? store.getBig(p.getUniqueId()) : store.getSmall(p.getUniqueId());
+        // GRAND uses the same big-store, indexed AFTER the big slots
+        int[] slots;
+        int storeIndexBase;
+        boolean usesBigStore;
+        String word;
+        switch (rank) {
+            case MINOR -> { slots = SMALL_SLOTS; storeIndexBase = 0; usesBigStore = false; word = "small"; }
+            case MAJOR -> { slots = BIG_SLOTS;   storeIndexBase = 0; usesBigStore = true;  word = "big"; }
+            case GRAND -> { slots = GRAND_SLOTS; storeIndexBase = BIG_SLOTS.length; usesBigStore = true; word = "grand"; }
+            default    -> { return; }
+        }
+        List<SigilInstance> list = usesBigStore ? store.getBig(p.getUniqueId()) : store.getSmall(p.getUniqueId());
 
         for (int i = 0; i < slots.length; i++) {
-            if (list.get(i) == null) {
-                if (isBig) store.setBig(p.getUniqueId(), i, inst);
-                else       store.setSmall(p.getUniqueId(), i, inst);
+            int storeIdx = storeIndexBase + i;
+            if (storeIdx < list.size() && list.get(storeIdx) == null) {
+                if (usesBigStore) store.setBig(p.getUniqueId(), storeIdx, inst);
+                else              store.setSmall(p.getUniqueId(), storeIdx, inst);
                 inv.setItem(slots[i], SigilItem.toItem(inst));
                 stack.setAmount(stack.getAmount() - 1);
                 if (stack.getAmount() <= 0) p.getInventory().setItem(sourceSlot, null);
@@ -353,7 +367,7 @@ public final class SocketGUI implements Listener {
                 return;
             }
         }
-        p.sendMessage(Text.color("&cNo empty " + (isBig ? "big" : "small") + " sockets."));
+        p.sendMessage(Text.color("&cNo empty " + word + " sockets."));
     }
 
     @EventHandler

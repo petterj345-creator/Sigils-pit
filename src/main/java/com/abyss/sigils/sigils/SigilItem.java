@@ -37,11 +37,19 @@ public final class SigilItem {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
-        String rankTag = def.rank() == SigilRank.MAJOR ? "&6&l[MAJOR]" : "&7[minor]";
+        String rankTag = switch (def.rank()) {
+            case GRAND -> "&5&l[GRAND]";
+            case MAJOR -> "&6&l[MAJOR]";
+            case MINOR -> "&7[minor]";
+        };
         meta.setDisplayName(Text.color(def.display() + " &7[T" + inst.tier() + "] " + rankTag));
 
         List<String> lore = new ArrayList<>();
-        lore.add(Text.color("&8" + (def.rank() == SigilRank.MAJOR ? "Major Sigil" : "Minor Sigil")));
+        lore.add(Text.color("&8" + switch (def.rank()) {
+            case GRAND -> "Grand Sigil";
+            case MAJOR -> "Major Sigil";
+            case MINOR -> "Minor Sigil";
+        }));
         lore.add("");
         lore.add(Text.color(def.stat().display(def.valueAtTier(inst.tier())) + " &7(main)"));
         if (!inst.subStats().isEmpty()) {
@@ -52,9 +60,11 @@ public final class SigilItem {
             }
         }
         lore.add("");
-        lore.add(Text.color(def.rank() == SigilRank.MAJOR
-                ? "&8Fits in a &6big&8 socket"
-                : "&8Fits in a &7small&8 socket"));
+        lore.add(Text.color(switch (def.rank()) {
+            case GRAND -> "&8Fits in a &5grand&8 socket";
+            case MAJOR -> "&8Fits in a &6big&8 socket";
+            case MINOR -> "&8Fits in a &7small&8 socket";
+        }));
         meta.setLore(lore);
 
         if (def.modelData() != 0) meta.setCustomModelData(def.modelData());

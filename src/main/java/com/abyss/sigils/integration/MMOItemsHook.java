@@ -42,14 +42,31 @@ public final class MMOItemsHook {
     private Object modifierTypeFlat;
 
     /** Map from our SigilStat → MMOItems stat name. */
-    private static final Map<SigilStat, String> STAT_MAPPING = Map.of(
-            SigilStat.MMO_ATTACK_DAMAGE,           "ATTACK_DAMAGE",
-            SigilStat.MMO_MAGIC_DAMAGE,            "MAGIC_DAMAGE",
-            SigilStat.MMO_CRITICAL_STRIKE_CHANCE,  "CRITICAL_STRIKE_CHANCE",
-            SigilStat.MMO_CRITICAL_STRIKE_POWER,   "CRITICAL_STRIKE_POWER",
-            SigilStat.MMO_PVE_DAMAGE,              "PVE_DAMAGE",
-            SigilStat.MMO_PVP_DAMAGE,              "PVP_DAMAGE"
-    );
+    private static final Map<SigilStat, String> STAT_MAPPING;
+    static {
+        Map<SigilStat, String> m = new java.util.HashMap<>();
+        // Originals
+        m.put(SigilStat.MMO_ATTACK_DAMAGE,           "ATTACK_DAMAGE");
+        m.put(SigilStat.MMO_MAGIC_DAMAGE,            "MAGIC_DAMAGE");
+        m.put(SigilStat.MMO_CRITICAL_STRIKE_CHANCE,  "CRITICAL_STRIKE_CHANCE");
+        m.put(SigilStat.MMO_CRITICAL_STRIKE_POWER,   "CRITICAL_STRIKE_POWER");
+        m.put(SigilStat.MMO_PVE_DAMAGE,              "PVE_DAMAGE");
+        m.put(SigilStat.MMO_PVP_DAMAGE,              "PVP_DAMAGE");
+        // Defensive
+        m.put(SigilStat.MMO_HEALTH_REGEN,            "HEALTH_REGENERATION");
+        m.put(SigilStat.MMO_ARMOR,                   "ARMOR");
+        m.put(SigilStat.MMO_BLOCK_RATING,            "BLOCK_RATING");
+        m.put(SigilStat.MMO_DODGE_RATING,            "DODGE_RATING");
+        m.put(SigilStat.MMO_BLOCK_POWER,             "BLOCK_POWER");
+        m.put(SigilStat.MMO_MAGIC_RESISTANCE,        "MAGIC_DAMAGE_REDUCTION");
+        m.put(SigilStat.MMO_ARMOR_PIERCING,          "ARMOR_PIERCING");
+        // Utility
+        m.put(SigilStat.MMO_COOLDOWN_REDUCTION,      "COOLDOWN_REDUCTION");
+        m.put(SigilStat.MMO_MAX_MANA,                "MAX_MANA");
+        m.put(SigilStat.MMO_MANA_REGEN,              "MANA_REGENERATION");
+        m.put(SigilStat.MMO_MAGICAL_DAMAGE,          "MAGICAL_DAMAGE");
+        STAT_MAPPING = java.util.Collections.unmodifiableMap(m);
+    }
 
     private static final String MOD_KEY = "abyss_sigil_modifier";
 

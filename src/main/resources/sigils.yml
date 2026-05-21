@@ -6,33 +6,36 @@
 #   display:        shown name (& color codes)
 #   material:       icon material
 #   model-data:     optional custom model data int
-#   rank:           MINOR (small socket) or MAJOR (big socket)
+#   rank:           MINOR (small socket), MAJOR (big socket), GRAND (grand socket)
 #   stat:           main stat granted (see list below)
 #   tier-values:    value at each tier; length = max tier
 #   substat-pool:   stats that can roll as sub-stats on upgrade
 #
 # Stat rules:
-#   - MINOR sigils can ONLY have stats that are not major-only.
-#   - MAJOR sigils can have any stat (including all the major-only ones).
+#   - MINOR sigils can only have stats whose rankFloor is MINOR.
+#   - MAJOR sigils can have MINOR-floor or MAJOR-floor stats.
+#   - GRAND sigils can have anything, including GRAND_* stats.
 #
-# Supported stats:
-#   COMBAT (any rank):
-#     DAMAGE_PERCENT, DEFENSE_PERCENT, MAX_HEALTH,
-#     SPEED_PERCENT, CRIT_CHANCE
-#   COMBAT (MAJOR only):
-#     DAMAGE_PERCENT_BIG, LIFESTEAL_PERCENT, THORNS_PERCENT, EXTRA_CRIT_DAMAGE
-#   GATHERING (any rank):
-#     WOOD_MULTIPLIER, ORE_MULTIPLIER, CROP_MULTIPLIER
-#   GATHERING (MAJOR only):
-#     LUCKY_FIND, FORTUNE_AURA
-#   MMOITEMS (MAJOR only, requires MMOItems installed):
-#     MMO_ATTACK_DAMAGE, MMO_MAGIC_DAMAGE,
-#     MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER,
-#     MMO_PVE_DAMAGE, MMO_PVP_DAMAGE
+# Supported stats (rankFloor in parens):
+#   COMBAT (MINOR):  DAMAGE_PERCENT, DEFENSE_PERCENT, MAX_HEALTH, SPEED_PERCENT, CRIT_CHANCE
+#   COMBAT (MAJOR):  DAMAGE_PERCENT_BIG, LIFESTEAL_PERCENT, THORNS_PERCENT, EXTRA_CRIT_DAMAGE
+#   COMBAT (GRAND):  GRAND_OMNIDAMAGE, GRAND_FORTRESS, GRAND_VITALITY, GRAND_SOULSTEAL, GRAND_GODSPEED
+#   GATHERING (MINOR): WOOD_MULTIPLIER, ORE_MULTIPLIER, CROP_MULTIPLIER
+#   GATHERING (MAJOR): LUCKY_FIND, FORTUNE_AURA
+#   MMOITEMS (MINOR):  MMO_HEALTH_REGEN, MMO_ARMOR, MMO_BLOCK_RATING, MMO_DODGE_RATING
+#   MMOITEMS (MAJOR):  MMO_ATTACK_DAMAGE, MMO_MAGIC_DAMAGE, MMO_MAGICAL_DAMAGE,
+#                      MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER,
+#                      MMO_PVE_DAMAGE, MMO_PVP_DAMAGE,
+#                      MMO_MAGIC_RESISTANCE, MMO_ARMOR_PIERCING, MMO_BLOCK_POWER,
+#                      MMO_COOLDOWN_REDUCTION, MMO_MAX_MANA, MMO_MANA_REGEN
 
 sigils:
 
-  # ----- MINOR sigils -----
+  # =========================================================================
+  # MINOR sigils — small sockets
+  # =========================================================================
+
+  # ----- Original combat stats -----
   wrath:
     display: "&c&lSigil of Wrath"
     material: REDSTONE
@@ -47,7 +50,7 @@ sigils:
     rank: MINOR
     stat: DEFENSE_PERCENT
     tier-values: [3, 5, 7, 10, 14]
-    substat-pool: [MAX_HEALTH]
+    substat-pool: [MAX_HEALTH, MMO_ARMOR]
 
   vitality:
     display: "&a&lSigil of Vitality"
@@ -55,7 +58,7 @@ sigils:
     rank: MINOR
     stat: MAX_HEALTH
     tier-values: [4, 6, 10, 14, 20]
-    substat-pool: [DEFENSE_PERCENT]
+    substat-pool: [DEFENSE_PERCENT, MMO_HEALTH_REGEN]
 
   swiftness:
     display: "&e&lSigil of Swiftness"
@@ -63,7 +66,7 @@ sigils:
     rank: MINOR
     stat: SPEED_PERCENT
     tier-values: [3, 6, 9, 12, 16]
-    substat-pool: [CRIT_CHANCE]
+    substat-pool: [CRIT_CHANCE, MMO_DODGE_RATING]
 
   edge:
     display: "&6&lSigil of the Edge"
@@ -71,8 +74,42 @@ sigils:
     rank: MINOR
     stat: CRIT_CHANCE
     tier-values: [3, 6, 10, 14, 20]
-    substat-pool: [DAMAGE_PERCENT]
+    substat-pool: [DAMAGE_PERCENT, MMO_CRITICAL_STRIKE_POWER]
 
+  # ----- New MMO-flavoured minors -----
+  mending:
+    display: "&a&lSigil of Mending"
+    material: GLISTERING_MELON_SLICE
+    rank: MINOR
+    stat: MMO_HEALTH_REGEN
+    tier-values: [1, 2, 3, 5, 8]
+    substat-pool: [MAX_HEALTH, DEFENSE_PERCENT]
+
+  scales:
+    display: "&7&lSigil of Scales"
+    material: TURTLE_SCUTE
+    rank: MINOR
+    stat: MMO_ARMOR
+    tier-values: [2, 4, 7, 10, 14]
+    substat-pool: [DEFENSE_PERCENT, MMO_HEALTH_REGEN]
+
+  warding:
+    display: "&b&lSigil of Warding"
+    material: SHIELD
+    rank: MINOR
+    stat: MMO_BLOCK_RATING
+    tier-values: [3, 5, 8, 12, 18]
+    substat-pool: [DEFENSE_PERCENT, MMO_ARMOR]
+
+  evasion:
+    display: "&e&lSigil of Evasion"
+    material: RABBIT_FOOT
+    rank: MINOR
+    stat: MMO_DODGE_RATING
+    tier-values: [3, 5, 8, 12, 18]
+    substat-pool: [SPEED_PERCENT, CRIT_CHANCE]
+
+  # ----- Gathering minors -----
   woodsman:
     display: "&2&lSigil of the Woodsman"
     material: OAK_LOG
@@ -97,7 +134,10 @@ sigils:
     tier-values: [15, 25, 40, 55, 75]
     substat-pool: [MAX_HEALTH]
 
-  # ----- MAJOR sigils -----
+  # =========================================================================
+  # MAJOR sigils — big sockets
+  # =========================================================================
+
   annihilation:
     display: "&4&lSigil of Annihilation"
     material: NETHERITE_INGOT
@@ -120,8 +160,17 @@ sigils:
     rank: MAJOR
     stat: THORNS_PERCENT
     tier-values: [10, 20, 30, 45, 65]
-    substat-pool: [DEFENSE_PERCENT, MAX_HEALTH]
+    substat-pool: [DEFENSE_PERCENT, MAX_HEALTH, MMO_BLOCK_POWER]
 
+  butcher:
+    display: "&c&lSigil of the Butcher"
+    material: NETHERITE_AXE
+    rank: MAJOR
+    stat: EXTRA_CRIT_DAMAGE
+    tier-values: [10, 20, 35, 55, 80]
+    substat-pool: [CRIT_CHANCE, MMO_CRITICAL_STRIKE_POWER]
+
+  # ----- Gathering majors -----
   prosperity:
     display: "&d&lSigil of Prosperity"
     material: GOLD_INGOT
@@ -138,14 +187,14 @@ sigils:
     tier-values: [5, 10, 18, 28, 45]
     substat-pool: [FORTUNE_AURA, ORE_MULTIPLIER]
 
-  # ----- MAJOR sigils that lean into MMOItems -----
+  # ----- MMO-flavoured majors -----
   mage:
     display: "&5&lSigil of the Mage"
     material: BLAZE_ROD
     rank: MAJOR
     stat: MMO_MAGIC_DAMAGE
     tier-values: [5, 10, 18, 30, 50]
-    substat-pool: [MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER]
+    substat-pool: [MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER, MMO_MAX_MANA]
 
   warrior:
     display: "&c&lSigil of the Warrior"
@@ -153,4 +202,161 @@ sigils:
     rank: MAJOR
     stat: MMO_ATTACK_DAMAGE
     tier-values: [4, 8, 14, 22, 35]
-    substat-pool: [MMO_PVE_DAMAGE, LIFESTEAL_PERCENT]
+    substat-pool: [MMO_PVE_DAMAGE, LIFESTEAL_PERCENT, MMO_ARMOR_PIERCING]
+
+  duelist:
+    display: "&c&lSigil of the Duelist"
+    material: IRON_SWORD
+    rank: MAJOR
+    stat: MMO_PVP_DAMAGE
+    tier-values: [8, 14, 22, 32, 45]
+    substat-pool: [CRIT_CHANCE, MMO_CRITICAL_STRIKE_CHANCE]
+
+  exorcist:
+    display: "&e&lSigil of the Exorcist"
+    material: BLAZE_POWDER
+    rank: MAJOR
+    stat: MMO_PVE_DAMAGE
+    tier-values: [8, 14, 22, 32, 45]
+    substat-pool: [DAMAGE_PERCENT_BIG, MMO_ATTACK_DAMAGE]
+
+  precision:
+    display: "&6&lSigil of Precision"
+    material: TARGET
+    rank: MAJOR
+    stat: MMO_CRITICAL_STRIKE_CHANCE
+    tier-values: [5, 9, 14, 20, 28]
+    substat-pool: [MMO_CRITICAL_STRIKE_POWER, EXTRA_CRIT_DAMAGE]
+
+  devastator:
+    display: "&6&lSigil of the Devastator"
+    material: TNT
+    rank: MAJOR
+    stat: MMO_CRITICAL_STRIKE_POWER
+    tier-values: [10, 20, 35, 55, 80]
+    substat-pool: [MMO_CRITICAL_STRIKE_CHANCE, EXTRA_CRIT_DAMAGE]
+
+  archmage:
+    display: "&5&lSigil of the Archmage"
+    material: ENCHANTED_BOOK
+    rank: MAJOR
+    stat: MMO_MAGICAL_DAMAGE
+    tier-values: [8, 14, 22, 32, 45]
+    substat-pool: [MMO_MAGIC_DAMAGE, MMO_COOLDOWN_REDUCTION]
+
+  abjuration:
+    display: "&5&lSigil of Abjuration"
+    material: PURPLE_STAINED_GLASS
+    rank: MAJOR
+    stat: MMO_MAGIC_RESISTANCE
+    tier-values: [5, 10, 15, 22, 30]
+    substat-pool: [DEFENSE_PERCENT, MMO_MAGIC_DAMAGE]
+
+  cleaver:
+    display: "&c&lSigil of the Cleaver"
+    material: STONE_AXE
+    rank: MAJOR
+    stat: MMO_ARMOR_PIERCING
+    tier-values: [5, 10, 15, 22, 30]
+    substat-pool: [DAMAGE_PERCENT_BIG, CRIT_CHANCE]
+
+  guardian:
+    display: "&b&lSigil of the Guardian"
+    material: SHIELD
+    rank: MAJOR
+    stat: MMO_BLOCK_POWER
+    tier-values: [10, 18, 28, 40, 55]
+    substat-pool: [MMO_BLOCK_RATING, DEFENSE_PERCENT, THORNS_PERCENT]
+
+  haste:
+    display: "&3&lSigil of Haste"
+    material: CLOCK
+    rank: MAJOR
+    stat: MMO_COOLDOWN_REDUCTION
+    tier-values: [4, 8, 12, 18, 25]
+    substat-pool: [MMO_MAGIC_DAMAGE, SPEED_PERCENT]
+
+  arcane_well:
+    display: "&9&lSigil of the Arcane Well"
+    material: LAPIS_LAZULI
+    rank: MAJOR
+    stat: MMO_MAX_MANA
+    tier-values: [10, 20, 35, 55, 80]
+    substat-pool: [MMO_MANA_REGEN, MMO_MAGIC_DAMAGE]
+
+  arcane_flow:
+    display: "&9&lSigil of Arcane Flow"
+    material: PRISMARINE_CRYSTALS
+    rank: MAJOR
+    stat: MMO_MANA_REGEN
+    tier-values: [2, 4, 7, 11, 16]
+    substat-pool: [MMO_MAX_MANA, MMO_COOLDOWN_REDUCTION]
+
+  # =========================================================================
+  # GRAND sigils — grand sockets only (T16+ books)
+  # OP: large base stats + multi-stat sub-rolls
+  # =========================================================================
+
+  ruination:
+    display: "&4&l✦ Sigil of Ruination ✦"
+    material: NETHER_STAR
+    rank: GRAND
+    stat: GRAND_OMNIDAMAGE
+    tier-values: [50, 80, 120, 170, 250]
+    substat-pool: [DAMAGE_PERCENT_BIG, MMO_ATTACK_DAMAGE, MMO_MAGIC_DAMAGE, MMO_CRITICAL_STRIKE_POWER]
+
+  citadel:
+    display: "&1&l✦ Sigil of the Citadel ✦"
+    material: NETHERITE_HELMET
+    rank: GRAND
+    stat: GRAND_FORTRESS
+    tier-values: [30, 45, 65, 90, 125]
+    substat-pool: [DEFENSE_PERCENT, MAX_HEALTH, MMO_ARMOR, MMO_MAGIC_RESISTANCE, MMO_BLOCK_RATING]
+
+  worldheart:
+    display: "&a&l✦ Sigil of the Worldheart ✦"
+    material: TOTEM_OF_UNDYING
+    rank: GRAND
+    stat: GRAND_VITALITY
+    tier-values: [40, 60, 90, 130, 200]
+    substat-pool: [DEFENSE_PERCENT, MMO_HEALTH_REGEN, MMO_ARMOR, MMO_MAGIC_RESISTANCE]
+
+  voidleech:
+    display: "&4&l✦ Sigil of the Void-Leech ✦"
+    material: WITHER_ROSE
+    rank: GRAND
+    stat: GRAND_SOULSTEAL
+    tier-values: [20, 30, 45, 65, 90]
+    substat-pool: [LIFESTEAL_PERCENT, DAMAGE_PERCENT_BIG, MMO_ATTACK_DAMAGE, GRAND_OMNIDAMAGE]
+
+  starfall:
+    display: "&e&l✦ Sigil of Starfall ✦"
+    material: ELYTRA
+    rank: GRAND
+    stat: GRAND_GODSPEED
+    tier-values: [25, 35, 50, 70, 100]
+    substat-pool: [SPEED_PERCENT, MMO_DODGE_RATING, CRIT_CHANCE, MMO_COOLDOWN_REDUCTION]
+
+  archon:
+    display: "&5&l✦ Sigil of the Archon ✦"
+    material: DRAGON_HEAD
+    rank: GRAND
+    stat: GRAND_OMNIDAMAGE
+    tier-values: [40, 65, 95, 135, 200]
+    substat-pool: [MMO_MAGIC_DAMAGE, MMO_MAGICAL_DAMAGE, MMO_COOLDOWN_REDUCTION, MMO_MAX_MANA]
+
+  apex:
+    display: "&6&l✦ Sigil of the Apex ✦"
+    material: DRAGON_EGG
+    rank: GRAND
+    stat: GRAND_OMNIDAMAGE
+    tier-values: [35, 55, 80, 115, 165]
+    substat-pool: [CRIT_CHANCE, EXTRA_CRIT_DAMAGE, MMO_CRITICAL_STRIKE_CHANCE, MMO_CRITICAL_STRIKE_POWER]
+
+  abyssal_lord:
+    display: "&0&l✦ Sigil of the Abyssal Lord ✦"
+    material: ENDER_EYE
+    rank: GRAND
+    stat: GRAND_FORTRESS
+    tier-values: [25, 40, 60, 85, 120]
+    substat-pool: [GRAND_VITALITY, GRAND_SOULSTEAL, MMO_BLOCK_POWER, MMO_MAGIC_RESISTANCE, MMO_PVE_DAMAGE]

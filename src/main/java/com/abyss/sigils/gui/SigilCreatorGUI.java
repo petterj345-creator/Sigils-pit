@@ -100,13 +100,19 @@ public final class SigilCreatorGUI implements Listener {
                 "",
                 "&eClick &7to change"));
 
-        inv.setItem(SLOT_RANK, icon(d.rank() == SigilRank.MAJOR ? Material.GOLD_BLOCK : Material.IRON_BLOCK,
-                "&fRank: " + (d.rank() == SigilRank.MAJOR ? "&6MAJOR" : "&7minor"),
-                d.rank() == SigilRank.MAJOR
-                        ? "&7Fits in big sockets. Can have unique stats."
-                        : "&7Fits in small sockets. Common stats only.",
-                "",
-                "&eClick &7to toggle"));
+        Material rankIcon = switch (d.rank()) {
+            case GRAND -> Material.DIAMOND_BLOCK;
+            case MAJOR -> Material.GOLD_BLOCK;
+            case MINOR -> Material.IRON_BLOCK;
+        };
+        String rankLabel = switch (d.rank()) {
+            case GRAND -> "&5&lGRAND";
+            case MAJOR -> "&6MAJOR";
+            case MINOR -> "&7minor";
+        };
+        inv.setItem(SLOT_RANK, icon(rankIcon,
+                "&fRank: " + rankLabel,
+                "&7Click to cycle"));
 
         inv.setItem(SLOT_STAT, icon(Material.NETHER_STAR, "&fMain Stat",
                 "&7Currently: &f" + d.stat().name(),
@@ -231,7 +237,12 @@ public final class SigilCreatorGUI implements Listener {
                 reopenAfterAnvil(p, s);
             });
             case SLOT_RANK -> {
-                s.draft.setRank(s.draft.rank() == SigilRank.MAJOR ? SigilRank.MINOR : SigilRank.MAJOR);
+                SigilRank next = switch (s.draft.rank()) {
+                    case MINOR -> SigilRank.MAJOR;
+                    case MAJOR -> SigilRank.GRAND;
+                    case GRAND -> SigilRank.MINOR;
+                };
+                s.draft.setRank(next);
                 redraw(p, s);
             }
             case SLOT_STAT -> StatPickerGUI.openFor(plugin, p, s.draft.rank(),

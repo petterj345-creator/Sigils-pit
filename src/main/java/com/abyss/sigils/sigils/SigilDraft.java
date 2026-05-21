@@ -52,11 +52,9 @@ public final class SigilDraft {
     public void setModelData(int n) { this.modelData = n; }
     public void setRank(SigilRank r) {
         this.rank = r;
-        // Drop any major-only stats if we switched to minor
-        if (r == SigilRank.MINOR) {
-            if (stat.majorOnly()) stat = SigilStat.DAMAGE_PERCENT;
-            substatPool.removeIf(SigilStat::majorOnly);
-        }
+        // Drop any stats that don't fit the new rank
+        if (!stat.allowedFor(r)) stat = SigilStat.DAMAGE_PERCENT;
+        substatPool.removeIf(s -> !s.allowedFor(r));
     }
     public void setStat(SigilStat s) {
         if (!s.allowedFor(rank)) return; // ignore invalid

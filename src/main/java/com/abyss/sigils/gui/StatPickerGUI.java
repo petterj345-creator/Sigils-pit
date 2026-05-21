@@ -46,7 +46,11 @@ public final class StatPickerGUI extends EditorGUI.Holder {
             };
             set(slot, icon(icon, "&f" + s.name(),
                     "&8" + s.category(),
-                    s.majorOnly() ? "&6Major only" : "&7Any rank",
+                    switch (s.rankFloor()) {
+                        case GRAND -> "&5Grand only";
+                        case MAJOR -> "&6Major+";
+                        case MINOR -> "&7Any rank";
+                    },
                     "",
                     "&eClick &7to select"),
                 e -> {

@@ -51,7 +51,11 @@ public final class SigilListGUI extends EditorGUI.Holder {
                     List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
                     lore.add("");
                     lore.add(color("&7ID: &f" + def.id()));
-                    lore.add(color("&7Rank: " + (def.rank() == SigilRank.MAJOR ? "&6MAJOR" : "&7minor")));
+                    lore.add(color("&7Rank: " + switch (def.rank()) {
+                        case GRAND -> "&5&lGRAND";
+                        case MAJOR -> "&6MAJOR";
+                        case MINOR -> "&7minor";
+                    }));
                     lore.add(color("&7Max tier: &f" + def.maxTier()));
                     lore.add("");
                     lore.add(color("&eClick &7to edit"));

@@ -59,9 +59,31 @@ public final class SigilStatApplier implements Listener {
         return total;
     }
 
-    /** Convenience for damage % (combines normal + big variants). */
+    /** Convenience for damage % (combines normal + big + grand variants). */
     public double totalDamagePercent(Player p) {
-        return totalStat(p, SigilStat.DAMAGE_PERCENT) + totalStat(p, SigilStat.DAMAGE_PERCENT_BIG);
+        return totalStat(p, SigilStat.DAMAGE_PERCENT)
+             + totalStat(p, SigilStat.DAMAGE_PERCENT_BIG)
+             + totalStat(p, SigilStat.GRAND_OMNIDAMAGE);
+    }
+
+    /** Combined defense % from all defense-flavoured stats. */
+    public double totalDefensePercent(Player p) {
+        return totalStat(p, SigilStat.DEFENSE_PERCENT) + totalStat(p, SigilStat.GRAND_FORTRESS);
+    }
+
+    /** Combined lifesteal % from regular + grand. */
+    public double totalLifestealPercent(Player p) {
+        return totalStat(p, SigilStat.LIFESTEAL_PERCENT) + totalStat(p, SigilStat.GRAND_SOULSTEAL);
+    }
+
+    /** Combined max HP bonus including the grand variant. */
+    public double totalMaxHealthBonus(Player p) {
+        return totalStat(p, SigilStat.MAX_HEALTH) + totalStat(p, SigilStat.GRAND_VITALITY);
+    }
+
+    /** Combined speed % including the grand variant. */
+    public double totalSpeedPercent(Player p) {
+        return totalStat(p, SigilStat.SPEED_PERCENT) + totalStat(p, SigilStat.GRAND_GODSPEED);
     }
 
     public void refresh(Player p) {
@@ -69,7 +91,7 @@ public final class SigilStatApplier implements Listener {
             AttributeInstance hp = p.getAttribute(MAX_HEALTH_ATTR);
             if (hp != null) {
                 removeMod(hp, HEALTH_MOD_ID);
-                double bonus = totalStat(p, SigilStat.MAX_HEALTH);
+                double bonus = totalMaxHealthBonus(p);
                 if (bonus > 0) {
                     hp.addModifier(new AttributeModifier(HEALTH_MOD_ID,
                             "abyss_sigil_hp", bonus, AttributeModifier.Operation.ADD_NUMBER));
@@ -80,7 +102,7 @@ public final class SigilStatApplier implements Listener {
             AttributeInstance speed = p.getAttribute(SPEED_ATTR);
             if (speed != null) {
                 removeMod(speed, SPEED_MOD_ID);
-                double pct = totalStat(p, SigilStat.SPEED_PERCENT);
+                double pct = totalSpeedPercent(p);
                 if (pct > 0) {
                     speed.addModifier(new AttributeModifier(SPEED_MOD_ID,
                             "abyss_sigil_speed", pct / 100.0, AttributeModifier.Operation.ADD_SCALAR));
@@ -127,7 +149,7 @@ public final class SigilStatApplier implements Listener {
                 attacker.sendActionBar(net.kyori.adventure.text.Component.text("§6✦ Critical!"));
             }
             // Lifesteal
-            double lifesteal = totalStat(attacker, SigilStat.LIFESTEAL_PERCENT);
+            double lifesteal = totalLifestealPercent(attacker);
             if (lifesteal > 0) {
                 double heal = base * lifesteal / 100.0;
                 AttributeInstance hp = attacker.getAttribute(MAX_HEALTH_ATTR);
@@ -137,7 +159,7 @@ public final class SigilStatApplier implements Listener {
             e.setDamage(base);
         }
         if (e.getEntity() instanceof Player victim) {
-            double defPct = totalStat(victim, SigilStat.DEFENSE_PERCENT);
+            double defPct = totalDefensePercent(victim);
             if (defPct > 0) {
                 e.setDamage(e.getDamage() * Math.max(0.05, 1.0 - defPct / 100.0));
             }
