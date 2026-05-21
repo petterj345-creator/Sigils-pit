@@ -91,6 +91,8 @@ public final class AbyssPlugin extends JavaPlugin {
 
         dungeonManager = new DungeonManager(this);
         Bukkit.getPluginManager().registerEvents(dungeonManager, this);
+        // Delete any abyss_inst_* worlds left over from a crash or hard stop.
+        dungeonManager.cleanupOrphanInstances();
         rewardChests = new RewardChestManager(this);
         Bukkit.getPluginManager().registerEvents(rewardChests, this);
         upgradeGUI = new UpgradeGUI(this);

@@ -578,15 +578,82 @@ public final class DungeonManager implements Listener {
         sessions.remove(s.id());
 
         World w = s.world();
+        if (w == null) return;
+        final String name = w.getName();
+        final java.io.File folder = w.getWorldFolder();
+
+        // Unload + delete on a delay so teleports-out finish first. We RETRY
+        // a few times because unloadWorld() returns false if any player/entity
+        // is still in the world (e.g. a slow teleport, a leftover mob), and
+        // if we give up the folder leaks on disk forever.
+        scheduleUnloadAndDelete(name, folder, 40L, 0);
+    }
+
+    /**
+     * Attempt to unload the instance world and delete its folder. If the world
+     * still has players (unload returns false), evacuate them and retry up to
+     * 5 times. After unload succeeds — or if the world is already gone — delete
+     * the folder from disk.
+     */
+    private void scheduleUnloadAndDelete(String worldName, java.io.File folder, long delay, int attempt) {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            String name = w.getName();
-            if (Bukkit.unloadWorld(w, false)) {
-                try { deleteRecursive(w.getWorldFolder().toPath()); }
-                catch (IOException e) {
-                    plugin.getLogger().warning("Couldn't delete instance " + name + ": " + e.getMessage());
-                }
+            World w = Bukkit.getWorld(worldName);
+            if (w == null) {
+                // Already unloaded — just nuke the folder
+                deleteFolderQuietly(worldName, folder);
+                return;
             }
-        }, 40L);
+            // Evacuate any stragglers (mobs don't block unload, players do)
+            if (!w.getPlayers().isEmpty()) {
+                Location exit = resolveExitLocation();
+                for (Player p : new ArrayList<>(w.getPlayers())) p.teleport(exit);
+            }
+            boolean unloaded = Bukkit.unloadWorld(w, false);
+            if (unloaded) {
+                deleteFolderQuietly(worldName, folder);
+            } else if (attempt < 5) {
+                // Retry shortly — players may still be mid-teleport
+                scheduleUnloadAndDelete(worldName, folder, 20L, attempt + 1);
+            } else {
+                plugin.getLogger().warning("Couldn't unload instance " + worldName
+                        + " after " + attempt + " attempts; will be cleaned on next restart.");
+            }
+        }, delay);
+    }
+
+    private void deleteFolderQuietly(String worldName, java.io.File folder) {
+        if (folder == null || !folder.exists()) return;
+        try {
+            deleteRecursive(folder.toPath());
+        } catch (IOException e) {
+            plugin.getLogger().warning("Couldn't delete instance " + worldName + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete any leftover abyss_inst_* world folders on disk. Instance worlds
+     * are ephemeral — none should ever survive a restart — so anything still
+     * present at startup is an orphan from a crash, a failed unload, or a
+     * hard server stop while a dungeon was active. Called from onEnable.
+     */
+    public void cleanupOrphanInstances() {
+        java.io.File container = Bukkit.getWorldContainer();
+        java.io.File[] dirs = container.listFiles((dir, n) -> n.startsWith("abyss_inst_"));
+        if (dirs == null) return;
+        int deleted = 0;
+        for (java.io.File dir : dirs) {
+            if (!dir.isDirectory()) continue;
+            // If somehow it's loaded (shouldn't be at startup), unload first
+            World loaded = Bukkit.getWorld(dir.getName());
+            if (loaded != null) Bukkit.unloadWorld(loaded, false);
+            try { deleteRecursive(dir.toPath()); deleted++; }
+            catch (IOException e) {
+                plugin.getLogger().warning("Couldn't delete orphan instance " + dir.getName() + ": " + e.getMessage());
+            }
+        }
+        if (deleted > 0) {
+            plugin.getLogger().info("Cleaned up " + deleted + " orphan dungeon instance world(s).");
+        }
     }
 
     private void addTask(DungeonSession s, BukkitTask t) {
@@ -653,7 +720,32 @@ public final class DungeonManager implements Listener {
     public Collection<DungeonSession> sessions() { return sessions.values(); }
 
     public void shutdown() {
-        for (DungeonSession s : new ArrayList<>(sessions.values())) endSession(s);
+        // Evacuate + clean each session. We can't rely on the scheduled
+        // delayed deletion in endSession() here, because the Bukkit scheduler
+        // stops running once the plugin is disabling — so we delete the
+        // instance folders SYNCHRONOUSLY right now.
+        for (DungeonSession s : new ArrayList<>(sessions.values())) {
+            List<BukkitTask> tasks = sessionTasks.remove(s.id());
+            if (tasks != null) for (BukkitTask t : tasks) t.cancel();
+            for (UUID uid : new HashSet<>(s.players())) {
+                Player p = Bukkit.getPlayer(uid);
+                if (p != null) teleportOut(p);
+                playerToSession.remove(uid);
+            }
+            if (s.progressBar() != null) s.progressBar().removeAll();
+            plugin.rewardChests().cleanupSession(s.id());
+            World w = s.world();
+            if (w != null) {
+                String name = w.getName();
+                java.io.File folder = w.getWorldFolder();
+                for (Player p : new ArrayList<>(w.getPlayers())) p.teleport(resolveExitLocation());
+                Bukkit.unloadWorld(w, false);
+                deleteFolderQuietly(name, folder);
+            }
+        }
+        sessions.clear();
+        // Belt-and-braces: sweep any folders that slipped through.
+        cleanupOrphanInstances();
     }
 
     private static Location bindToWorld(Location l, World w) {
