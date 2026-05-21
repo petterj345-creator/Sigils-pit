@@ -120,7 +120,6 @@ public final class AbyssPlugin extends JavaPlugin {
         AnvilInput.register(this);
         ChatInput.register(this);
         RewardsGUI.register(this);
-        SigilCreatorGUI.register(this);
 
         editorWandListener = new EditorWandListener(this);
         Bukkit.getPluginManager().registerEvents(editorWandListener, this);
