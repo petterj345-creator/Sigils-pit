@@ -74,7 +74,7 @@ sigils:
     rank: MINOR
     stat: CRIT_CHANCE
     tier-values: [3, 6, 10, 14, 20]
-    substat-pool: [DAMAGE_PERCENT, MMO_CRITICAL_STRIKE_POWER]
+    substat-pool: [DAMAGE_PERCENT, SPEED_PERCENT]
 
   # ----- New MMO-flavoured minors -----
   mending:

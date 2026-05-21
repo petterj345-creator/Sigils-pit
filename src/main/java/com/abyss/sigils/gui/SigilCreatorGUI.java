@@ -203,20 +203,28 @@ public final class SigilCreatorGUI implements Listener {
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
         Inventory top = e.getView().getTopInventory();
-        // Identify by holder reference, NOT inventory equals() — equals() can
-        // match on contents and silently fail after a redraw, which let GUI
-        // icons get dragged around like real items.
+        // Identify by holder reference, NOT inventory equals().
         if (!(top.getHolder() instanceof Holder)) return;
-
-        Session s = viewers.get(p.getUniqueId());
-        if (s == null) return;
 
         int slot = e.getRawSlot();
         boolean isTopClick = slot < top.getSize();
 
-        // Material drop: drop/click any item onto SLOT_MAT to set the icon.
-        if (slot == SLOT_MAT) {
+        // Lock the GUI based on the HOLDER alone. Even if the session lookup
+        // below fails for any reason, a click in the top inventory must never
+        // pass through (that's what let icons get dragged around).
+        if (isTopClick) {
             e.setCancelled(true);
+        } else {
+            // Player's own inventory: block shift-clicks (they shovel into GUI)
+            if (e.isShiftClick()) e.setCancelled(true);
+            return;
+        }
+
+        Session s = viewers.get(p.getUniqueId());
+        if (s == null) return; // already cancelled above; just can't route
+
+        // Material set: click the icon slot while holding an item.
+        if (slot == SLOT_MAT) {
             ItemStack cursor = e.getView().getCursor();
             if (cursor != null && cursor.getType() != Material.AIR) {
                 s.draft.setMaterial(cursor.getType()); // keep the item, don't consume
@@ -226,17 +234,6 @@ public final class SigilCreatorGUI implements Listener {
             }
             return;
         }
-
-        // Clicks in the player's own inventory: allow normal behaviour, but
-        // block shift-clicks (they'd shovel items into the GUI).
-        if (!isTopClick) {
-            if (e.isShiftClick()) e.setCancelled(true);
-            return;
-        }
-
-        // Any other click in the top GUI: cancel BEFORE routing so nothing
-        // can ever be picked up, then handle the button.
-        e.setCancelled(true);
 
         switch (slot) {
             case SLOT_ID -> ChatInput.prompt(plugin, p, "&fSigil ID", s.draft.id(), text -> {
