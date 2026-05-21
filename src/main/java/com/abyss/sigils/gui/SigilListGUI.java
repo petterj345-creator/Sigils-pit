@@ -5,7 +5,6 @@ import com.abyss.sigils.sigils.SigilDefinition;
 import com.abyss.sigils.sigils.SigilDraft;
 import com.abyss.sigils.sigils.SigilInstance;
 import com.abyss.sigils.sigils.SigilItem;
-import com.abyss.sigils.sigils.SigilRank;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -15,34 +14,60 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lists all sigils as their actual ItemStacks. Click to edit, shift-click to delete,
- * "Create new" button creates a fresh draft.
+ * Lists all sigils as their actual ItemStacks. Click to edit, shift-click to
+ * delete, "Create new" button creates a fresh draft.
  *
- * For simplicity it shows up to ~28 sigils. If you need more, we'll add pagination.
+ * Paginated: 28 sigils per page (the 4x7 inner grid), with prev/next arrows so
+ * the full set — minors, majors, and grands — is browsable.
  */
 public final class SigilListGUI extends EditorGUI.Holder {
 
+    private static final int PAGE_SIZE = 28;
+    private static final int PREV_SLOT = 48;
+    private static final int NEXT_SLOT = 50;
+    private static final int CREATE_SLOT = 49;
+
     private final AbyssPlugin plugin;
+    private int page;
 
-    public SigilListGUI(AbyssPlugin plugin) { this.plugin = plugin; }
-
-    public static void openFor(AbyssPlugin plugin, Player p) {
-        new SigilListGUI(plugin).open(p);
+    public SigilListGUI(AbyssPlugin plugin, int page) {
+        this.plugin = plugin;
+        this.page = Math.max(0, page);
     }
 
-    @Override protected String title() { return color("&5&lAll Sigils"); }
+    public static void openFor(AbyssPlugin plugin, Player p) {
+        new SigilListGUI(plugin, 0).open(p);
+    }
+
+    public static void openFor(AbyssPlugin plugin, Player p, int page) {
+        new SigilListGUI(plugin, page).open(p);
+    }
+
+    @Override protected String title() {
+        int total = plugin.sigils().all().size();
+        int pages = Math.max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE);
+        return color("&5&lAll Sigils &7(" + (page + 1) + "/" + pages + ")");
+    }
     @Override protected int size() { return 54; }
 
     @Override protected void build(Player viewer) {
         fillBorder();
 
         List<SigilDefinition> all = new ArrayList<>(plugin.sigils().all());
+        int total = all.size();
+        int pages = Math.max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE);
+        if (page >= pages) page = pages - 1;
+        if (page < 0) page = 0;
+
+        int start = page * PAGE_SIZE;
+        int end = Math.min(start + PAGE_SIZE, total);
+
         int slot = 10;
-        int max = Math.min(all.size(), 28);
-        for (int i = 0; i < max; i++) {
+        for (int i = start; i < end; i++) {
             if (slot % 9 == 8) slot += 2;
-            SigilDefinition def = all.get(i);
-            // Show its real ItemStack at T1 + an admin overlay lore
+            if (slot >= 44) break;
+            final SigilDefinition def = all.get(i);
+
             SigilInstance inst = new SigilInstance(def.id(), 1);
             ItemStack stack = SigilItem.toItem(inst);
             if (stack != null) {
@@ -77,7 +102,19 @@ public final class SigilListGUI extends EditorGUI.Holder {
             slot++;
         }
 
-        set(49, icon(Material.EMERALD_BLOCK, "&a&lCreate New Sigil",
+        // Prev / next page arrows
+        if (page > 0) {
+            set(PREV_SLOT, icon(Material.SPECTRAL_ARROW, "&e← Previous Page",
+                    "&7Page " + page + " of " + pages),
+                e -> SigilListGUI.openFor(plugin, (Player) e.getWhoClicked(), page - 1));
+        }
+        if (page < pages - 1) {
+            set(NEXT_SLOT, icon(Material.SPECTRAL_ARROW, "&eNext Page →",
+                    "&7Page " + (page + 2) + " of " + pages),
+                e -> SigilListGUI.openFor(plugin, (Player) e.getWhoClicked(), page + 1));
+        }
+
+        set(CREATE_SLOT, icon(Material.EMERALD_BLOCK, "&a&lCreate New Sigil",
                 "&7Opens the sigil creator with a fresh draft."),
             e -> {
                 Player p = (Player) e.getWhoClicked();

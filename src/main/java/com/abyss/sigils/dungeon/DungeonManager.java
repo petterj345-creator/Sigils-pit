@@ -155,21 +155,51 @@ public final class DungeonManager implements Listener {
 
     private void spawnMapTick(DungeonSession session, DungeonTemplate t) {
         if (session.phase() != DungeonSession.Phase.TRASH) return;
-        int canSpawn = Math.max(0, t.maxConcurrentMobs() - session.aliveMobs().size());
-        int toSpawn = Math.min(t.mobsPerWave(), canSpawn);
-        if (toSpawn == 0) return;
-        if (t.spawnPoints().isEmpty()) return;
+        if (t.spawnPoints().isEmpty() && t.defaultTrashMobs().isEmpty()) return;
 
         Random rng = new Random();
-        for (int i = 0; i < toSpawn; i++) {
-            SpawnPoint sp = t.spawnPoints().get(rng.nextInt(t.spawnPoints().size()));
-            // Per-spawn-point mob list, fallback to template default
-            List<MobEntry> pool = sp.mobs().isEmpty() ? t.defaultTrashMobs() : sp.mobs();
+        World w = session.world();
+
+        // ---- Step 1: each spawn point spawns its mobs ONCE, up to count ----
+        // `count` is a one-time budget per spawn point for the whole run \u2014 NOT
+        // a steady-state cap. Once a spawn point has spawned `count` mobs total,
+        // it is done and will not spawn again even if those mobs die.
+        List<SpawnPoint> points = t.spawnPoints();
+        for (int spIdx = 0; spIdx < points.size(); spIdx++) {
+            if (session.aliveMobs().size() >= t.maxConcurrentMobs()) break;
+
+            SpawnPoint sp = points.get(spIdx);
+            List<MobEntry> pool = sp.mobs();
             if (pool.isEmpty()) continue;
-            MobEntry e = pool.get(rng.nextInt(pool.size()));
-            Location loc = sp.boundTo(session.world());
-            spawnMythic(e.mythicId(), loc, e.level())
-                    .ifPresent(ent -> session.aliveMobs().add(ent.getUniqueId()));
+
+            int budget = 0;
+            for (MobEntry e : pool) budget += Math.max(1, e.count());
+            int remaining = budget - session.spawnPointSpawned(spIdx);
+
+            for (int n = 0; n < remaining; n++) {
+                if (session.aliveMobs().size() >= t.maxConcurrentMobs()) break;
+                MobEntry e = pool.get(rng.nextInt(pool.size()));
+                Location loc = sp.boundTo(w);
+                spawnMythic(e.mythicId(), loc, e.level()).ifPresent(ent ->
+                        session.aliveMobs().add(ent.getUniqueId()));
+                session.incrementSpawnPointSpawned(spIdx);
+            }
+        }
+
+        // ---- Step 2: fill the rest of the room with trash mobs (respawning) ----
+        // Trash mobs keep the room populated up to maxConcurrentMobs \u2014 they are
+        // the endless filler, while the fixed spawn-point mobs are one-shot.
+        List<MobEntry> trash = t.defaultTrashMobs();
+        if (!trash.isEmpty() && !points.isEmpty()) {
+            int room = t.maxConcurrentMobs() - session.aliveMobs().size();
+            int thisTick = Math.min(room, Math.max(1, t.mobsPerWave()));
+            for (int n = 0; n < thisTick; n++) {
+                MobEntry e = trash.get(rng.nextInt(trash.size()));
+                SpawnPoint sp = points.get(rng.nextInt(points.size()));
+                Location loc = sp.boundTo(w);
+                spawnMythic(e.mythicId(), loc, e.level()).ifPresent(ent ->
+                        session.aliveMobs().add(ent.getUniqueId()));
+            }
         }
     }
 

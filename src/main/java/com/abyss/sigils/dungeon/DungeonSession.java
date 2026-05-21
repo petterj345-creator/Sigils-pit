@@ -50,6 +50,20 @@ public final class DungeonSession {
     private int kills = 0;
     /** Trash mobs alive right now. */
     private final Set<UUID> aliveMobs = new HashSet<>();
+    /**
+     * MAP mode: how many mobs each spawn-point index has spawned SO FAR this
+     * run. A spawn point's `count` is a one-time budget — once it has spawned
+     * `count` mobs total, it never spawns again (no respawn). Keyed by spawn
+     * point index.
+     */
+    private final Map<Integer, Integer> spawnPointSpawned = new HashMap<>();
+
+    public int spawnPointSpawned(int spawnPointIndex) {
+        return spawnPointSpawned.getOrDefault(spawnPointIndex, 0);
+    }
+    public void incrementSpawnPointSpawned(int spawnPointIndex) {
+        spawnPointSpawned.merge(spawnPointIndex, 1, Integer::sum);
+    }
 
     // WAVES mode
     private int currentWaveIndex = -1;
