@@ -158,13 +158,12 @@ public final class MythicDropWriter {
         }
         try {
             List<String> lines = new ArrayList<>(Files.readAllLines(file.toPath()));
-            int insertIndex = findInsertIndex(lines, mobInternalName);
-            if (insertIndex < 0) {
+            Insertion ins = planInsertion(lines, mobInternalName, dropLine);
+            if (ins == null) {
                 plugin.getLogger().warning("Couldn't locate mob entry '" + mobInternalName + "' in file.");
                 return false;
             }
-            String indented = "    - " + dropLine;
-            lines.add(insertIndex, indented);
+            lines.addAll(ins.index, ins.newLines);
             Files.write(file.toPath(), lines);
             return true;
         } catch (IOException e) {
@@ -173,46 +172,86 @@ public final class MythicDropWriter {
         }
     }
 
+    /** Where to insert + the exact line(s) to insert (indentation already matched). */
+    private static final class Insertion {
+        final int index;
+        final List<String> newLines;
+        Insertion(int index, List<String> newLines) { this.index = index; this.newLines = newLines; }
+    }
+
     /**
-     * Finds where to insert a new drop line.
+     * Plan a drop insertion that MATCHES the file's existing indentation.
      *
-     *  - If the mob has an existing `Drops:` block, insert as the first child entry.
-     *  - If it doesn't, append `  Drops:` after the mob key, then a `    - ` child.
-     *
-     * Returns the line index to insert AT (existing line at that index gets pushed down).
-     * Returns -1 if the mob couldn't be found.
+     * MythicMobs files vary: some put Drops items at the same indent as the
+     * {@code Drops:} key (2 spaces), some indent them further. Hardcoding an
+     * indent (the old bug) produced a mixed-indent sequence that's invalid YAML
+     * and made MythicMobs drop the whole folder. Instead we:
+     *  - reuse the indent of an existing Drops item if there is one;
+     *  - otherwise reuse the {@code Drops:} key's own indent;
+     *  - and when creating a new Drops block, reuse the mob's child-key indent.
+     * New entries are appended AFTER the last existing drop so order is stable.
      */
-    private int findInsertIndex(List<String> lines, String mobName) {
+    private Insertion planInsertion(List<String> lines, String mobName, String dropLine) {
         int mobStart = -1;
         for (int i = 0; i < lines.size(); i++) {
-            String trimmed = lines.get(i).stripTrailing();
-            if (trimmed.startsWith(mobName + ":") || trimmed.equals(mobName + ":")) {
-                mobStart = i; break;
-            }
+            String raw = lines.get(i);
+            if (raw.isEmpty() || Character.isWhitespace(raw.charAt(0))) continue; // not top-level
+            int colon = raw.indexOf(':');
+            if (colon <= 0) continue;
+            if (unquote(raw.substring(0, colon).strip()).equals(mobName)) { mobStart = i; break; }
         }
-        if (mobStart < 0) return -1;
+        if (mobStart < 0) return null;
 
-        // Look for Drops: under this mob
+        int dropsIdx = -1, lastItemIdx = -1, blockEnd = lines.size();
+        String dropsIndent = null, itemIndent = null, childIndent = null;
+
         for (int i = mobStart + 1; i < lines.size(); i++) {
             String raw = lines.get(i);
-            String stripped = raw.stripLeading();
-            // End of mob block when we hit a non-indented line that isn't blank
-            if (!raw.isBlank() && !Character.isWhitespace(raw.charAt(0))) break;
-            if (stripped.startsWith("Drops:")) {
-                // Insert right after this line
-                return i + 1;
+            if (!raw.isBlank() && !Character.isWhitespace(raw.charAt(0))) { blockEnd = i; break; }
+            if (raw.isBlank()) continue;
+            String lead = leading(raw);
+            String body = raw.stripLeading();
+            if (dropsIdx < 0) {
+                if (childIndent == null && !body.startsWith("- ")) childIndent = lead;
+                if (body.equals("Drops:") || body.startsWith("Drops:")) { dropsIdx = i; dropsIndent = lead; }
+            } else if (body.startsWith("- ")) {
+                if (itemIndent == null) itemIndent = lead;
+                lastItemIdx = i;
+            } else {
+                break; // hit the next key — end of the Drops block
             }
         }
-        // No existing Drops block — create one at the end of the mob block.
-        // We append AFTER the last non-blank indented line.
-        int insert = mobStart + 1;
-        for (int i = mobStart + 1; i < lines.size(); i++) {
-            String raw = lines.get(i);
-            if (!raw.isBlank() && !Character.isWhitespace(raw.charAt(0))) break;
-            if (!raw.isBlank()) insert = i + 1;
+
+        if (dropsIdx >= 0) {
+            String indent = (itemIndent != null) ? itemIndent : dropsIndent;
+            int at = (lastItemIdx >= 0) ? lastItemIdx + 1 : dropsIdx + 1;
+            return new Insertion(at, List.of(indent + "- " + dropLine));
         }
-        lines.add(insert, "  Drops:");
-        return insert + 1;
+
+        // No Drops: block yet — create one at the end of the mob block.
+        String ci = (childIndent != null) ? childIndent : "  ";
+        int insertAt = mobStart + 1;
+        for (int i = mobStart + 1; i < blockEnd; i++) {
+            if (!lines.get(i).isBlank()) insertAt = i + 1;
+        }
+        return new Insertion(insertAt, List.of(ci + "Drops:", ci + "- " + dropLine));
+    }
+
+    /** Leading whitespace of a line (spaces/tabs). */
+    private static String leading(String s) {
+        int i = 0;
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++;
+        return s.substring(0, i);
+    }
+
+    /** Strip a single layer of matching surrounding quotes. */
+    private static String unquote(String s) {
+        if (s.length() >= 2
+                && (s.charAt(0) == '"' || s.charAt(0) == '\'')
+                && s.charAt(s.length() - 1) == s.charAt(0)) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
     }
 
     /** Triggers a MythicMobs reload (without a server restart). */
