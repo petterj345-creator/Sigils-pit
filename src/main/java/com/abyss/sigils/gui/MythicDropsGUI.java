@@ -34,7 +34,7 @@ public final class MythicDropsGUI extends EditorGUI.Holder {
     }
 
     @Override protected String title() {
-        return search.isEmpty() ? color("&5&lMythicMobs → Sigil Drops")
+        return search.isEmpty() ? color("&5&lMythicMobs → Drops")
                 : color("&5Search: &f" + search);
     }
     @Override protected int size() { return 54; }
@@ -80,8 +80,8 @@ public final class MythicDropsGUI extends EditorGUI.Holder {
                     "&f" + MobPickerGUI.niceName(m),
                     "&7Internal ID: &8" + m.getInternalName(),
                     "",
-                    "&eClick &7to edit sigil drops");
-            set(slot, ic, e -> MobSigilDropGUI.openFor(plugin, (Player) e.getWhoClicked(), m));
+                    "&eClick &7to add drops (sigil / map / currency)");
+            set(slot, ic, e -> MobDropMenuGUI.openFor(plugin, (Player) e.getWhoClicked(), m));
             slot++;
         }
 

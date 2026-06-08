@@ -1,52 +1,48 @@
 package com.abyss.sigils.gui;
 
 import com.abyss.sigils.AbyssPlugin;
-import com.abyss.sigils.dungeon.DungeonMap;
-import com.abyss.sigils.dungeon.DungeonTemplate;
+import com.abyss.sigils.dungeon.AbyssCurrency;
+import com.abyss.sigils.dungeon.MapMod;
+import com.abyss.sigils.integration.MobDropEntry;
 import io.lumine.mythic.api.mobs.MythicMob;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 
 /**
- * Configure an Abyss-Map drop on a specific MythicMob for a specific template.
- *
- * Same UX as {@link MobSigilDropGUI}: tweak amount + chance, then save. The
- * Save button writes a Drops: line into the mob's MythicMobs YAML file and
- * reloads Mythic. The resulting drop line looks like:
- *     abyss_map{template=&lt;name&gt;} &lt;amount&gt; &lt;chance&gt;
+ * Configure a map-modifier currency drop on a specific MythicMob. Same UX as
+ * {@link MobMapDropGUI}: tweak amount + chance, then save. Stored by the plugin
+ * (mobdrops.yml), not MythicMobs' files.
  */
-public final class MobMapDropGUI extends EditorGUI.Holder {
+public final class MobCurrencyDropGUI extends EditorGUI.Holder {
 
     private final AbyssPlugin plugin;
     private final MythicMob mob;
-    private final DungeonTemplate template;
+    private final MapMod mod;
     private int amount = 1;
-    private double chance = 0.10;
+    private double chance = 0.05;
 
-    public MobMapDropGUI(AbyssPlugin plugin, MythicMob mob, DungeonTemplate template) {
+    public MobCurrencyDropGUI(AbyssPlugin plugin, MythicMob mob, MapMod mod) {
         this.plugin = plugin;
         this.mob = mob;
-        this.template = template;
+        this.mod = mod;
     }
 
-    public static void openFor(AbyssPlugin plugin, Player p, MythicMob m, DungeonTemplate t) {
-        new MobMapDropGUI(plugin, m, t).open(p);
+    public static void openFor(AbyssPlugin plugin, Player p, MythicMob m, MapMod mod) {
+        new MobCurrencyDropGUI(plugin, m, mod).open(p);
     }
 
     @Override protected String title() {
-        return color("&5Map drop: " + mob.getInternalName());
+        return color("&5Currency drop: " + mob.getInternalName());
     }
     @Override protected int size() { return 54; }
 
     @Override protected void build(Player viewer) {
         fillBorder();
 
-        // Preview: the actual map item for this template
-        set(4, DungeonMap.create(template), null);
+        set(4, AbyssCurrency.create(mod), null);
 
         set(20, icon(Material.GHAST_TEAR, "&fAmount: &e" + amount,
-                "&7How many maps drop on a successful roll.",
+                "&7How many drop on a successful roll.",
                 "",
                 "&eLeft-click &7+1   &eRight-click &7-1"),
             e -> {
@@ -81,9 +77,8 @@ public final class MobMapDropGUI extends EditorGUI.Holder {
                 }
             });
 
-        // Save — stores the drop in the plugin (not MythicMobs YAML).
-        set(49, icon(Material.LIME_WOOL, "&a&lAdd Map Drop",
-                "&7" + mob.getInternalName() + " will drop a &f" + template.name() + " &7map",
+        set(49, icon(Material.LIME_WOOL, "&a&lAdd Currency Drop",
+                "&7" + mob.getInternalName() + " will drop &f" + mod.id() + " &7currency",
                 "&7" + (int) Math.round(chance * 100) + "% of the time on death.",
                 "",
                 "&8Stored by the plugin — your mob files",
@@ -91,10 +86,8 @@ public final class MobMapDropGUI extends EditorGUI.Holder {
             e -> {
                 Player p = (Player) e.getWhoClicked();
                 plugin.mobDrops().add(mob.getInternalName(),
-                        new com.abyss.sigils.integration.MobDropEntry(
-                                com.abyss.sigils.integration.MobDropEntry.Kind.MAP,
-                                template.name(), 1, amount, amount, chance));
-                p.sendMessage(color("&aMap drop added to &f" + mob.getInternalName() + "&a."));
+                        new MobDropEntry(MobDropEntry.Kind.CURRENCY, mod.id(), 1, amount, amount, chance));
+                p.sendMessage(color("&aCurrency drop added to &f" + mob.getInternalName() + "&a."));
                 p.closeInventory();
             });
 

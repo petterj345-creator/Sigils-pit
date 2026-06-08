@@ -102,24 +102,21 @@ public final class MobSigilDropGUI extends EditorGUI.Holder {
                     }
                 });
 
-            // Save button
+            // Save button — stores the drop in the plugin (not MythicMobs YAML).
             set(49, icon(Material.LIME_WOOL, "&a&lAdd Drop",
-                    "&7Writes to MythicMobs YAML and reloads.",
+                    "&7" + mob.getInternalName() + " will drop this",
+                    "&7" + (int) Math.round(chance * 100) + "% of the time on death.",
                     "",
-                    "&7Line: &fabyss_sigil{id=" + selected.id() + ";tier=" + tier + "} "
-                            + amount + " " + chance),
+                    "&8Stored by the plugin — your mob files",
+                    "&8are never modified."),
                 e -> {
                     Player p = (Player) e.getWhoClicked();
-                    boolean ok = plugin.mythicDropWriter().appendSigilDrop(
-                            mob.getInternalName(), selected.id(), tier, amount, chance);
-                    if (ok) {
-                        p.sendMessage(color("&aDrop added to &f" + mob.getInternalName()
-                                + "&a. Reloading Mythic..."));
-                        plugin.mythicDropWriter().reloadMythic();
-                        p.closeInventory();
-                    } else {
-                        p.sendMessage(color("&cFailed to write drop. Check console."));
-                    }
+                    plugin.mobDrops().add(mob.getInternalName(),
+                            new com.abyss.sigils.integration.MobDropEntry(
+                                    com.abyss.sigils.integration.MobDropEntry.Kind.SIGIL,
+                                    selected.id(), tier, amount, amount, chance));
+                    p.sendMessage(color("&aSigil drop added to &f" + mob.getInternalName() + "&a."));
+                    p.closeInventory();
                 });
         }
 

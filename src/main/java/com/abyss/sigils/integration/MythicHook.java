@@ -190,6 +190,21 @@ public final class MythicHook implements Listener {
     public void onMythicDeath(MythicMobDeathEvent e) {
         // Bridge to dungeon manager so kill counts/boss trigger work
         plugin.dungeonManager().handleMythicMobDeath(e);
+
+        // Roll the plugin's own abyss drops for this mob (sigils/maps/currency),
+        // configured via the admin menu and stored in mobdrops.yml. We drop them
+        // ourselves rather than relying on MythicMobs recognising our item types.
+        try {
+            if (plugin.mobDrops() != null && e.getMob() != null && e.getMob().getType() != null
+                    && e.getEntity() != null) {
+                String mobId = e.getMob().getType().getInternalName();
+                org.bukkit.entity.Player killer =
+                        (e.getKiller() instanceof org.bukkit.entity.Player p) ? p : null;
+                plugin.mobDrops().rollAndDrop(mobId, e.getEntity().getLocation(), killer);
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Failed rolling abyss drops: " + t.getMessage());
+        }
     }
 
     @EventHandler

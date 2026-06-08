@@ -149,6 +149,16 @@ public final class MythicDropWriter {
                 "abyss_map{template=" + templateName + "} " + amount + " " + chance);
     }
 
+    /**
+     * Append an Abyss Currency drop line to a mob's Drops: list. {@code type} is
+     * a {@link com.abyss.sigils.dungeon.MapMod} id (e.g. "ritual").
+     */
+    public boolean appendCurrencyDrop(String mobInternalName, String type,
+                                      int amount, double chance) {
+        return appendDrop(mobInternalName,
+                "abyss_currency{type=" + type + "} " + amount + " " + chance);
+    }
+
     /** Shared logic for appending any drop line under a mob's Drops: list. */
     private boolean appendDrop(String mobInternalName, String dropLine) {
         File file = findMobFile(mobInternalName);

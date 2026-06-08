@@ -105,6 +105,20 @@ public final class AdminGUI extends EditorGUI.Holder {
                 give(p, SigilItem.createDust(n));
                 done(p, n + "x Sigil Dust");
             });
+
+        set(31, icon(Material.ZOMBIE_HEAD, "&c&lMob Drops",
+                "&7Set which MythicMobs drop sigils,",
+                "&7maps, or currency — and remove drops.",
+                "&7No need to enter a map/editor.",
+                "", "&eClick to open"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (plugin.mythicDropWriter() == null && org.bukkit.Bukkit.getPluginManager().getPlugin("MythicMobs") == null) {
+                    p.sendMessage(color("&cMythicMobs isn't installed."));
+                    return;
+                }
+                MythicDropsGUI.openFor(plugin, p);
+            });
     }
 
     private void nav(InventoryClickEvent e, Page to) {
