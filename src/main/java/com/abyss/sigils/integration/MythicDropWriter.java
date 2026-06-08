@@ -48,12 +48,39 @@ public final class MythicDropWriter {
             plugin.getLogger().warning("MythicMobs plugin not loaded.");
             return null;
         }
-        File mobsDir = new File(mm.getDataFolder(), "Mobs");
-        if (!mobsDir.exists() || !mobsDir.isDirectory()) {
-            plugin.getLogger().warning("MythicMobs Mobs/ folder not found at " + mobsDir.getAbsolutePath());
+        File root = mm.getDataFolder();
+        if (root == null || !root.isDirectory()) {
+            plugin.getLogger().warning("MythicMobs data folder not found.");
             return null;
         }
-        return findRecursive(mobsDir, internalName);
+
+        // Mobs can live in plugins/MythicMobs/Mobs/ OR inside packs at
+        // plugins/MythicMobs/Packs/<pack>/Mobs/. Filenames/casing vary and Linux
+        // is case-sensitive, so collect every "Mobs" directory under the data
+        // folder. If there are none, scan the whole data folder as a fallback.
+        List<File> roots = new ArrayList<>();
+        collectMobsDirs(root, roots);
+        if (roots.isEmpty()) roots.add(root);
+
+        for (File r : roots) {
+            File found = findRecursive(r, internalName);
+            if (found != null) return found;
+        }
+        plugin.getLogger().warning("No file under " + root.getAbsolutePath()
+                + " defines MythicMob '" + internalName + "'. Searched "
+                + roots.size() + " location(s).");
+        return null;
+    }
+
+    /** Collect every directory named "Mobs" (case-insensitive) under {@code dir}. */
+    private void collectMobsDirs(File dir, List<File> out) {
+        File[] kids = dir.listFiles();
+        if (kids == null) return;
+        for (File f : kids) {
+            if (!f.isDirectory()) continue;
+            if (f.getName().equalsIgnoreCase("Mobs")) out.add(f);
+            collectMobsDirs(f, out); // descend so Packs/<pack>/Mobs is found too
+        }
     }
 
     private File findRecursive(File dir, String key) {
