@@ -56,19 +56,19 @@ public final class MythicDropWriter {
 
         // Mobs can live in plugins/MythicMobs/Mobs/ OR inside packs at
         // plugins/MythicMobs/Packs/<pack>/Mobs/. Filenames/casing vary and Linux
-        // is case-sensitive, so collect every "Mobs" directory under the data
-        // folder. If there are none, scan the whole data folder as a fallback.
+        // is case-sensitive, so search every "Mobs" directory first (top-level
+        // and inside Packs), then fall back to scanning the WHOLE MythicMobs
+        // data folder so the mob is found no matter where it's defined.
         List<File> roots = new ArrayList<>();
-        collectMobsDirs(root, roots);
-        if (roots.isEmpty()) roots.add(root);
+        collectMobsDirs(root, roots); // preferred: dedicated Mobs/ folders
+        roots.add(root);              // fallback: anywhere under the data folder
 
         for (File r : roots) {
             File found = findRecursive(r, internalName);
             if (found != null) return found;
         }
         plugin.getLogger().warning("No file under " + root.getAbsolutePath()
-                + " defines MythicMob '" + internalName + "'. Searched "
-                + roots.size() + " location(s).");
+                + " defines MythicMob '" + internalName + "'.");
         return null;
     }
 
