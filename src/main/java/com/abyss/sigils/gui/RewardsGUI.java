@@ -151,6 +151,10 @@ public final class RewardsGUI implements Listener {
             lore.add("");
             lore.add(color("&7Chance: &f" + r.chancePercent() + "%"));
             lore.add(color("&7Count: &f" + r.minCount() + "-" + r.maxCount()));
+            if (r.isMMOItem()) {
+                lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
+                lore.add(color("&8Rolls fresh per player"));
+            }
             lore.add("");
             lore.add(color("&eLeft-click &7→ change chance"));
             lore.add(color("&eRight-click &7→ change count range"));
@@ -412,7 +416,13 @@ public final class RewardsGUI implements Listener {
     private void addToPool(Holder holder, ItemStack item) {
         ItemStack clean = item.clone();
         clean.setAmount(1);
-        holder.template().rewardPool().add(new RewardEntry(clean, 50, 1, 1));
+        RewardEntry entry = new RewardEntry(clean, 50, 1, 1);
+        // Auto-detect MMOItems so this entry rolls a fresh item per player.
+        if (plugin.mmoItemsHook() != null && plugin.mmoItemsHook().isMMOItem(clean)) {
+            entry.setMMOItem(plugin.mmoItemsHook().mmoType(clean),
+                             plugin.mmoItemsHook().mmoId(clean));
+        }
+        holder.template().rewardPool().add(entry);
         plugin.templates().save(holder.template());
     }
 

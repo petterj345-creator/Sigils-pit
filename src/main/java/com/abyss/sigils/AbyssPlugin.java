@@ -44,6 +44,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private MMOItemsHook mmoItemsHook;
     private TemplateRegistry templates;
     private DungeonManager dungeonManager;
+    private com.abyss.sigils.dungeon.RitualManager ritualManager;
     private RewardChestManager rewardChests;
     private UpgradeGUI upgradeGUI;
     private com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener;
@@ -95,6 +96,11 @@ public final class AbyssPlugin extends JavaPlugin {
 
         dungeonManager = new DungeonManager(this);
         Bukkit.getPluginManager().registerEvents(dungeonManager, this);
+
+        // Altar of Souls ritual runtime (armor stands, souls, soul shop).
+        ritualManager = new com.abyss.sigils.dungeon.RitualManager(this);
+        Bukkit.getPluginManager().registerEvents(ritualManager, this);
+        com.abyss.sigils.gui.RitualShopGUI.register(this);
         // Lock down building inside play instances (abyss_inst_*).
         Bukkit.getPluginManager().registerEvents(
                 new com.abyss.sigils.dungeon.DungeonProtectionListener(this), this);
@@ -102,6 +108,10 @@ public final class AbyssPlugin extends JavaPlugin {
         dungeonManager.cleanupOrphanInstances();
         rewardChests = new RewardChestManager(this);
         Bukkit.getPluginManager().registerEvents(rewardChests, this);
+
+        // PoE-style: apply currency items to maps to roll modifiers onto them.
+        Bukkit.getPluginManager().registerEvents(
+                new com.abyss.sigils.dungeon.CurrencyApplyListener(this), this);
         upgradeGUI = new UpgradeGUI(this);
         Bukkit.getPluginManager().registerEvents(upgradeGUI, this);
 
@@ -120,6 +130,7 @@ public final class AbyssPlugin extends JavaPlugin {
         AnvilInput.register(this);
         ChatInput.register(this);
         RewardsGUI.register(this);
+        com.abyss.sigils.gui.RitualRewardsGUI.register(this);
 
         editorWandListener = new EditorWandListener(this);
         Bukkit.getPluginManager().registerEvents(editorWandListener, this);
@@ -171,6 +182,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public MMOItemsHook mmoItemsHook() { return mmoItemsHook; }
     public TemplateRegistry templates() { return templates; }
     public DungeonManager dungeonManager() { return dungeonManager; }
+    public com.abyss.sigils.dungeon.RitualManager ritualManager() { return ritualManager; }
     public RewardChestManager rewardChests() { return rewardChests; }
     public UpgradeGUI upgradeGUI() { return upgradeGUI; }
     public com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener() { return mapRefreshListener; }

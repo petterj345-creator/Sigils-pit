@@ -100,6 +100,19 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to pick a mob"),
             e -> MapDropMobPickerGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
+        // 16 Rituals (Altar of Souls)
+        set(16, icon(Material.SOUL_LANTERN,
+                "&5&l✦ Rituals",
+                "&7Altar of Souls setup for maps that",
+                "&7carry the ritual modifier.",
+                "&7Altars: &f" + template.ritualAltars().size()
+                        + "  &7Mobs: &f" + template.ritualMobs().size()
+                        + "  &7Shop items: &f" + template.ritualRewardPool().size(),
+                "",
+                "&8Place altars with the wand.",
+                "&eClick &7to configure"),
+            e -> RitualEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 19 Spawn points
         set(19, icon(Material.ENDER_EYE,
                 "&bSpawn Points &7(" + template.spawnPoints().size() + ")",
@@ -356,7 +369,10 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 Player p = (Player) e.getWhoClicked();
                 if (err != null) { p.sendMessage(color("&cFix validation first: " + err)); return; }
                 p.closeInventory();
-                plugin.dungeonManager().start(List.of(p), template);
+                // Include all configured mods so admins can test them (e.g. ritual).
+                List<String> testMods = new java.util.ArrayList<>();
+                if (template.hasRitual()) testMods.add(com.abyss.sigils.dungeon.MapMod.RITUAL.id());
+                plugin.dungeonManager().start(List.of(p), template, testMods);
             });
     }
 

@@ -1,5 +1,6 @@
 package com.abyss.sigils.dungeon;
 
+import com.abyss.sigils.AbyssPlugin;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ public final class RewardRoller {
 
     private RewardRoller() {}
 
-    public static Roll rollFor(DungeonTemplate t) {
+    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t) {
         // Items
         List<RewardEntry> candidates = new ArrayList<>();
         for (RewardEntry r : t.rewardPool()) {
@@ -48,9 +49,8 @@ public final class RewardRoller {
             RewardEntry r = candidates.get(i);
             int count = r.minCount() + (r.maxCount() > r.minCount()
                     ? RNG.nextInt(r.maxCount() - r.minCount() + 1) : 0);
-            ItemStack stack = r.itemStack().clone();
-            stack.setAmount(Math.max(1, count));
-            chosen.add(stack);
+            // resolve() regenerates MMOItems fresh; clones the snapshot otherwise.
+            chosen.add(r.resolve(plugin, count));
         }
 
         // Money

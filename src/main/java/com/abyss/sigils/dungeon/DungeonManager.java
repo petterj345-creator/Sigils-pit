@@ -61,6 +61,10 @@ public final class DungeonManager implements Listener {
     }
 
     public void start(Collection<Player> party, DungeonTemplate template) {
+        start(party, template, java.util.Collections.emptyList());
+    }
+
+    public void start(Collection<Player> party, DungeonTemplate template, List<String> mapMods) {
         if (party.isEmpty()) return;
         for (Player p : party) {
             if (playerToSession.containsKey(p.getUniqueId())) {
@@ -107,6 +111,7 @@ public final class DungeonManager implements Listener {
 
         DungeonSession session = new DungeonSession(instance, party);
         session.setTemplateName(template.name());
+        session.setMapMods(mapMods);
         sessions.put(session.id(), session);
         sessionTasks.put(session.id(), new ArrayList<>());
 
@@ -139,6 +144,10 @@ public final class DungeonManager implements Listener {
             session.setPhase(DungeonSession.Phase.WAVES);
             startNextWave(session, template);
         }
+
+        // Spawn ritual altars if the entry map carried the ritual modifier.
+        plugin.ritualManager().init(session, template);
+
         scheduleTimeout(session, template);
     }
 
@@ -251,7 +260,7 @@ public final class DungeonManager implements Listener {
     // Shared
     // ============================================================
 
-    private Optional<Entity> spawnMythic(String internalName, Location loc, int level) {
+    public Optional<Entity> spawnMythic(String internalName, Location loc, int level) {
         try {
             Optional<MythicMob> opt = MythicBukkit.inst().getMobManager().getMythicMob(internalName);
             if (opt.isEmpty()) {
@@ -278,6 +287,18 @@ public final class DungeonManager implements Listener {
             onBossDeath(session, ent.getLocation());
             return;
         }
+
+        // Ritual mobs grant souls and must NOT count toward the boss kill
+        // threshold — handle them before the aliveMobs/counter logic.
+        String mythicId = null;
+        try {
+            if (e.getMob() != null && e.getMob().getType() != null) {
+                mythicId = e.getMob().getType().getInternalName();
+            }
+        } catch (Throwable ignored) {}
+        Player ritualKiller = (e.getKiller() instanceof Player kp) ? kp : null;
+        if (plugin.ritualManager().handleMobDeath(session, entId, mythicId, ritualKiller)) return;
+
         if (!session.aliveMobs().remove(entId)) return;
 
         DungeonTemplate t = plugin.templates().get(session.templateName());
@@ -605,6 +626,7 @@ public final class DungeonManager implements Listener {
         }
         if (s.progressBar() != null) s.progressBar().removeAll();
         plugin.rewardChests().cleanupSession(s.id());
+        plugin.ritualManager().cleanup(s);
         sessions.remove(s.id());
 
         World w = s.world();
@@ -764,6 +786,7 @@ public final class DungeonManager implements Listener {
             }
             if (s.progressBar() != null) s.progressBar().removeAll();
             plugin.rewardChests().cleanupSession(s.id());
+            plugin.ritualManager().cleanup(s);
             World w = s.world();
             if (w != null) {
                 String name = w.getName();

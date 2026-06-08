@@ -153,6 +153,23 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 refresh(p);
             });
 
+        // 34 → add ritual altar
+        set(34, icon(Material.SOUL_LANTERN,
+                sameRitualAltar() ? "&5Ritual Altar (set)" : "&5Add as Ritual Altar",
+                "&7Where an Altar of Souls armor stand",
+                "&7spawns (maps with the ritual modifier).",
+                "&7Altars here: &f" + template.ritualAltars().size(),
+                "",
+                sameRitualAltar() ? "&7&oAlready an altar here" : "&7Click to add"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (sameRitualAltar()) { p.sendMessage(color("&7Already a ritual altar here.")); return; }
+                template.addRitualAltar(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aRitual altar added &7(" + template.ritualAltars().size() + " total)."));
+                refresh(p);
+            });
+
         // 32 → remove all markers at this block
         if (!existing.isEmpty()) {
             set(32, icon(Material.BARRIER, "&cRemove ALL markers here",
@@ -174,6 +191,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         if (sameBossSpawn())       out.add(color("&8• &cBoss spawn"));
         if (sameForgeSpawn())      out.add(color("&8• &6Forge spawn"));
         if (sameExitPortalSpawn()) out.add(color("&8• &dExit portal spawn"));
+        if (sameRitualAltar())     out.add(color("&8• &5Ritual altar"));
         int idx = findSpawnPointIndex();
         if (idx >= 0) {
             SpawnPoint sp = template.spawnPoints().get(idx);
@@ -196,6 +214,13 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private boolean sameExitPortalSpawn() {
         return template.exitPortalSpawn() != null && sameBlock(template.exitPortalSpawn(), block);
+    }
+
+    private boolean sameRitualAltar() {
+        for (Location l : template.ritualAltars()) {
+            if (sameBlock(l, block)) return true;
+        }
+        return false;
     }
 
     private int findSpawnPointIndex() {
@@ -265,6 +290,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         for (int i = sps.size() - 1; i >= 0; i--) {
             if (sameBlock(sps.get(i).location(), b)) {
                 sps.remove(i); removed++;
+            }
+        }
+        List<Location> altars = t.ritualAltars();
+        for (int i = altars.size() - 1; i >= 0; i--) {
+            if (sameBlock(altars.get(i), b)) {
+                altars.remove(i); removed++;
             }
         }
         return removed;
