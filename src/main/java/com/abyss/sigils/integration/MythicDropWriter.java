@@ -4,7 +4,6 @@ import com.abyss.sigils.AbyssPlugin;
 import io.lumine.mythic.api.mobs.MythicMob;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,11 +42,13 @@ public final class MythicDropWriter {
 
     /** Find which file on disk contains the given mob. Returns null if not found. */
     public File findMobFile(String internalName) {
-        File mobsDir = new File(plugin.getServer().getWorldContainer(),
-                "plugins" + File.separator + "MythicMobs" + File.separator + "Mobs");
-        if (!mobsDir.exists()) {
-            mobsDir = new File("plugins" + File.separator + "MythicMobs" + File.separator + "Mobs");
+        // Use MythicMobs' own data folder — guaranteed correct on any server setup.
+        org.bukkit.plugin.Plugin mm = Bukkit.getPluginManager().getPlugin("MythicMobs");
+        if (mm == null) {
+            plugin.getLogger().warning("MythicMobs plugin not loaded.");
+            return null;
         }
+        File mobsDir = new File(mm.getDataFolder(), "Mobs");
         if (!mobsDir.exists() || !mobsDir.isDirectory()) {
             plugin.getLogger().warning("MythicMobs Mobs/ folder not found at " + mobsDir.getAbsolutePath());
             return null;
@@ -65,12 +66,39 @@ public final class MythicDropWriter {
                 continue;
             }
             if (!f.getName().endsWith(".yml") && !f.getName().endsWith(".yaml")) continue;
-            try {
-                YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
-                if (cfg.contains(key)) return f;
-            } catch (Throwable ignored) {}
+            if (fileDefinesMob(f, key)) return f;
         }
         return null;
+    }
+
+    /**
+     * True if the file defines a top-level mob with the given internal name.
+     *
+     * We scan the raw text rather than parsing as YAML: MythicMobs mob files
+     * frequently aren't valid strict-YAML to Bukkit's SnakeYAML (skill syntax
+     * like {@code ~onAttack}, unquoted colons in values, etc.), in which case
+     * {@code YamlConfiguration.loadConfiguration} silently returns an empty
+     * config and the mob looks "missing". A top-level mob key is a line with no
+     * leading whitespace whose text before the first ':' equals the name.
+     */
+    private boolean fileDefinesMob(File f, String key) {
+        try {
+            for (String raw : Files.readAllLines(f.toPath())) {
+                if (raw.isEmpty() || Character.isWhitespace(raw.charAt(0))) continue; // not top-level
+                if (raw.stripLeading().startsWith("#")) continue;                     // comment
+                int colon = raw.indexOf(':');
+                if (colon <= 0) continue;
+                String name = raw.substring(0, colon).strip();
+                // tolerate quoted keys: "AbyssOverlord": or 'AbyssOverlord':
+                if (name.length() >= 2
+                        && (name.charAt(0) == '"' || name.charAt(0) == '\'')
+                        && name.charAt(name.length() - 1) == name.charAt(0)) {
+                    name = name.substring(1, name.length() - 1);
+                }
+                if (name.equals(key)) return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     /**
