@@ -92,7 +92,8 @@ public final class MythicDropWriter {
                 if (r != null) return r;
                 continue;
             }
-            if (!f.getName().endsWith(".yml") && !f.getName().endsWith(".yaml")) continue;
+            String lower = f.getName().toLowerCase(java.util.Locale.ROOT);
+            if (!lower.endsWith(".yml") && !lower.endsWith(".yaml")) continue;
             if (fileDefinesMob(f, key)) return f;
         }
         return null;
