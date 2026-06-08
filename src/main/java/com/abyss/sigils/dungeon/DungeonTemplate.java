@@ -106,6 +106,16 @@ public final class DungeonTemplate {
     private int ritualPriceMax = 50;
     /** Soul cost to reroll the shop offers. 0 = reroll disabled. */
     private int ritualRerollCost = 25;
+    /** Optional single cash reward sold in the shop (pays money via Vault). */
+    private boolean ritualCashEnabled = false;
+    private double ritualCashMoneyMin = 0;
+    private double ritualCashMoneyMax = 0;
+    private int ritualCashPriceMin = 50;
+    private int ritualCashPriceMax = 100;
+    /** Reserve (layaway) settings. */
+    private int ritualReserveDepositPct = 10;
+    private int ritualReserveDiscountPct = 10;
+    private int ritualReserveLimit = 3;
 
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
@@ -157,6 +167,14 @@ public final class DungeonTemplate {
     public int ritualPriceMin()                       { return ritualPriceMin; }
     public int ritualPriceMax()                       { return ritualPriceMax; }
     public int ritualRerollCost()                     { return ritualRerollCost; }
+    public boolean ritualCashEnabled()                { return ritualCashEnabled; }
+    public double ritualCashMoneyMin()                { return ritualCashMoneyMin; }
+    public double ritualCashMoneyMax()                { return ritualCashMoneyMax; }
+    public int ritualCashPriceMin()                   { return ritualCashPriceMin; }
+    public int ritualCashPriceMax()                   { return ritualCashPriceMax; }
+    public int ritualReserveDepositPct()              { return ritualReserveDepositPct; }
+    public int ritualReserveDiscountPct()             { return ritualReserveDiscountPct; }
+    public int ritualReserveLimit()                   { return ritualReserveLimit; }
     /** Soul range for a mythic id as {min,max}; {0,0} if unset. */
     public int[] soulsRange(String mythicId)          { return ritualMobSouls.getOrDefault(mythicId, new int[]{0, 0}); }
     /** Roll a random soul amount for killing the given mythic id (0 if unset). */
@@ -220,6 +238,14 @@ public final class DungeonTemplate {
     public void setRitualPriceMin(int n) { this.ritualPriceMin = Math.max(0, n); if (ritualPriceMax < ritualPriceMin) ritualPriceMax = ritualPriceMin; }
     public void setRitualPriceMax(int n) { this.ritualPriceMax = Math.max(0, n); if (ritualPriceMin > ritualPriceMax) ritualPriceMin = ritualPriceMax; }
     public void setRitualRerollCost(int n) { this.ritualRerollCost = Math.max(0, n); }
+    public void setRitualCashEnabled(boolean b) { this.ritualCashEnabled = b; }
+    public void setRitualCashMoneyMin(double v) { this.ritualCashMoneyMin = Math.max(0, v); if (ritualCashMoneyMax < ritualCashMoneyMin) ritualCashMoneyMax = ritualCashMoneyMin; }
+    public void setRitualCashMoneyMax(double v) { this.ritualCashMoneyMax = Math.max(0, v); if (ritualCashMoneyMin > ritualCashMoneyMax) ritualCashMoneyMin = ritualCashMoneyMax; }
+    public void setRitualCashPriceMin(int n) { this.ritualCashPriceMin = Math.max(0, n); if (ritualCashPriceMax < ritualCashPriceMin) ritualCashPriceMax = ritualCashPriceMin; }
+    public void setRitualCashPriceMax(int n) { this.ritualCashPriceMax = Math.max(0, n); if (ritualCashPriceMin > ritualCashPriceMax) ritualCashPriceMin = ritualCashPriceMax; }
+    public void setRitualReserveDepositPct(int n) { this.ritualReserveDepositPct = Math.max(0, Math.min(100, n)); }
+    public void setRitualReserveDiscountPct(int n) { this.ritualReserveDiscountPct = Math.max(0, Math.min(100, n)); }
+    public void setRitualReserveLimit(int n) { this.ritualReserveLimit = Math.max(0, n); }
     /** Remove any ritual altar marker at the given block (stand-on-top match). Returns count removed. */
     public int removeRitualAltarAt(int bx, int by, int bz) {
         int removed = 0;
@@ -349,6 +375,14 @@ public final class DungeonTemplate {
         cfg.set("ritual.price-min", ritualPriceMin);
         cfg.set("ritual.price-max", ritualPriceMax);
         cfg.set("ritual.reroll-cost", ritualRerollCost);
+        cfg.set("ritual.cash.enabled", ritualCashEnabled);
+        cfg.set("ritual.cash.money-min", ritualCashMoneyMin);
+        cfg.set("ritual.cash.money-max", ritualCashMoneyMax);
+        cfg.set("ritual.cash.price-min", ritualCashPriceMin);
+        cfg.set("ritual.cash.price-max", ritualCashPriceMax);
+        cfg.set("ritual.reserve.deposit-pct", ritualReserveDepositPct);
+        cfg.set("ritual.reserve.discount-pct", ritualReserveDiscountPct);
+        cfg.set("ritual.reserve.limit", ritualReserveLimit);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -377,6 +411,7 @@ public final class DungeonTemplate {
             cfg.set(base + ".item", r.itemStack());
             cfg.set(base + ".price-min", r.priceMin());
             cfg.set(base + ".price-max", r.priceMax());
+            cfg.set(base + ".amount", r.amount());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -539,12 +574,23 @@ public final class DungeonTemplate {
                 int pmin = entry.getInt("price-min", -1);
                 int pmax = entry.getInt("price-max", -1);
                 RitualReward rr = new RitualReward(stack, pmin, pmax);
+                rr.setAmount(entry.getInt("amount", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) rr.setMMOItem(mmoType, mmoId);
                 ritualRewardPool.add(rr);
             }
         }
+
+        // Cash reward + reserve settings
+        this.ritualCashEnabled  = cfg.getBoolean("ritual.cash.enabled", false);
+        this.ritualCashMoneyMin = cfg.getDouble("ritual.cash.money-min", 0);
+        this.ritualCashMoneyMax = cfg.getDouble("ritual.cash.money-max", 0);
+        this.ritualCashPriceMin = cfg.getInt("ritual.cash.price-min", 50);
+        this.ritualCashPriceMax = cfg.getInt("ritual.cash.price-max", 100);
+        this.ritualReserveDepositPct  = cfg.getInt("ritual.reserve.deposit-pct", 10);
+        this.ritualReserveDiscountPct = cfg.getInt("ritual.reserve.discount-pct", 10);
+        this.ritualReserveLimit       = cfg.getInt("ritual.reserve.limit", 3);
     }
 
     private static void writeLoc(YamlConfiguration cfg, String path, Location l) {
