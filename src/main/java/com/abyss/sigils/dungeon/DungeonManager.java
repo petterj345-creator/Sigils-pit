@@ -164,6 +164,10 @@ public final class DungeonManager implements Listener {
 
     private void spawnMapTick(DungeonSession session, DungeonTemplate t) {
         if (session.phase() != DungeonSession.Phase.TRASH) return;
+        // Pause trash while a ritual is running so it doesn't keep the arena
+        // saturated at the concurrent-mob cap — that's what was starving the
+        // ritual mobs of room to spawn. Trash resumes once the ritual clears.
+        if (plugin.ritualManager().isRitualActive(session)) return;
         if (t.spawnPoints().isEmpty() && t.defaultTrashMobs().isEmpty()) return;
 
         Random rng = new Random();

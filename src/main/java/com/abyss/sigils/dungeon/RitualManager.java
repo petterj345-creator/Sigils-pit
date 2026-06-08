@@ -212,13 +212,29 @@ public final class RitualManager implements Listener {
         state.activeAltar = idx;
 
         DungeonTemplate t = state.template;
+        int spawned = 0, failed = 0;
         for (MobEntry entry : t.ritualMobs()) {
             for (int i = 0; i < entry.count(); i++) {
                 Location loc = altar.loc.clone().add(
                         rng.nextDouble() * 4 - 2, 0, rng.nextDouble() * 4 - 2);
-                plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level())
-                        .ifPresent(ent -> state.activeMobs.add(ent.getUniqueId()));
+                var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
+                if (ent.isPresent()) { state.activeMobs.add(ent.get().getUniqueId()); spawned++; }
+                else failed++;
             }
+        }
+        if (failed > 0) {
+            plugin.getLogger().warning("Ritual: " + failed + " mob(s) failed to spawn (spawned "
+                    + spawned + "). Check the MythicMob ids and that nothing caps entity spawns.");
+        }
+
+        // If nothing spawned, don't soft-lock the ritual (it would never clear
+        // and trash would stay paused). Revert the altar so it can be retried.
+        if (spawned == 0) {
+            altar.status = Status.IDLE;
+            state.activeAltar = -1;
+            updateAltarText(altar, false);
+            broadcast(state, "&cThe ritual fizzled — no souls answered. Try again.");
+            return;
         }
 
         updateAltarText(altar, false);
@@ -283,6 +299,12 @@ public final class RitualManager implements Listener {
         State state = states.get(session.id());
         if (state == null) return List.of();
         return state.offers.computeIfAbsent(p.getUniqueId(), k -> rollOffers(state));
+    }
+
+    /** True if a ritual is currently in progress in this session. */
+    public boolean isRitualActive(DungeonSession session) {
+        State state = states.get(session.id());
+        return state != null && state.activeAltar != -1;
     }
 
     /** Force a fresh roll of a player's shop offers (used by the reroll button). */
