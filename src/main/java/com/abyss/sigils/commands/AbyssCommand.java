@@ -46,6 +46,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "sigils"     -> { if (sender instanceof Player p) plugin.socketGUI().openFor(p); }
             case "leave"      -> { if (sender instanceof Player p) plugin.dungeonManager().leave(p); }
             case "enterabyss" -> { if (sender instanceof Player p) plugin.dungeonManager().start(List.of(p)); }
+            case "admin"      -> handleAdmin(sender);
             case "create"     -> handleCreate(sender, args);
             case "edit"       -> handleEdit(sender, args);
             case "delete"     -> handleDelete(sender, args);
@@ -78,6 +79,13 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             default -> sender.sendMessage(Text.color("&cUnknown subcommand. Try /abyss help"));
         }
         return true;
+    }
+
+    /** /abyss admin — open the admin give hub (sigils, books, maps, currency, dust). */
+    private void handleAdmin(CommandSender sender) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+        com.abyss.sigils.gui.AdminGUI.openHub(plugin, p);
     }
 
     private void handleCreate(CommandSender sender, String[] args) {
@@ -427,6 +435,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.color("  &f/abyss leave &7- exit a dungeon"));
         if (sender.hasPermission("abyss.admin")) {
             sender.sendMessage(Text.color("&7Admin:"));
+            sender.sendMessage(Text.color("  &f/abyss admin &8— give menu (sigils, books, maps, currency, dust)"));
             sender.sendMessage(Text.color("  &f/abyss create <name> &8— new template + open editor"));
             sender.sendMessage(Text.color("  &f/abyss edit <name> &8— open editor for existing template"));
             sender.sendMessage(Text.color("  &f/abyss list &8— list all templates"));
@@ -448,7 +457,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBS = List.of(
             "help","sigils","leave","enterabyss",
-            "create","edit","delete","list",
+            "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
             "sigil","mythicdrops","markers","setportal","removeportal"
     );
