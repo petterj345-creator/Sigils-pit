@@ -85,6 +85,12 @@ public final class EditorMarkers implements Listener {
                     "§b§lSpawn Point #" + (i + 1)
                     + (mobCount > 0 ? " §7(" + mobCount + " mob entries)" : " §8(empty)"));
         }
+        // Ritual altars
+        List<Location> altars = t.ritualAltars();
+        for (int i = 0; i < altars.size(); i++) {
+            Location l = boundTo(altars.get(i), w);
+            spawnMarker(l, Material.PURPLE_WOOL, "§5§l✦ Ritual Altar #" + (i + 1));
+        }
     }
 
     /** Spawn one block-display + text-display pair at a location. */
@@ -109,6 +115,7 @@ public final class EditorMarkers implements Listener {
                 case LIGHT_BLUE_WOOL -> Color.AQUA;
                 case ORANGE_WOOL     -> Color.ORANGE;
                 case MAGENTA_WOOL    -> Color.FUCHSIA;
+                case PURPLE_WOOL     -> Color.PURPLE;
                 default              -> Color.WHITE;
             });
             // CRITICAL: don't persist these to disk. If they were persistent, the

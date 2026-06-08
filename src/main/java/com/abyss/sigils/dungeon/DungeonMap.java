@@ -30,7 +30,74 @@ public final class DungeonMap {
     public static final NamespacedKey KEY_TEMPLATE =
             new NamespacedKey("abyss", "map_template");
 
+    /**
+     * PDC key — the mods rolled onto this map, stored as a comma-separated list
+     * of {@link MapMod#id()} values. Stored as a single STRING rather than a
+     * typed PDC list so it's robust across Bukkit/Paper API versions.
+     */
+    public static final NamespacedKey KEY_MODS =
+            new NamespacedKey("abyss", "map_mods");
+
     private DungeonMap() {}
+
+    // ----- mods -----
+
+    /** The mod ids stored on this item (raw strings; may include unknown ids). */
+    public static List<String> modIds(ItemStack item) {
+        if (item == null) return new ArrayList<>();
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return new ArrayList<>();
+        String raw = meta.getPersistentDataContainer().get(KEY_MODS, PersistentDataType.STRING);
+        if (raw == null || raw.isBlank()) return new ArrayList<>();
+        List<String> out = new ArrayList<>();
+        for (String s : raw.split(",")) {
+            String t = s.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    /** Resolved mods on this item (unknown ids skipped). */
+    public static List<MapMod> mods(ItemStack item) {
+        List<MapMod> out = new ArrayList<>();
+        for (String id : modIds(item)) {
+            MapMod m = MapMod.fromId(id);
+            if (m != null && !out.contains(m)) out.add(m);
+        }
+        return out;
+    }
+
+    public static boolean hasMod(ItemStack item, MapMod mod) {
+        return modIds(item).stream().anyMatch(id -> id.equalsIgnoreCase(mod.id()));
+    }
+
+    /** Write the given mod ids onto the item's PDC (does not touch lore). */
+    private static void writeMods(ItemMeta meta, List<String> ids) {
+        if (ids.isEmpty()) {
+            meta.getPersistentDataContainer().remove(KEY_MODS);
+        } else {
+            meta.getPersistentDataContainer()
+                    .set(KEY_MODS, PersistentDataType.STRING, String.join(",", ids));
+        }
+    }
+
+    /**
+     * Add a mod to this map (no-op if already present). Re-decorates the item so
+     * the new mod shows in lore. Returns true if it was actually added.
+     */
+    public static boolean addMod(AbyssPlugin plugin, ItemStack item, MapMod mod) {
+        if (item == null || mod == null) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        List<String> ids = modIds(item);
+        if (ids.stream().anyMatch(id -> id.equalsIgnoreCase(mod.id()))) return false;
+        ids.add(mod.id());
+        writeMods(meta, ids);
+        item.setItemMeta(meta);
+        // Re-render lore against the current template (keeps name/lore in sync).
+        decorate(item, templateOf(plugin, item));
+        return true;
+    }
 
     /** Build a fresh map item for the given template. */
     public static ItemStack create(DungeonTemplate template) {
@@ -70,10 +137,24 @@ public final class DungeonMap {
             List<String> lore = new ArrayList<>();
             lore.add(Text.color("&7A tear in reality leading to the"));
             lore.add(Text.color("&7&o" + template.name() + " &7dungeon."));
+
+            // Rolled mods — read straight from the item's PDC so they survive
+            // re-decoration after a template change.
+            List<MapMod> mods = mods(stack);
+            if (!mods.isEmpty()) {
+                lore.add("");
+                lore.add(Text.color("&d&lModifiers:"));
+                for (MapMod m : mods) {
+                    lore.add(Text.color("&8• " + m.displayName()));
+                    for (String l : m.lore()) lore.add(Text.color("  " + l));
+                }
+            }
+
             lore.add("");
             lore.add(Text.color("&eRight-click an Abyss portal"));
             lore.add(Text.color("&ewhile holding this to enter."));
             lore.add("");
+            lore.add(Text.color("&8Apply currency to add modifiers."));
             lore.add(Text.color("&8Consumed on use."));
             meta.setLore(lore);
 

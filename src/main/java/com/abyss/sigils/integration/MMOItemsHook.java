@@ -41,6 +41,20 @@ public final class MMOItemsHook {
     private java.lang.reflect.Constructor<?> statModifierCtor;
     private Object modifierTypeFlat;
 
+    // ----- item generation / detection (used for MMOItems rewards) -----
+    /** The static MMOItems.plugin instance. */
+    private Object mmoItemsPluginInstance;
+    /** MMOItems#getItem(String type, String id) -> ItemStack (fresh roll). */
+    private Method getItemMethod;
+    /** MythicLib NBTItem.get(ItemStack) -> NBTItem. */
+    private Method nbtGetMethod;
+    /** NBTItem#getString(String) -> String. */
+    private Method nbtGetStringMethod;
+
+    /** NBT tags MMOItems writes onto every generated item. */
+    private static final String NBT_TYPE = "MMOITEMS_ITEM_TYPE";
+    private static final String NBT_ID   = "MMOITEMS_ITEM_ID";
+
     /** Map from our SigilStat → MMOItems stat name. */
     private static final Map<SigilStat, String> STAT_MAPPING;
     static {
@@ -104,6 +118,86 @@ public final class MMOItemsHook {
         } catch (Throwable t) {
             plugin.getLogger().warning("MMOItems found but API mismatch — MMO sigil stats disabled: " + t.getMessage());
             available = false;
+        }
+
+        // Item generation/detection is independent of the stat reflection above —
+        // even if the stat API shifted, we may still be able to generate reward
+        // items. Wire it up separately so one failing doesn't kill the other.
+        try {
+            Class<?> mmoItemsClass = Class.forName("net.Indyuce.mmoitems.MMOItems");
+            mmoItemsPluginInstance = mmoItemsClass.getField("plugin").get(null);
+            getItemMethod = mmoItemsClass.getMethod("getItem", String.class, String.class);
+
+            Class<?> nbtItemClass = Class.forName("io.lumine.mythic.lib.api.item.NBTItem");
+            nbtGetMethod = nbtItemClass.getMethod("get", org.bukkit.inventory.ItemStack.class);
+            nbtGetStringMethod = nbtItemClass.getMethod("getString", String.class);
+            plugin.getLogger().info("MMOItems item generation enabled (rewards can roll live MMOItems).");
+        } catch (Throwable t) {
+            plugin.getLogger().warning("MMOItems item generation unavailable (API mismatch?): " + t.getMessage());
+            mmoItemsPluginInstance = null;
+            getItemMethod = null;
+        }
+    }
+
+    // ============================================================
+    // Item generation / detection (for MMOItems rewards)
+    // ============================================================
+
+    /** True if MMOItems item generation reflection wired up successfully. */
+    public boolean canGenerateItems() {
+        return mmoItemsPluginInstance != null && getItemMethod != null;
+    }
+
+    /**
+     * Read the MMOItems type tag from an item, or null if it isn't an MMOItem
+     * (or NBT reflection is unavailable). Backed by MythicLib's NBTItem because
+     * MMOItems stores these as raw NBT, not Bukkit PDC.
+     */
+    public String mmoType(org.bukkit.inventory.ItemStack item) {
+        return readNbt(item, NBT_TYPE);
+    }
+
+    /** Read the MMOItems id tag from an item, or null. */
+    public String mmoId(org.bukkit.inventory.ItemStack item) {
+        return readNbt(item, NBT_ID);
+    }
+
+    /** True if the item carries both MMOItems type + id tags. */
+    public boolean isMMOItem(org.bukkit.inventory.ItemStack item) {
+        String t = mmoType(item);
+        String i = mmoId(item);
+        return t != null && !t.isEmpty() && i != null && !i.isEmpty();
+    }
+
+    private String readNbt(org.bukkit.inventory.ItemStack item, String tag) {
+        if (item == null || nbtGetMethod == null || nbtGetStringMethod == null) return null;
+        try {
+            Object nbt = nbtGetMethod.invoke(null, item);
+            if (nbt == null) return null;
+            Object value = nbtGetStringMethod.invoke(nbt, tag);
+            return value == null ? null : value.toString();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Generate a FRESH MMOItems item from a type + id (re-rolling any random
+     * stats). Returns null if MMOItems isn't present, the reflection failed, or
+     * the type/id no longer exists. {@code amount} is clamped to >= 1.
+     */
+    public org.bukkit.inventory.ItemStack generate(String type, String id, int amount) {
+        if (!canGenerateItems() || type == null || id == null) return null;
+        try {
+            Object result = getItemMethod.invoke(mmoItemsPluginInstance, type, id);
+            if (result instanceof org.bukkit.inventory.ItemStack stack) {
+                stack.setAmount(Math.max(1, amount));
+                return stack;
+            }
+            return null;
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Failed to generate MMOItems item " + type + ":" + id + " — " + t.getMessage());
+            return null;
         }
     }
 

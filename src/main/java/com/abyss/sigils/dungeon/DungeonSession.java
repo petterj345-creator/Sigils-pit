@@ -72,9 +72,38 @@ public final class DungeonSession {
 
     private ProgressBar progressBar;
 
+    // ----- ritual (Altar of Souls) -----
+    /** Map modifiers active this run (MapMod ids), from the entry map item. */
+    private final List<String> mapMods = new ArrayList<>();
+    /** Per-player soul balance, earned from ritual mobs, spent in the soul shop. */
+    private final Map<UUID, Integer> souls = new HashMap<>();
+
     public DungeonSession(World world, Collection<Player> initial) {
         this.world = world;
         for (Player p : initial) players.add(p.getUniqueId());
+    }
+
+    public List<String> mapMods() { return mapMods; }
+    public void setMapMods(Collection<String> mods) {
+        mapMods.clear();
+        if (mods != null) mapMods.addAll(mods);
+    }
+    public boolean hasMod(String id) {
+        for (String m : mapMods) if (m.equalsIgnoreCase(id)) return true;
+        return false;
+    }
+
+    public int soulsOf(UUID id) { return souls.getOrDefault(id, 0); }
+    public void addSouls(UUID id, int amount) {
+        if (amount <= 0) return;
+        souls.merge(id, amount, Integer::sum);
+    }
+    /** Spend souls if the player can afford it. Returns true on success. */
+    public boolean spendSouls(UUID id, int amount) {
+        int have = souls.getOrDefault(id, 0);
+        if (amount <= 0 || have < amount) return false;
+        souls.put(id, have - amount);
+        return true;
     }
 
     public UUID id() { return id; }

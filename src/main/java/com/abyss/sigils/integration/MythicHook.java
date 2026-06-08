@@ -64,6 +64,10 @@ public final class MythicHook implements Listener {
                         .getMethod("registerItem", String.class, java.util.function.Function.class)
                         .invoke(items, "abyss_book",
                                 (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildBook);
+                items.getClass()
+                        .getMethod("registerItem", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_currency",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildCurrency);
             } catch (NoSuchMethodException nsme) {
                 items.getClass()
                         .getMethod("registerItemType", String.class, java.util.function.Function.class)
@@ -81,8 +85,12 @@ public final class MythicHook implements Listener {
                         .getMethod("registerItemType", String.class, java.util.function.Function.class)
                         .invoke(items, "abyss_book",
                                 (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildBook);
+                items.getClass()
+                        .getMethod("registerItemType", String.class, java.util.function.Function.class)
+                        .invoke(items, "abyss_currency",
+                                (java.util.function.Function<MythicLineConfig, AbstractItemStack>) this::buildCurrency);
             }
-            plugin.getLogger().info("Registered MythicMobs item types: abyss_sigil, abyss_sigil_dust, abyss_map, abyss_book");
+            plugin.getLogger().info("Registered MythicMobs item types: abyss_sigil, abyss_sigil_dust, abyss_map, abyss_book, abyss_currency");
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING,
                     "Couldn't register MythicMobs item types (Mythic API version mismatch?): " + t.getMessage());
@@ -140,6 +148,27 @@ public final class MythicHook implements Listener {
             return null;
         }
         ItemStack stack = com.abyss.sigils.dungeon.DungeonMap.create(tpl);
+        return stack == null ? null : BukkitAdapter.adapt(stack);
+    }
+
+    /**
+     * Builds an Abyss Currency item. YAML syntax:
+     *   abyss_currency{type=ritual} 1 0.03
+     * {@code type} is a {@link com.abyss.sigils.dungeon.MapMod} id. Unknown
+     * types drop nothing (Mythic skips the null line).
+     */
+    private AbstractItemStack buildCurrency(MythicLineConfig line) {
+        String type = line.getString(new String[]{"type", "mod"}, null);
+        if (type == null) {
+            plugin.getLogger().warning("abyss_currency drop missing type= argument");
+            return null;
+        }
+        com.abyss.sigils.dungeon.MapMod mod = com.abyss.sigils.dungeon.MapMod.fromId(type);
+        if (mod == null) {
+            plugin.getLogger().warning("abyss_currency drop references unknown type: " + type);
+            return null;
+        }
+        ItemStack stack = com.abyss.sigils.dungeon.AbyssCurrency.create(mod);
         return stack == null ? null : BukkitAdapter.adapt(stack);
     }
 

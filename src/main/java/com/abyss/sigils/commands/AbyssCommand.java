@@ -54,6 +54,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "givedust"   -> handleGiveDust(sender, args);
             case "givebook"   -> handleGiveBook(sender, args);
             case "givemap"    -> handleGiveMap(sender, args);
+            case "givecurrency" -> handleGiveCurrency(sender, args);
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
@@ -243,6 +244,57 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.color("&aGave " + target.getName() + " " + amount + "x Abyss Map (" + tplName + ")."));
     }
 
+    /**
+     * /abyss givecurrency &lt;type&gt; [player] [amount]
+     *
+     * Gives map-modifier currency. {@code type} is a {@link com.abyss.sigils.dungeon.MapMod}
+     * id (e.g. "ritual"). Apply it to a map by holding it on the cursor and
+     * clicking the map.
+     */
+    private void handleGiveCurrency(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (args.length < 2) {
+            sender.sendMessage(Text.color("&7Usage: &f/abyss givecurrency <type> [player] [amount]"));
+            sender.sendMessage(Text.color("&7Types: &f" + currencyTypeList()));
+            return;
+        }
+        com.abyss.sigils.dungeon.MapMod mod =
+                com.abyss.sigils.dungeon.MapMod.fromId(args[1].toLowerCase(Locale.ROOT));
+        if (mod == null) {
+            sender.sendMessage(Text.color("&cUnknown currency type. Types: &f" + currencyTypeList()));
+            return;
+        }
+        Player target;
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+            if (target == null) { sender.sendMessage(Text.color("&cUnknown player.")); return; }
+        } else if (sender instanceof Player p) {
+            target = p;
+        } else {
+            sender.sendMessage(Text.color("&cMust specify a player from console."));
+            return;
+        }
+        int amount = 1;
+        if (args.length >= 4) {
+            try { amount = Math.max(1, Math.min(64, Integer.parseInt(args[3]))); }
+            catch (NumberFormatException ex) { sender.sendMessage(Text.color("&cAmount must be a number.")); return; }
+        }
+        ItemStack currency = com.abyss.sigils.dungeon.AbyssCurrency.create(mod);
+        currency.setAmount(amount);
+        var overflow = target.getInventory().addItem(currency);
+        for (var o : overflow.values()) target.getWorld().dropItemNaturally(target.getLocation(), o);
+        sender.sendMessage(Text.color("&aGave " + target.getName() + " " + amount + "x " + mod.id() + " currency."));
+    }
+
+    private static String currencyTypeList() {
+        StringBuilder sb = new StringBuilder();
+        for (com.abyss.sigils.dungeon.MapMod m : com.abyss.sigils.dungeon.MapMod.values()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(m.id());
+        }
+        return sb.toString();
+    }
+
     private void handleSigilSubcommand(CommandSender sender, String[] args) {
         if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
         if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
@@ -383,6 +435,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.color("  &f/abyss givedust <p> <n>"));
             sender.sendMessage(Text.color("  &f/abyss givebook <p> [tier]"));
             sender.sendMessage(Text.color("  &f/abyss givemap <template> [p] [n]"));
+            sender.sendMessage(Text.color("  &f/abyss givecurrency <type> [p] [n] &8— map-mod currency"));
             sender.sendMessage(Text.color("  &f/abyss sigil list|create [id]|edit <id> &8— sigil creator"));
             sender.sendMessage(Text.color("  &f/abyss mythicdrops &8— add sigil drops to mythic mobs"));
             sender.sendMessage(Text.color("  &f/abyss setportal &8— set portal block to the one you're looking at"));
@@ -396,7 +449,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBS = List.of(
             "help","sigils","leave","enterabyss",
             "create","edit","delete","list",
-            "givesigil","givedust","givebook","givemap","reload",
+            "givesigil","givedust","givebook","givemap","givecurrency","reload",
             "sigil","mythicdrops","markers","setportal","removeportal"
     );
 
@@ -414,6 +467,9 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 case "givemap" -> plugin.templates().all().stream()
                         .map(DungeonTemplate::name)
+                        .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
+                case "givecurrency" -> java.util.Arrays.stream(com.abyss.sigils.dungeon.MapMod.values())
+                        .map(com.abyss.sigils.dungeon.MapMod::id)
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 case "givesigil","givedust","givebook" -> Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName).filter(s -> s.startsWith(args[1])).toList();
