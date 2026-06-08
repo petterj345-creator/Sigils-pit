@@ -118,6 +118,24 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
                 });
             });
 
+        // 34 Reroll cost
+        set(34, icon(Material.ENDER_EYE,
+                "&dShop Reroll Cost",
+                "&7Souls to reroll the shop: &f"
+                        + (template.ritualRerollCost() <= 0 ? "&cdisabled" : template.ritualRerollCost()),
+                "&7Set 0 to disable rerolling.",
+                "",
+                "&eClick &7to set"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                ChatInput.prompt(plugin, p, "&fReroll cost in souls (0 = disabled)",
+                        String.valueOf(template.ritualRerollCost()), text -> {
+                    try { template.setRitualRerollCost(Integer.parseInt(text.trim())); plugin.templates().save(template); }
+                    catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                    Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                });
+            });
+
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),
             e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));

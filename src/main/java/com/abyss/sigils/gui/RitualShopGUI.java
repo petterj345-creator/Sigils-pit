@@ -71,6 +71,7 @@ public final class RitualShopGUI implements Listener {
             28, 29, 30, 31, 32, 33, 34
     };
     private static final int BALANCE_SLOT = 49;
+    private static final int REROLL_SLOT = 51;
 
     private Inventory build(Holder holder, Player p) {
         Inventory inv = Bukkit.createInventory(holder, 54, color("&5&l✦ Soul Shop"));
@@ -95,7 +96,24 @@ public final class RitualShopGUI implements Listener {
                 "&7Spend them on the items above.",
                 "",
                 "&8Unspent souls are lost when you leave."));
+
+        int rerollCost = rerollCost(holder.session);
+        if (rerollCost > 0) {
+            boolean can = balance >= rerollCost;
+            inv.setItem(REROLL_SLOT, icon(can ? Material.ENDER_EYE : Material.ENDER_PEARL,
+                    "&d&l↻ Reroll Shop",
+                    "&7Replace the items above with a",
+                    "&7fresh roll from the pool.",
+                    "&7Cost: &b" + rerollCost + " souls",
+                    "",
+                    can ? "&eClick to reroll" : "&cNot enough souls"));
+        }
         return inv;
+    }
+
+    private int rerollCost(DungeonSession session) {
+        var t = plugin.templates().get(session.templateName());
+        return t == null ? 0 : t.ritualRerollCost();
     }
 
     private ItemStack decorate(RitualManager.Offer offer, int balance) {
@@ -129,6 +147,26 @@ public final class RitualShopGUI implements Listener {
         e.setCancelled(true);
         if (e.getClickedInventory() != top) return;
 
+        DungeonSession session = holder.session;
+
+        // Reroll button
+        if (e.getRawSlot() == REROLL_SLOT) {
+            int cost = rerollCost(session);
+            if (cost <= 0) return;
+            if (!session.spendSouls(p.getUniqueId(), cost)) {
+                p.sendMessage(color("&cNot enough souls to reroll. &7Need &b" + cost + "&7."));
+                p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                return;
+            }
+            plugin.ritualManager().reroll(session, p);
+            p.playSound(p.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1f, 1.2f);
+            p.sendMessage(color("&dRerolled the shop for &b" + cost + " souls&d. "
+                    + "&7Balance: &b" + session.soulsOf(p.getUniqueId())));
+            // Reopen so the new offers + balance show.
+            Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, session));
+            return;
+        }
+
         Integer offerIdx = holder.slotToOffer.get(e.getRawSlot());
         if (offerIdx == null) return;
         RitualManager.Offer offer = holder.offers.get(offerIdx);
@@ -137,7 +175,6 @@ public final class RitualShopGUI implements Listener {
             p.sendMessage(color("&7You already bought that."));
             return;
         }
-        DungeonSession session = holder.session;
         if (!session.spendSouls(p.getUniqueId(), offer.price)) {
             p.sendMessage(color("&cNot enough souls. &7You have &b"
                     + session.soulsOf(p.getUniqueId()) + "&7, need &b" + offer.price + "&7."));

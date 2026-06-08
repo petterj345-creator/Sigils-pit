@@ -94,8 +94,8 @@ public final class DungeonTemplate {
     private final List<Location> ritualAltars = new ArrayList<>();
     /** Mobs each ritual summons (count = how many of each). Don't count toward boss. */
     private final List<MobEntry> ritualMobs = new ArrayList<>();
-    /** Souls granted per MythicMob id when killed during a ritual. */
-    private final java.util.Map<String, Integer> ritualMobSouls = new java.util.LinkedHashMap<>();
+    /** Souls granted per MythicMob id when killed during a ritual, as {min,max}. */
+    private final java.util.Map<String, int[]> ritualMobSouls = new java.util.LinkedHashMap<>();
     /** Purchasable items in the soul shop. */
     private final List<RitualReward> ritualRewardPool = new ArrayList<>();
     /** How many items the shop rolls (range). */
@@ -104,6 +104,8 @@ public final class DungeonTemplate {
     /** Global soul price range for rolled items (used when an item inherits). */
     private int ritualPriceMin = 10;
     private int ritualPriceMax = 50;
+    /** Soul cost to reroll the shop offers. 0 = reroll disabled. */
+    private int ritualRerollCost = 25;
 
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
@@ -148,14 +150,22 @@ public final class DungeonTemplate {
     // Ritual getters
     public List<Location> ritualAltars()              { return ritualAltars; }
     public List<MobEntry> ritualMobs()                { return ritualMobs; }
-    public java.util.Map<String,Integer> ritualMobSouls() { return ritualMobSouls; }
+    public java.util.Map<String,int[]> ritualMobSouls() { return ritualMobSouls; }
     public List<RitualReward> ritualRewardPool()      { return ritualRewardPool; }
     public int ritualItemsMin()                       { return ritualItemsMin; }
     public int ritualItemsMax()                       { return ritualItemsMax; }
     public int ritualPriceMin()                       { return ritualPriceMin; }
     public int ritualPriceMax()                       { return ritualPriceMax; }
-    /** Souls granted for killing the given mythic id during a ritual (0 if unset). */
-    public int soulsFor(String mythicId)              { return ritualMobSouls.getOrDefault(mythicId, 0); }
+    public int ritualRerollCost()                     { return ritualRerollCost; }
+    /** Soul range for a mythic id as {min,max}; {0,0} if unset. */
+    public int[] soulsRange(String mythicId)          { return ritualMobSouls.getOrDefault(mythicId, new int[]{0, 0}); }
+    /** Roll a random soul amount for killing the given mythic id (0 if unset). */
+    public int rollSoulsFor(String mythicId) {
+        int[] r = ritualMobSouls.get(mythicId);
+        if (r == null || r[1] <= 0) return 0;
+        int min = Math.max(0, r[0]), max = Math.max(min, r[1]);
+        return min + (max > min ? java.util.concurrent.ThreadLocalRandom.current().nextInt(max - min + 1) : 0);
+    }
     /** True if this template has a usable ritual setup (altars + mobs). */
     public boolean hasRitual() { return !ritualAltars.isEmpty() && !ritualMobs.isEmpty(); }
 
@@ -200,14 +210,16 @@ public final class DungeonTemplate {
     // Ritual setters
     public void addRitualAltar(Location loc)  { ritualAltars.add(wipeWorld(loc)); }
     public void clearRitualAltars()           { ritualAltars.clear(); }
-    public void setRitualMobSouls(String id, int souls) {
-        if (souls <= 0) ritualMobSouls.remove(id);
-        else ritualMobSouls.put(id, souls);
+    public void setRitualMobSouls(String id, int min, int max) {
+        if (max <= 0) { ritualMobSouls.remove(id); return; }
+        int lo = Math.max(0, min), hi = Math.max(lo, max);
+        ritualMobSouls.put(id, new int[]{lo, hi});
     }
     public void setRitualItemsMin(int n) { this.ritualItemsMin = Math.max(0, n); if (ritualItemsMax < ritualItemsMin) ritualItemsMax = ritualItemsMin; }
     public void setRitualItemsMax(int n) { this.ritualItemsMax = Math.max(0, n); if (ritualItemsMin > ritualItemsMax) ritualItemsMin = ritualItemsMax; }
     public void setRitualPriceMin(int n) { this.ritualPriceMin = Math.max(0, n); if (ritualPriceMax < ritualPriceMin) ritualPriceMax = ritualPriceMin; }
     public void setRitualPriceMax(int n) { this.ritualPriceMax = Math.max(0, n); if (ritualPriceMin > ritualPriceMax) ritualPriceMin = ritualPriceMax; }
+    public void setRitualRerollCost(int n) { this.ritualRerollCost = Math.max(0, n); }
     /** Remove any ritual altar marker at the given block (stand-on-top match). Returns count removed. */
     public int removeRitualAltarAt(int bx, int by, int bz) {
         int removed = 0;
@@ -336,6 +348,7 @@ public final class DungeonTemplate {
         cfg.set("ritual.items-max", ritualItemsMax);
         cfg.set("ritual.price-min", ritualPriceMin);
         cfg.set("ritual.price-max", ritualPriceMax);
+        cfg.set("ritual.reroll-cost", ritualRerollCost);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -351,8 +364,9 @@ public final class DungeonTemplate {
         cfg.set("ritual.mobs", ritualMobStrs);
 
         cfg.set("ritual.mob-souls", null); // clear stale
-        for (java.util.Map.Entry<String, Integer> en : ritualMobSouls.entrySet()) {
-            cfg.set("ritual.mob-souls." + en.getKey(), en.getValue());
+        for (java.util.Map.Entry<String, int[]> en : ritualMobSouls.entrySet()) {
+            int[] r = en.getValue();
+            cfg.set("ritual.mob-souls." + en.getKey(), r[0] + "-" + r[1]);
         }
 
         cfg.set("ritual.rewards.pool", null); // clear stale
@@ -480,6 +494,7 @@ public final class DungeonTemplate {
         this.ritualItemsMax = cfg.getInt("ritual.items-max", 5);
         this.ritualPriceMin = cfg.getInt("ritual.price-min", 10);
         this.ritualPriceMax = cfg.getInt("ritual.price-max", 50);
+        this.ritualRerollCost = cfg.getInt("ritual.reroll-cost", 25);
 
         ritualAltars.clear();
         for (java.util.Map<?, ?> m : cfg.getMapList("ritual.altars")) {
@@ -503,7 +518,8 @@ public final class DungeonTemplate {
         ConfigurationSection souls = cfg.getConfigurationSection("ritual.mob-souls");
         if (souls != null) {
             for (String key : souls.getKeys(false)) {
-                ritualMobSouls.put(key, souls.getInt(key));
+                int[] r = parseSoulRange(souls.get(key));
+                if (r != null && r[1] > 0) ritualMobSouls.put(key, r);
             }
         }
 
@@ -544,5 +560,26 @@ public final class DungeonTemplate {
         return new Location(null,
                 s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
                 (float) s.getDouble("yaw"), (float) s.getDouble("pitch"));
+    }
+
+    /**
+     * Parse a soul value into {min,max}. Accepts a plain number (legacy: fixed
+     * value → min==max) or a "min-max" string. Returns null if unparseable.
+     */
+    private static int[] parseSoulRange(Object v) {
+        if (v instanceof Number n) { int i = n.intValue(); return new int[]{i, i}; }
+        if (v instanceof String s) {
+            s = s.trim();
+            try {
+                if (s.contains("-")) {
+                    String[] p = s.split("-", 2);
+                    int lo = Integer.parseInt(p[0].trim()), hi = Integer.parseInt(p[1].trim());
+                    return new int[]{Math.min(lo, hi), Math.max(lo, hi)};
+                }
+                int i = Integer.parseInt(s);
+                return new int[]{i, i};
+            } catch (NumberFormatException e) { return null; }
+        }
+        return null;
     }
 }

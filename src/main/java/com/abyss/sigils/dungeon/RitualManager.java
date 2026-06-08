@@ -241,7 +241,7 @@ public final class RitualManager implements Listener {
         if (!state.activeMobs.remove(mobId)) return false;
 
         if (killer != null) {
-            int souls = state.template.soulsFor(mythicId);
+            int souls = state.template.rollSoulsFor(mythicId);
             if (souls > 0) {
                 session.addSouls(killer.getUniqueId(), souls);
                 killer.sendMessage(Text.color("&b+ " + souls + " souls &7(total: &b"
@@ -283,6 +283,13 @@ public final class RitualManager implements Listener {
         State state = states.get(session.id());
         if (state == null) return List.of();
         return state.offers.computeIfAbsent(p.getUniqueId(), k -> rollOffers(state));
+    }
+
+    /** Force a fresh roll of a player's shop offers (used by the reroll button). */
+    public void reroll(DungeonSession session, Player p) {
+        State state = states.get(session.id());
+        if (state == null) return;
+        state.offers.put(p.getUniqueId(), rollOffers(state));
     }
 
     private List<Offer> rollOffers(State state) {

@@ -45,25 +45,25 @@ public final class RitualSoulsGUI extends EditorGUI.Holder {
         for (String id : ids) {
             if (slot % 9 == 8) slot += 2;
             if (slot >= 44) break;
-            int souls = template.soulsFor(id);
+            int[] range = template.soulsRange(id);
             set(slot, icon(Material.ECHO_SHARD,
                     "&f" + id,
-                    "&7Souls on kill: &b" + souls,
-                    souls == 0 ? "&c(0 = grants nothing)" : "",
+                    "&7Souls on kill: &b" + soulsLabel(range),
+                    range[1] == 0 ? "&c(0 = grants nothing)" : "",
                     "",
-                    "&eClick &7→ set souls",
+                    "&eClick &7→ set souls (e.g. 5 or 3-8)",
                     "&cShift-click &7→ clear"),
                 e -> {
                     Player p = (Player) e.getWhoClicked();
                     if (e.isShiftClick()) {
-                        template.setRitualMobSouls(id, 0);
+                        template.setRitualMobSouls(id, 0, 0);
                         plugin.templates().save(template);
                         refresh(p);
                         return;
                     }
-                    ChatInput.prompt(plugin, p, "&fSouls for " + id, String.valueOf(souls), text -> {
-                        try { template.setRitualMobSouls(id, Integer.parseInt(text.trim())); plugin.templates().save(template); }
-                        catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                    ChatInput.prompt(plugin, p, "&fSouls for " + id + " (e.g. 5 or 3-8)",
+                            soulsLabel(range), text -> {
+                        applySouls(p, id, text);
                         Bukkit.getScheduler().runTask(plugin, () -> open(p));
                     });
                 });
@@ -80,10 +80,9 @@ public final class RitualSoulsGUI extends EditorGUI.Holder {
                 MobPickerGUI.openFor(plugin, p, picked -> {
                     if (picked != null) {
                         String id = picked.mythicId();
-                        ChatInput.prompt(plugin, p, "&fSouls for " + id,
-                                String.valueOf(template.soulsFor(id)), text -> {
-                            try { template.setRitualMobSouls(id, Integer.parseInt(text.trim())); plugin.templates().save(template); }
-                            catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                        ChatInput.prompt(plugin, p, "&fSouls for " + id + " (e.g. 5 or 3-8)",
+                                soulsLabel(template.soulsRange(id)), text -> {
+                            applySouls(p, id, text);
                             Bukkit.getScheduler().runTask(plugin, () -> open(p));
                         });
                     } else {
@@ -95,5 +94,30 @@ public final class RitualSoulsGUI extends EditorGUI.Holder {
         // Back
         set(45, icon(Material.ARROW, "&7← Back"),
             e -> RitualEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+    }
+
+    /** "0", "5", or "3-8" for display. */
+    private static String soulsLabel(int[] r) {
+        if (r[1] <= 0) return "0";
+        return (r[0] == r[1]) ? String.valueOf(r[1]) : r[0] + "-" + r[1];
+    }
+
+    /** Parse "5" or "3-8" and store it as the mob's soul range. */
+    private void applySouls(Player p, String id, String text) {
+        String t = text.trim();
+        try {
+            int min, max;
+            if (t.contains("-")) {
+                String[] parts = t.split("-", 2);
+                min = Integer.parseInt(parts[0].trim());
+                max = Integer.parseInt(parts[1].trim());
+            } else {
+                min = max = Integer.parseInt(t);
+            }
+            template.setRitualMobSouls(id, Math.min(min, max), Math.max(min, max));
+            plugin.templates().save(template);
+        } catch (NumberFormatException ex) {
+            p.sendMessage(color("&cFormat: '5' or '3-8'"));
+        }
     }
 }
