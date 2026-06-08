@@ -136,6 +136,41 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
                 });
             });
 
+        // 28 Reserve (layaway) settings
+        set(28, icon(Material.ENDER_CHEST,
+                "&dReserve Settings",
+                "&7Players can reserve shop items for later.",
+                "&7Max reserved: &f" + template.ritualReserveLimit(),
+                "&7Deposit: &f" + template.ritualReserveDepositPct() + "%",
+                "&7Discount: &f" + template.ritualReserveDiscountPct() + "%",
+                "",
+                "&eLeft-click &7→ set max",
+                "&eRight-click &7→ set deposit %",
+                "&eDrop key &7→ set discount %"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (e.getClick() == org.bukkit.event.inventory.ClickType.DROP
+                        || e.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
+                    ChatInput.prompt(plugin, p, "&fReserve discount %",
+                            String.valueOf(template.ritualReserveDiscountPct()), text -> {
+                        applyInt(text, template::setRitualReserveDiscountPct, p);
+                        Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                    });
+                } else if (e.isRightClick()) {
+                    ChatInput.prompt(plugin, p, "&fReserve deposit %",
+                            String.valueOf(template.ritualReserveDepositPct()), text -> {
+                        applyInt(text, template::setRitualReserveDepositPct, p);
+                        Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                    });
+                } else {
+                    ChatInput.prompt(plugin, p, "&fMax reserved items (0 = disable)",
+                            String.valueOf(template.ritualReserveLimit()), text -> {
+                        applyInt(text, template::setRitualReserveLimit, p);
+                        Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                    });
+                }
+            });
+
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),
             e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
@@ -161,4 +196,15 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
             p.sendMessage(color("&cFormat: '5' or '3-5'"));
         }
     }
+
+    /** Parse a single number and apply it. */
+    private void applyInt(String text, java.util.function.IntConsumer setter, Player p) {
+        try {
+            setter.accept(Integer.parseInt(text.trim()));
+            plugin.templates().save(template);
+        } catch (NumberFormatException ex) {
+            p.sendMessage(color("&cMust be a number."));
+        }
+    }
 }
+

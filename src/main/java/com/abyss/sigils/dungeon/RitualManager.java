@@ -51,12 +51,15 @@ public final class RitualManager implements Listener {
         Altar(Location loc) { this.loc = loc; }
     }
 
-    /** One rolled shop offer for a player. */
+    /** One rolled shop offer for a player. Either an item ({@code source}) or cash ({@code cashAmount} &gt; 0). */
     public static final class Offer {
-        public final RitualReward source;
-        public final int price;
+        public final RitualReward source;   // null for cash offers
+        public final int price;             // soul cost
+        public final int cashAmount;        // money paid out; 0 for item offers
         public boolean bought = false;
-        Offer(RitualReward source, int price) { this.source = source; this.price = price; }
+        Offer(RitualReward source, int price) { this.source = source; this.price = price; this.cashAmount = 0; }
+        Offer(int cashAmount, int price) { this.source = null; this.price = price; this.cashAmount = cashAmount; }
+        public boolean isCash() { return cashAmount > 0; }
     }
 
     static final class State {
@@ -324,15 +327,27 @@ public final class RitualManager implements Listener {
         int count = min + (max > min ? rng.nextInt(max - min + 1) : 0);
         count = Math.min(count, pool.size());
 
-        List<Offer> offers = new ArrayList<>(count);
+        List<Offer> offers = new ArrayList<>(count + 1);
+
+        // Optional cash offer first.
+        if (t.ritualCashEnabled() && t.ritualCashMoneyMax() > 0) {
+            int money = rollInt((int) Math.round(t.ritualCashMoneyMin()), (int) Math.round(t.ritualCashMoneyMax()));
+            int price = rollInt(t.ritualCashPriceMin(), t.ritualCashPriceMax());
+            if (money > 0) offers.add(new Offer(money, Math.max(0, price)));
+        }
+
         for (int i = 0; i < count; i++) {
             RitualReward r = pool.get(i);
             int lo = r.inheritsPrice() ? t.ritualPriceMin() : r.priceMin();
             int hi = r.inheritsPrice() ? t.ritualPriceMax() : r.priceMax();
-            int price = lo + (hi > lo ? rng.nextInt(hi - lo + 1) : 0);
-            offers.add(new Offer(r, Math.max(0, price)));
+            offers.add(new Offer(r, Math.max(0, rollInt(lo, hi))));
         }
         return offers;
+    }
+
+    private int rollInt(int lo, int hi) {
+        if (hi <= lo) return lo;
+        return lo + rng.nextInt(hi - lo + 1);
     }
 
     // ============================================================

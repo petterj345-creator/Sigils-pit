@@ -3,6 +3,7 @@ package com.abyss.sigils.gui;
 import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.DungeonTemplate;
 import com.abyss.sigils.dungeon.RitualReward;
+import com.abyss.sigils.integration.VaultHook;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -65,6 +66,7 @@ public final class RitualRewardsGUI implements Listener {
     private static final int POOL_END_EX = 27;
     private static final int CTRL_ITEMS = 36;
     private static final int CTRL_PRICE = 38;
+    private static final int CTRL_CASH = 40;
     private static final int CTRL_BACK = 44;
 
     private Inventory build(Holder holder, DungeonTemplate t) {
@@ -86,6 +88,16 @@ public final class RitualRewardsGUI implements Listener {
                 "&7Used for items that don't set their own.",
                 "",
                 "&eClick &7to set (e.g. 10-50)"));
+        inv.setItem(CTRL_CASH, icon(t.ritualCashEnabled() ? Material.PAPER : Material.MAP,
+                "&6&lCash Reward: " + (t.ritualCashEnabled() ? "&aON" : "&cOFF"),
+                "&7A money payout sold as a paper in the shop.",
+                "&7Money: &f" + t.ritualCashMoneyMin() + "-" + t.ritualCashMoneyMax(),
+                "&7Soul price: &b" + t.ritualCashPriceMin() + "-" + t.ritualCashPriceMax(),
+                VaultHook.available() ? "" : "&c(Vault not installed — won't pay out)",
+                "",
+                "&eLeft-click &7→ toggle on/off",
+                "&eRight-click &7→ set money range",
+                "&eDrop key &7→ set soul price range"));
         inv.setItem(CTRL_BACK, icon(Material.ARROW, "&7← Back to rituals"));
 
         for (int i = 45; i < 54; i++) if (inv.getItem(i) == null) inv.setItem(i, filler());
@@ -102,6 +114,7 @@ public final class RitualRewardsGUI implements Listener {
 
     private ItemStack decorate(DungeonTemplate t, RitualReward r) {
         ItemStack stack = r.itemStack().clone();
+        stack.setAmount(Math.max(1, Math.min(64, r.amount())));
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
             List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
@@ -111,12 +124,14 @@ public final class RitualRewardsGUI implements Listener {
             } else {
                 lore.add(color("&7Price: &b" + r.priceMin() + "-" + r.priceMax() + " souls"));
             }
+            lore.add(color("&7Quantity: &f" + r.amount()));
             if (r.isMMOItem()) {
                 lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
                 lore.add(color("&8Rolls fresh per buyer"));
             }
             lore.add("");
             lore.add(color("&eLeft-click &7→ set price (or 'inherit')"));
+            lore.add(color("&eRight-click &7→ set quantity"));
             lore.add(color("&cShift-click &7→ remove"));
             meta.setLore(lore);
             stack.setItemMeta(meta);
@@ -186,7 +201,7 @@ public final class RitualRewardsGUI implements Listener {
             handlePoolClick(e, holder, p, raw);
             return;
         }
-        handleControlClick(holder, p, raw);
+        handleControlClick(e, holder, p, raw);
     }
 
     @EventHandler
@@ -239,6 +254,16 @@ public final class RitualRewardsGUI implements Listener {
             return;
         }
 
+        // Right-click → set quantity
+        if (e.isRightClick()) {
+            ChatInput.prompt(plugin, p, "&fQuantity (1-64)", String.valueOf(entry.amount()), text -> {
+                try { entry.setAmount(Integer.parseInt(text.trim())); plugin.templates().save(holder.template()); }
+                catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                reopen(p, holder);
+            });
+            return;
+        }
+
         // Left-click → set price range, or 'inherit'
         String current = entry.inheritsPrice() ? "inherit" : (entry.priceMin() + "-" + entry.priceMax());
         ChatInput.prompt(plugin, p, "&fSoul price ('10-50', '25', or 'inherit')", current, text -> {
@@ -262,10 +287,31 @@ public final class RitualRewardsGUI implements Listener {
         });
     }
 
-    private void handleControlClick(Holder holder, Player p, int raw) {
+    private void handleControlClick(InventoryClickEvent e, Holder holder, Player p, int raw) {
         DungeonTemplate t = holder.template();
         if (raw == CTRL_BACK) {
             RitualEditorGUI.openFor(plugin, p, t);
+            return;
+        }
+        if (raw == CTRL_CASH) {
+            if (e.getClick() == org.bukkit.event.inventory.ClickType.DROP
+                    || e.getClick() == org.bukkit.event.inventory.ClickType.CONTROL_DROP) {
+                ChatInput.prompt(plugin, p, "&fCash soul price range (e.g. 50-100)",
+                        t.ritualCashPriceMin() + "-" + t.ritualCashPriceMax(), text -> {
+                    applyRange(text, t::setRitualCashPriceMin, t::setRitualCashPriceMax, p, t);
+                    reopen(p, holder);
+                });
+            } else if (e.isRightClick()) {
+                ChatInput.prompt(plugin, p, "&fCash money range (e.g. 500-2000)",
+                        ((int) t.ritualCashMoneyMin()) + "-" + ((int) t.ritualCashMoneyMax()), text -> {
+                    applyMoneyRange(text, t, p);
+                    reopen(p, holder);
+                });
+            } else {
+                t.setRitualCashEnabled(!t.ritualCashEnabled());
+                plugin.templates().save(t);
+                reopen(p, holder);
+            }
             return;
         }
         if (raw == CTRL_ITEMS) {
@@ -299,6 +345,21 @@ public final class RitualRewardsGUI implements Listener {
             }
             plugin.templates().save(t);
         } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '5' or '3-5'")); }
+    }
+
+    private void applyMoneyRange(String text, DungeonTemplate t, Player p) {
+        try {
+            if (text.contains("-")) {
+                String[] parts = text.split("-", 2);
+                t.setRitualCashMoneyMin(Double.parseDouble(parts[0].trim()));
+                t.setRitualCashMoneyMax(Double.parseDouble(parts[1].trim()));
+            } else {
+                double v = Double.parseDouble(text.trim());
+                t.setRitualCashMoneyMin(v);
+                t.setRitualCashMoneyMax(v);
+            }
+            plugin.templates().save(t);
+        } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '500' or '500-2000'")); }
     }
 
     private void addToPool(Holder holder, ItemStack item) {

@@ -54,6 +54,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private MythicHook mythicHook;
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private com.abyss.sigils.integration.MobDropStore mobDrops;
+    private com.abyss.sigils.integration.ReservedRewardStore reservedRewards;
     private EditorWandListener editorWandListener;
     private com.abyss.sigils.gui.EditorMarkers editorMarkers;
     private MarkerVisualizer markerVisualizer;
@@ -99,6 +100,10 @@ public final class AbyssPlugin extends JavaPlugin {
         // stored in our own mobdrops.yml, never in MythicMobs' files.
         mobDrops = new com.abyss.sigils.integration.MobDropStore(this);
         mobDrops.load();
+
+        // Per-player reserved (layaway) soul-shop items, persisted across maps.
+        reservedRewards = new com.abyss.sigils.integration.ReservedRewardStore(this);
+        reservedRewards.load();
 
         dungeonManager = new DungeonManager(this);
         Bukkit.getPluginManager().registerEvents(dungeonManager, this);
@@ -197,6 +202,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public com.abyss.sigils.gui.SigilCreatorGUI sigilCreatorGUI() { return sigilCreatorGUI; }
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public com.abyss.sigils.integration.MobDropStore mobDrops() { return mobDrops; }
+    public com.abyss.sigils.integration.ReservedRewardStore reservedRewards() { return reservedRewards; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
     public MarkerVisualizer markerVisualizer() { return markerVisualizer; }
