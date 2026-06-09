@@ -292,9 +292,13 @@ public final class PortalEntryGUI implements Listener {
         // Capture the mods rolled onto this map before it's consumed.
         final List<String> mapMods = DungeonMap.modIds(map);
 
-        // Build party (sneak-at-time-of-confirm includes nearby players in real world)
+        // Build the party from MMOCore's party system when it's installed (the
+        // whole online group enters together). If MMOCore isn't present, fall
+        // back to the legacy behaviour: sneak to pull in nearby players, else solo.
         List<Player> party;
-        if (p.isSneaking()) {
+        if (com.abyss.sigils.integration.MMOCorePartyHook.available()) {
+            party = com.abyss.sigils.integration.MMOCorePartyHook.onlinePartyMembers(p);
+        } else if (p.isSneaking()) {
             party = p.getWorld().getNearbyEntitiesByType(Player.class, p.getLocation(), 8)
                     .stream().toList();
         } else {
