@@ -10,6 +10,7 @@ import io.lumine.mythic.api.config.MythicLineConfig;
 import io.lumine.mythic.bukkit.BukkitAdapter;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import io.lumine.mythic.bukkit.events.MythicMobDeathEvent;
+import io.lumine.mythic.bukkit.events.MythicMobSpawnEvent;
 import io.lumine.mythic.bukkit.events.MythicReloadedEvent;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -163,6 +164,16 @@ public final class MythicHook implements Listener {
             plugin.getLogger().warning("abyss_currency drop missing type= argument");
             return null;
         }
+        // Tier / quality catalysts: type=tier | quality | scour
+        switch (type.toLowerCase(java.util.Locale.ROOT)) {
+            case "tier" -> { return BukkitAdapter.adapt(com.abyss.sigils.dungeon.MapUpgradeCurrency.create(
+                    com.abyss.sigils.dungeon.MapUpgradeCurrency.Op.TIER)); }
+            case "quality" -> { return BukkitAdapter.adapt(com.abyss.sigils.dungeon.MapUpgradeCurrency.create(
+                    com.abyss.sigils.dungeon.MapUpgradeCurrency.Op.QUALITY)); }
+            case "scour", "scour_quality" -> { return BukkitAdapter.adapt(com.abyss.sigils.dungeon.MapUpgradeCurrency.create(
+                    com.abyss.sigils.dungeon.MapUpgradeCurrency.Op.SCOUR)); }
+            default -> { /* fall through to MapMod currency */ }
+        }
         com.abyss.sigils.dungeon.MapMod mod = com.abyss.sigils.dungeon.MapMod.fromId(type);
         if (mod == null) {
             plugin.getLogger().warning("abyss_currency drop references unknown type: " + type);
@@ -205,6 +216,16 @@ public final class MythicHook implements Listener {
         } catch (Throwable t) {
             plugin.getLogger().warning("Failed rolling abyss drops: " + t.getMessage());
         }
+    }
+
+    @EventHandler
+    public void onMythicSpawn(MythicMobSpawnEvent e) {
+        // Scale dungeon mobs by their instance's map tier.
+        try {
+            if (e.getEntity() instanceof org.bukkit.entity.LivingEntity le) {
+                plugin.dungeonManager().applyTierScaling(le);
+            }
+        } catch (Throwable ignored) {}
     }
 
     @EventHandler

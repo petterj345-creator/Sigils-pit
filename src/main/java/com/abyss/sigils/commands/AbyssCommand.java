@@ -56,6 +56,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "givebook"   -> handleGiveBook(sender, args);
             case "givemap"    -> handleGiveMap(sender, args);
             case "givecurrency" -> handleGiveCurrency(sender, args);
+            case "settier"    -> handleSetMapStat(sender, args, true);
+            case "setquality" -> handleSetMapStat(sender, args, false);
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
@@ -173,6 +175,32 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         for (ItemStack o : target.getInventory().addItem(item).values())
             target.getWorld().dropItemNaturally(target.getLocation(), o);
         sender.sendMessage(Text.color("&aGave " + target.getName() + " a T" + tier + " " + def.id() + "."));
+    }
+
+    /** /abyss settier|setquality &lt;n&gt; — set tier/quality on the held Abyss Map. */
+    private void handleSetMapStat(CommandSender sender, String[] args, boolean tier) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+        if (args.length < 2) {
+            sender.sendMessage(Text.color("&7Usage: &f/abyss " + (tier ? "settier" : "setquality") + " <n>"));
+            return;
+        }
+        ItemStack map = p.getInventory().getItemInMainHand();
+        if (!com.abyss.sigils.dungeon.DungeonMap.isMap(map)) {
+            p.sendMessage(Text.color("&cHold an Abyss Map in your main hand."));
+            return;
+        }
+        if (map.getAmount() > 1) {
+            p.sendMessage(Text.color("&cSplit the map stack first — set on a single map."));
+            return;
+        }
+        int n;
+        try { n = Integer.parseInt(args[1].trim()); }
+        catch (NumberFormatException e) { p.sendMessage(Text.color("&cMust be a number.")); return; }
+        int applied = tier
+                ? com.abyss.sigils.dungeon.DungeonMap.setTier(plugin, map, n)
+                : com.abyss.sigils.dungeon.DungeonMap.setQuality(plugin, map, n);
+        p.sendMessage(Text.color("&aSet " + (tier ? "&cTier" : "&bQuality") + " &ato &f" + applied + " &aon the held map."));
     }
 
     private void handleGiveDust(CommandSender sender, String[] args) {
@@ -459,7 +487,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             "help","sigils","leave","enterabyss",
             "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
-            "sigil","mythicdrops","markers","setportal","removeportal"
+            "sigil","settier","setquality","mythicdrops","markers","setportal","removeportal"
     );
 
     @Override
