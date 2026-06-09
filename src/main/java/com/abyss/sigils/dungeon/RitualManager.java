@@ -221,8 +221,17 @@ public final class RitualManager implements Listener {
                 Location loc = altar.loc.clone().add(
                         rng.nextDouble() * 4 - 2, 0, rng.nextDouble() * 4 - 2);
                 var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
-                if (ent.isPresent()) { state.activeMobs.add(ent.get().getUniqueId()); spawned++; }
-                else failed++;
+                if (ent.isPresent()) {
+                    Entity mob = ent.get();
+                    // Keep ritual mobs from despawning. If one vanished without a
+                    // death event, activeMobs would never drain — the altar would
+                    // stay ACTIVE and (before this change) the trash spawner stayed
+                    // paused, locking the whole dungeon.
+                    mob.setPersistent(true);
+                    if (mob instanceof org.bukkit.entity.LivingEntity le) le.setRemoveWhenFarAway(false);
+                    state.activeMobs.add(mob.getUniqueId());
+                    spawned++;
+                } else failed++;
             }
         }
         if (failed > 0) {
@@ -308,6 +317,16 @@ public final class RitualManager implements Listener {
     public boolean isRitualActive(DungeonSession session) {
         State state = states.get(session.id());
         return state != null && state.activeAltar != -1;
+    }
+
+    /**
+     * Number of live ritual mobs summoned in this session (0 if none). The
+     * trash spawner subtracts this from the concurrent-mob cap so trash leaves
+     * room for ritual mobs instead of being hard-paused.
+     */
+    public int activeMobCount(DungeonSession session) {
+        State state = states.get(session.id());
+        return state == null ? 0 : state.activeMobs.size();
     }
 
     /** Force a fresh roll of a player's shop offers (used by the reroll button). */

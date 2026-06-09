@@ -164,14 +164,17 @@ public final class DungeonManager implements Listener {
 
     private void spawnMapTick(DungeonSession session, DungeonTemplate t) {
         if (session.phase() != DungeonSession.Phase.TRASH) return;
-        // Pause trash while a ritual is running so it doesn't keep the arena
-        // saturated at the concurrent-mob cap — that's what was starving the
-        // ritual mobs of room to spawn. Trash resumes once the ritual clears.
-        if (plugin.ritualManager().isRitualActive(session)) return;
         if (t.spawnPoints().isEmpty() && t.defaultTrashMobs().isEmpty()) return;
 
         Random rng = new Random();
         World w = session.world();
+
+        // Reserve cap headroom for any live ritual mobs so trash backs off and
+        // leaves them room — without ever fully pausing. A hard pause keyed on
+        // "ritual active" would soft-lock the whole dungeon if a ritual mob ever
+        // vanished without a death event. Ritual mobs spawn via spawnMythic and
+        // bypass this cap themselves, so they always appear; trash just yields.
+        int ritualReserve = plugin.ritualManager().activeMobCount(session);
 
         // ---- Step 1: each spawn point spawns its mobs ONCE, up to count ----
         // `count` is a one-time budget per spawn point for the whole run \u2014 NOT
@@ -179,7 +182,7 @@ public final class DungeonManager implements Listener {
         // it is done and will not spawn again even if those mobs die.
         List<SpawnPoint> points = t.spawnPoints();
         for (int spIdx = 0; spIdx < points.size(); spIdx++) {
-            if (session.aliveMobs().size() >= t.maxConcurrentMobs()) break;
+            if (session.aliveMobs().size() + ritualReserve >= t.maxConcurrentMobs()) break;
 
             SpawnPoint sp = points.get(spIdx);
             List<MobEntry> pool = sp.mobs();
@@ -190,7 +193,7 @@ public final class DungeonManager implements Listener {
             int remaining = budget - session.spawnPointSpawned(spIdx);
 
             for (int n = 0; n < remaining; n++) {
-                if (session.aliveMobs().size() >= t.maxConcurrentMobs()) break;
+                if (session.aliveMobs().size() + ritualReserve >= t.maxConcurrentMobs()) break;
                 MobEntry e = pool.get(rng.nextInt(pool.size()));
                 Location loc = sp.boundTo(w);
                 spawnMythic(e.mythicId(), loc, e.level()).ifPresent(ent ->
@@ -204,7 +207,7 @@ public final class DungeonManager implements Listener {
         // the endless filler, while the fixed spawn-point mobs are one-shot.
         List<MobEntry> trash = t.defaultTrashMobs();
         if (!trash.isEmpty() && !points.isEmpty()) {
-            int room = t.maxConcurrentMobs() - session.aliveMobs().size();
+            int room = t.maxConcurrentMobs() - session.aliveMobs().size() - ritualReserve;
             int thisTick = Math.min(room, Math.max(1, t.mobsPerWave()));
             for (int n = 0; n < thisTick; n++) {
                 MobEntry e = trash.get(rng.nextInt(trash.size()));
