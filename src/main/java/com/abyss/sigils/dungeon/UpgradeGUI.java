@@ -106,14 +106,16 @@ public final class UpgradeGUI implements Listener {
     }
 
     private ItemStack buttonGreen(int tier, int maxTier, int successPct, int xpCost,
-                                  int attemptsRemaining, int attemptsCap) {
+                                  int attemptsRemaining, int attemptsCap, SigilRank rank) {
         ItemStack s = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta m = s.getItemMeta();
         if (m != null) {
             m.setDisplayName(Text.color("&a&lFORGE"));
             List<String> lore = new ArrayList<>();
             lore.add(Text.color("&7T" + tier + " &8→ &fT" + Math.min(tier + 1, maxTier)));
+            lore.add(Text.color("&7Rank: " + rankLabel(rank)));
             lore.add(Text.color("&7Success: " + colorPct(successPct) + successPct + "%"));
+            lore.add(Text.color("&8Higher ranks forge less often."));
             if (xpCost > 0) lore.add(Text.color("&7Cost: &f" + xpCost + " XP levels"));
             if (attemptsCap >= 0) {
                 lore.add(Text.color("&7Attempts left: &f" + attemptsRemaining + "&7/" + attemptsCap));
@@ -148,6 +150,15 @@ public final class UpgradeGUI implements Listener {
             s.setItemMeta(m);
         }
         return s;
+    }
+
+    /** Coloured rank label so players can see why better sigils forge less often. */
+    private static String rankLabel(SigilRank rank) {
+        return switch (rank) {
+            case GRAND -> "&5&lGRAND";
+            case MAJOR -> "&6MAJOR";
+            case MINOR -> "&7minor";
+        };
     }
 
     /** Colour the success number based on how risky it is — green/yellow/red. */
@@ -275,12 +286,12 @@ public final class UpgradeGUI implements Listener {
                 return;
             }
             int successPct = successPercentForRank(def.rank());
-            inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, remaining, attemptsCap));
+            inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, remaining, attemptsCap, def.rank()));
             return;
         }
 
         int successPct = successPercentForRank(def.rank());
-        inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, -1, -1));
+        inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, -1, -1, def.rank()));
     }
 
     /**
