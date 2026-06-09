@@ -38,17 +38,23 @@ public final class RewardRoller {
     private RewardRoller() {}
 
     public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t) {
-        return rollFor(plugin, t, null, 0);
+        return rollFor(plugin, t, null, 0, 0);
+    }
+
+    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player, int quality) {
+        return rollFor(plugin, t, player, quality, 0);
     }
 
     /**
-     * Roll rewards for a player, stacking two bonus sources:
+     * Roll rewards for a player, stacking three bonus sources:
      *  - the player's Tome of Mastery skills (Greater Spoils / Treasure Hunter /
      *    Scholar), passed via {@code player} (null to skip),
      *  - the map's QUALITY ({@code scaling.quality.*}): more XP, money, and an
-     *    extra possible loot item every {@code quality-per-extra-item} quality.
+     *    extra possible loot item every {@code quality-per-extra-item} quality,
+     *  - the map's TIER ({@code scaling.tier.reward-*}): more XP and money for
+     *    clearing a tougher map (the risk/reward payoff on top of drop sustain).
      */
-    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player, int quality) {
+    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player, int quality, int tier) {
         int bonusItems = 0;
         double moneyMult = 1.0, xpMult = 1.0;
 
@@ -64,6 +70,11 @@ public final class RewardRoller {
             moneyMult *= 1.0 + quality * plugin.getConfig().getDouble("scaling.quality.money-percent", 10) / 100.0;
             int per = Math.max(1, plugin.getConfig().getInt("scaling.quality.quality-per-extra-item", 3));
             bonusItems += quality / per;
+        }
+        // Map tier — risk/reward: tougher maps also pay more XP/money.
+        if (tier > 0) {
+            xpMult *= 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.reward-xp-percent-per-tier", 5) / 100.0;
+            moneyMult *= 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.reward-money-percent-per-tier", 5) / 100.0;
         }
 
         // Items
