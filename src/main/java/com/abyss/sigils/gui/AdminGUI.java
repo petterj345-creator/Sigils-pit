@@ -133,6 +133,12 @@ public final class AdminGUI extends EditorGUI.Holder {
                 "&7sigil should never be a sure thing.",
                 "", "&eClick to open"),
             e -> ForgeChancesGUI.openFor(plugin, (Player) e.getWhoClicked()));
+
+        set(33, icon(Material.NETHERITE_SWORD, "&5&lMap Scaling",
+                "&7Tune tier (mob HP/damage) and quality",
+                "&7(XP/money/loot) scaling percentages.",
+                "", "&eClick to open"),
+            e -> MapScalingGUI.openFor(plugin, (Player) e.getWhoClicked()));
     }
 
     private void nav(InventoryClickEvent e, Page to) {
@@ -248,6 +254,20 @@ public final class AdminGUI extends EditorGUI.Holder {
                 give.setAmount(n);
                 give(p, give);
                 done(p, n + "x " + mod.id() + " currency");
+            }));
+        }
+        // Tier / quality catalysts.
+        for (com.abyss.sigils.dungeon.MapUpgradeCurrency.Op op
+                : com.abyss.sigils.dungeon.MapUpgradeCurrency.Op.values()) {
+            ItemStack ic = com.abyss.sigils.dungeon.MapUpgradeCurrency.create(op).clone();
+            decorateGiveLore(ic, "&eLeft-click &7→ give 1, &eshift &7→ 16");
+            out.add(new Entry(ic, e -> {
+                Player p = (Player) e.getWhoClicked();
+                int n = e.isShiftClick() ? 16 : 1;
+                ItemStack give = com.abyss.sigils.dungeon.MapUpgradeCurrency.create(op);
+                give.setAmount(n);
+                give(p, give);
+                done(p, n + "x " + op.name().toLowerCase() + " catalyst");
             }));
         }
         return out;

@@ -17,6 +17,28 @@ party:
   invite-seconds: 20
 
 # =========================================
+# Map tiers & quality (PoE-style)
+# =========================================
+# Maps carry a TIER (combat difficulty) and a QUALITY (reward bonus), raised by
+# catalyst currencies. Tune the scaling here or in-game: /abyss admin -> Map Scaling.
+scaling:
+  tier:
+    # Highest tier a map can reach.
+    max: 16
+    # Per tier, mobs get this much more max health and (a little) attack damage.
+    # Damage is deliberately low — most of our mobs are already strong via skills.
+    hp-percent-per-tier: 15
+    damage-percent-per-tier: 3
+  quality:
+    # Highest quality a map can reach.
+    max: 20
+    # Per quality, end rewards scale by this much more XP / money.
+    xp-percent: 10
+    money-percent: 10
+    # Every N quality grants one extra possible loot item from the pool.
+    quality-per-extra-item: 3
+
+# =========================================
 # Tome of Mastery — endgame skill book
 # =========================================
 # Players earn 1 skill point the first time they complete each map, and spend

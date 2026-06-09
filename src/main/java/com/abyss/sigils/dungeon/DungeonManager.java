@@ -113,6 +113,10 @@ public final class DungeonManager implements Listener {
     }
 
     public void start(Collection<Player> party, DungeonTemplate template, List<String> mapMods) {
+        start(party, template, mapMods, 0, 0);
+    }
+
+    public void start(Collection<Player> party, DungeonTemplate template, List<String> mapMods, int tier, int quality) {
         if (party.isEmpty()) return;
         for (Player p : party) {
             if (playerToSession.containsKey(p.getUniqueId())) {
@@ -160,6 +164,8 @@ public final class DungeonManager implements Listener {
         DungeonSession session = new DungeonSession(instance, party);
         session.setTemplateName(template.name());
         session.setMapMods(mapMods);
+        session.setTier(tier);
+        session.setQuality(quality);
         sessions.put(session.id(), session);
         sessionTasks.put(session.id(), new ArrayList<>());
 
@@ -182,6 +188,8 @@ public final class DungeonManager implements Listener {
             } else {
                 p.sendMessage(Text.color("&7Lives: &aunlimited&7."));
             }
+            if (tier > 0)    p.sendMessage(Text.color("&c⚔ Tier &f" + tier + " &7— mobs are tougher."));
+            if (quality > 0) p.sendMessage(Text.color("&b✦ Quality &f+" + quality + " &7— richer rewards."));
         }
 
         if (template.mode() == DungeonMode.MAP) {
@@ -504,6 +512,38 @@ public final class DungeonManager implements Listener {
     private DungeonSession sessionByWorld(World w) {
         for (DungeonSession s : sessions.values()) if (s.world().equals(w)) return s;
         return null;
+    }
+
+    /**
+     * Scale a freshly-spawned mob by its session's map tier: more max health and
+     * a little more attack damage, per {@code scaling.tier.*} in config. Called
+     * from the MythicMobs spawn hook for every mob in a dungeon instance. No-op
+     * outside a session or at tier 0. Runs next tick so MythicMobs has finished
+     * applying the mob's own stats first.
+     */
+    public void applyTierScaling(LivingEntity le) {
+        if (le == null) return;
+        DungeonSession s = sessionByWorld(le.getWorld());
+        if (s == null || s.tier() <= 0) return;
+        final int tier = s.tier();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (le.isDead() || !le.isValid()) return;
+            double hpMult  = 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.hp-percent-per-tier", 15) / 100.0;
+            double dmgMult = 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.damage-percent-per-tier", 3) / 100.0;
+            try {
+                var hp = le.getAttribute(org.bukkit.Registry.ATTRIBUTE.get(
+                        org.bukkit.NamespacedKey.minecraft("max_health")));
+                if (hp != null) {
+                    hp.setBaseValue(hp.getBaseValue() * hpMult);
+                    le.setHealth(hp.getValue());
+                }
+            } catch (Throwable ignored) {}
+            try {
+                var dmg = le.getAttribute(org.bukkit.Registry.ATTRIBUTE.get(
+                        org.bukkit.NamespacedKey.minecraft("attack_damage")));
+                if (dmg != null) dmg.setBaseValue(dmg.getBaseValue() * dmgMult);
+            } catch (Throwable ignored) {}
+        });
     }
 
     private void triggerBoss(DungeonSession session, DungeonTemplate t) {

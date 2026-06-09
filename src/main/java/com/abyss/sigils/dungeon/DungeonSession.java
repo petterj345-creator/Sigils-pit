@@ -78,6 +78,11 @@ public final class DungeonSession {
     /** Per-player soul balance, earned from ritual mobs, spent in the soul shop. */
     private final Map<UUID, Integer> souls = new HashMap<>();
 
+    /** Combat tier of the entry map (0 = none) — scales mob HP/damage. */
+    private int tier = 0;
+    /** Reward quality of the entry map (0 = none) — scales end rewards. */
+    private int quality = 0;
+
     public DungeonSession(World world, Collection<Player> initial) {
         this.world = world;
         for (Player p : initial) players.add(p.getUniqueId());
@@ -92,6 +97,11 @@ public final class DungeonSession {
         for (String m : mapMods) if (m.equalsIgnoreCase(id)) return true;
         return false;
     }
+
+    public int tier() { return tier; }
+    public void setTier(int n) { this.tier = Math.max(0, n); }
+    public int quality() { return quality; }
+    public void setQuality(int n) { this.quality = Math.max(0, n); }
 
     public int soulsOf(UUID id) { return souls.getOrDefault(id, 0); }
     public void addSouls(UUID id, int amount) {

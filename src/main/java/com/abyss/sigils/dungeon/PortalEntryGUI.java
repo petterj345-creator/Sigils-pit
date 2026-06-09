@@ -289,8 +289,10 @@ public final class PortalEntryGUI implements Listener {
             p.sendMessage(Text.color("&cThat map points to a deleted dungeon."));
             return;
         }
-        // Capture the mods rolled onto this map before it's consumed.
+        // Capture the mods + tier/quality rolled onto this map before it's consumed.
         final List<String> mapMods = DungeonMap.modIds(map);
+        final int mapTier = DungeonMap.tierOf(map);
+        final int mapQuality = DungeonMap.qualityOf(map);
 
         // With MMOCore installed, the opener enters now and nearby party members
         // get an invite to join (no yanking AFK members across the map). Without
@@ -320,7 +322,7 @@ public final class PortalEntryGUI implements Listener {
         final DungeonTemplate finalTemplate = template;
         Bukkit.getScheduler().runTask(plugin, () -> {
             p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + finalTemplate.name() + ")"));
-            plugin.dungeonManager().start(party, finalTemplate, mapMods);
+            plugin.dungeonManager().start(party, finalTemplate, mapMods, mapTier, mapQuality);
             // Invite nearby party members into the session that was just created.
             if (!invitees.isEmpty()) {
                 DungeonSession session = plugin.dungeonManager().sessionOf(p);
