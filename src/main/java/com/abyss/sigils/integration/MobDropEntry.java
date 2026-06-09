@@ -58,12 +58,22 @@ public final class MobDropEntry {
         };
     }
 
+    /** Roll with no tier context (tier 0). */
+    public ItemStack roll(AbyssPlugin plugin) { return roll(plugin, 0); }
+
     /**
-     * Roll this drop. Returns the ItemStack to drop, or null if the chance
-     * failed or the referenced thing no longer exists.
+     * Roll this drop, boosted by the run's map {@code tier}. Returns the
+     * ItemStack to drop, or null if the chance failed or the referenced thing no
+     * longer exists. Higher tier raises the effective drop chance, and any MAP
+     * that drops comes pre-tiered so high-tier runs sustain high-tier maps.
      */
-    public ItemStack roll(AbyssPlugin plugin) {
-        if (RNG.nextDouble() > chance) return null;
+    public ItemStack roll(AbyssPlugin plugin, int runTier) {
+        double effChance = chance;
+        if (runTier > 0) {
+            double per = plugin.getConfig().getDouble("scaling.tier.drop-chance-percent-per-tier", 8);
+            effChance = Math.min(1.0, chance * (1.0 + runTier * per / 100.0));
+        }
+        if (RNG.nextDouble() > effChance) return null;
         int amount = amountMin + (amountMax > amountMin ? RNG.nextInt(amountMax - amountMin + 1) : 0);
         amount = Math.max(1, amount);
 
@@ -79,6 +89,12 @@ public final class MobDropEntry {
                 if (tpl == null) return null;
                 ItemStack s = DungeonMap.create(tpl);
                 s.setAmount(amount);
+                // Map sustain: drop near-tier maps so high runs keep you in high maps.
+                if (runTier > 0) {
+                    int offset = Math.max(0, plugin.getConfig().getInt("scaling.tier.map-drop-tier-offset", 1));
+                    int dropTier = Math.max(0, runTier - offset);
+                    if (dropTier > 0) DungeonMap.setTier(plugin, s, dropTier);
+                }
                 return s;
             }
             case CURRENCY -> {

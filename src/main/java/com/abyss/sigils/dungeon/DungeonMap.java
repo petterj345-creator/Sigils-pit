@@ -48,6 +48,12 @@ public final class DungeonMap {
 
     private DungeonMap() {}
 
+    /** Format a number for lore — drop a trailing ".0". */
+    private static String pct(double d) {
+        if (d == Math.floor(d)) return String.valueOf((long) d);
+        return String.format(java.util.Locale.ROOT, "%.1f", d);
+    }
+
     // ----- tier & quality -----
 
     public static int tierOf(ItemStack item) { return intPdc(item, KEY_TIER); }
@@ -186,11 +192,25 @@ public final class DungeonMap {
             lore.add(Text.color("&7A tear in reality leading to the"));
             lore.add(Text.color("&7&o" + template.name() + " &7dungeon."));
 
-            // Tier (combat) + quality (rewards)
+            // Tier (combat + drop sustain) + quality (end rewards), with the
+            // live scaled numbers so players see exactly what the map gives.
             if (tier > 0 || quality > 0) {
+                var cfg = com.abyss.sigils.AbyssPlugin.get().getConfig();
                 lore.add("");
-                if (tier > 0)    lore.add(Text.color("&c⚔ Tier: &f" + tier + " &8(tougher mobs)"));
-                if (quality > 0) lore.add(Text.color("&b✦ Quality: &f+" + quality + " &8(better rewards)"));
+                if (tier > 0) {
+                    lore.add(Text.color("&c⚔ Tier &f" + tier));
+                    lore.add(Text.color("  &7Mobs: &c+" + pct(tier * cfg.getDouble("scaling.tier.hp-percent-per-tier", 15))
+                            + "% HP&7, &c+" + pct(tier * cfg.getDouble("scaling.tier.damage-percent-per-tier", 3)) + "% dmg"));
+                    lore.add(Text.color("  &7Drops: &a+" + pct(tier * cfg.getDouble("scaling.tier.drop-chance-percent-per-tier", 8))
+                            + "% &7chance, maps drop pre-tiered"));
+                }
+                if (quality > 0) {
+                    lore.add(Text.color("&b✦ Quality &f+" + quality));
+                    lore.add(Text.color("  &7Rewards: &a+" + pct(quality * cfg.getDouble("scaling.quality.xp-percent", 10))
+                            + "% XP&7, &a+" + pct(quality * cfg.getDouble("scaling.quality.money-percent", 10)) + "% money"));
+                    int bonusItems = quality / Math.max(1, cfg.getInt("scaling.quality.quality-per-extra-item", 3));
+                    if (bonusItems > 0) lore.add(Text.color("  &7Loot: &a+" + bonusItems + " &7item" + (bonusItems == 1 ? "" : "s")));
+                }
             }
 
             // Rolled mods — read straight from the item's PDC so they survive

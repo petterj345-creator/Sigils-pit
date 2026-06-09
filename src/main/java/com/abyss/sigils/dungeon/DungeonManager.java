@@ -466,6 +466,12 @@ public final class DungeonManager implements Listener {
         return null;
     }
 
+    /** Map tier of the dungeon running in this world, or 0 if none. */
+    public int mapTierOf(World w) {
+        DungeonSession s = sessionByWorld(w);
+        return s == null ? 0 : s.tier();
+    }
+
     /**
      * Scale a freshly-spawned mob by its session's map tier: more max health and
      * a little more attack damage, per {@code scaling.tier.*} in config. Called

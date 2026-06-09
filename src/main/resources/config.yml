@@ -18,6 +18,13 @@ scaling:
     # Damage is deliberately low — most of our mobs are already strong via skills.
     hp-percent-per-tier: 15
     damage-percent-per-tier: 3
+    # Per tier, mob drop chances (sigils/maps/currency) are boosted by this %.
+    # This only multiplies drops you've ALREADY configured on mobs — tier makes
+    # them more frequent, it doesn't add drops on its own.
+    drop-chance-percent-per-tier: 8
+    # Maps that drop inside a tiered run come pre-tiered at (run tier - this),
+    # so high-tier runs sustain high-tier maps. 1 = a T10 run drops T9 maps.
+    map-drop-tier-offset: 1
   quality:
     # Highest quality a map can reach.
     max: 20
