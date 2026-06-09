@@ -38,7 +38,52 @@ public final class DungeonMap {
     public static final NamespacedKey KEY_MODS =
             new NamespacedKey("abyss", "map_mods");
 
+    /** PDC key — the map's combat tier (0 = none). Scales mob HP/damage. */
+    public static final NamespacedKey KEY_TIER =
+            new NamespacedKey("abyss", "map_tier");
+
+    /** PDC key — the map's reward quality (0 = none). Scales end rewards. */
+    public static final NamespacedKey KEY_QUALITY =
+            new NamespacedKey("abyss", "map_quality");
+
     private DungeonMap() {}
+
+    // ----- tier & quality -----
+
+    public static int tierOf(ItemStack item) { return intPdc(item, KEY_TIER); }
+    public static int qualityOf(ItemStack item) { return intPdc(item, KEY_QUALITY); }
+
+    private static int intPdc(ItemStack item, NamespacedKey key) {
+        if (item == null) return 0;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return 0;
+        return Math.max(0, meta.getPersistentDataContainer()
+                .getOrDefault(key, PersistentDataType.INTEGER, 0));
+    }
+
+    /** Set tier (clamped 0..max), re-decorate, return the new value. */
+    public static int setTier(AbyssPlugin plugin, ItemStack item, int tier) {
+        return setInt(plugin, item, KEY_TIER, tier,
+                plugin.getConfig().getInt("scaling.tier.max", 16));
+    }
+
+    /** Set quality (clamped 0..max), re-decorate, return the new value. */
+    public static int setQuality(AbyssPlugin plugin, ItemStack item, int quality) {
+        return setInt(plugin, item, KEY_QUALITY, quality,
+                plugin.getConfig().getInt("scaling.quality.max", 20));
+    }
+
+    private static int setInt(AbyssPlugin plugin, ItemStack item, NamespacedKey key, int value, int max) {
+        if (item == null) return 0;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return 0;
+        int clamped = Math.max(0, Math.min(max, value));
+        if (clamped == 0) meta.getPersistentDataContainer().remove(key);
+        else meta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, clamped);
+        item.setItemMeta(meta);
+        decorate(item, templateOf(plugin, item));
+        return clamped;
+    }
 
     // ----- mods -----
 
@@ -133,10 +178,20 @@ public final class DungeonMap {
             lore.add(Text.color("&8or discard this map."));
             meta.setLore(lore);
         } else {
-            meta.setDisplayName(Text.color("&5&l⛧ Abyss Map &7— &f" + template.name()));
+            int tier = tierOf(stack);
+            int quality = qualityOf(stack);
+            String tierSuffix = tier > 0 ? Text.color(" &8[&cT" + tier + "&8]") : "";
+            meta.setDisplayName(Text.color("&5&l⛧ Abyss Map &7— &f" + template.name()) + tierSuffix);
             List<String> lore = new ArrayList<>();
             lore.add(Text.color("&7A tear in reality leading to the"));
             lore.add(Text.color("&7&o" + template.name() + " &7dungeon."));
+
+            // Tier (combat) + quality (rewards)
+            if (tier > 0 || quality > 0) {
+                lore.add("");
+                if (tier > 0)    lore.add(Text.color("&c⚔ Tier: &f" + tier + " &8(tougher mobs)"));
+                if (quality > 0) lore.add(Text.color("&b✦ Quality: &f+" + quality + " &8(better rewards)"));
+            }
 
             // Rolled mods — read straight from the item's PDC so they survive
             // re-decoration after a template change.
