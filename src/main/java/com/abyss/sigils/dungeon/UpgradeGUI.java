@@ -4,6 +4,7 @@ import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.sigils.SigilDefinition;
 import com.abyss.sigils.sigils.SigilInstance;
 import com.abyss.sigils.sigils.SigilItem;
+import com.abyss.sigils.sigils.SigilRank;
 import com.abyss.sigils.sigils.SigilStat;
 import com.abyss.sigils.util.Text;
 import org.bukkit.Bukkit;
@@ -36,11 +37,10 @@ import java.util.Random;
  *   upgrade.max-tier: 5
  *   upgrade.substat-chance: 0.25
  *   upgrade.xp-level-cost: 0          # 0 = no XP required (the new default)
- *   upgrade.success-chance-per-tier:  # success % for going FROM tier N to tier N+1
- *     - 100   # T1 -> T2
- *     - 100   # T2 -> T3
- *     - 75    # T3 -> T4
- *     - 50    # T4 -> T5
+ *   upgrade.success-chance-per-rank:  # forge success %, keyed by sigil rank
+ *     MINOR: 90                        # better ranks are rarer to upgrade, so a
+ *     MAJOR: 60                        # GRAND sigil is never a sure thing.
+ *     GRAND: 30                        # Edit via /abyss admin -> Forge Chances.
  *
  * On failure the sigil is unchanged — the player just keeps trying.
  *
@@ -274,12 +274,12 @@ public final class UpgradeGUI implements Listener {
                 inv.setItem(BUTTON_SLOT, buttonRed("No attempts left"));
                 return;
             }
-            int successPct = successPercentFor(inst.tier());
+            int successPct = successPercentForRank(def.rank());
             inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, remaining, attemptsCap));
             return;
         }
 
-        int successPct = successPercentFor(inst.tier());
+        int successPct = successPercentForRank(def.rank());
         inv.setItem(BUTTON_SLOT, buttonGreen(inst.tier(), maxTier, successPct, xpCost, -1, -1));
     }
 
@@ -301,28 +301,27 @@ public final class UpgradeGUI implements Listener {
     }
 
     /**
-     * Success % for going FROM the given tier to (tier+1). Reads from config
-     * list "upgrade.success-chance-per-tier" — index 0 is T1→T2, index 1 is
-     * T2→T3, etc. If the list is too short for the requested tier, the last
-     * value in the list is reused (so e.g. a single "75" applies to every
-     * tier). If the list is missing entirely, a sensible default curve is used.
+     * Forge success % for a sigil, keyed by its {@link SigilRank}. Reads
+     * "upgrade.success-chance-per-rank.<RANK>" from config so better ranks can
+     * be made rarer to upgrade (a GRAND sigil shouldn't be a sure thing). Any
+     * rank not present in config falls back to the built-in default below.
+     * Admins edit these values via the Forge Chances menu (/abyss admin).
      */
-    private int successPercentFor(int currentTier) {
-        List<Integer> list = plugin.getConfig().getIntegerList("upgrade.success-chance-per-tier");
-        if (list == null || list.isEmpty()) {
-            return switch (currentTier) {
-                case 1, 2 -> 100;
-                case 3    -> 75;
-                case 4    -> 50;
-                default   -> 25;
-            };
-        }
-        int idx = Math.max(0, currentTier - 1);
-        if (idx >= list.size()) idx = list.size() - 1;
-        int pct = list.get(idx);
+    private int successPercentForRank(SigilRank rank) {
+        int fallback = defaultRankChance(rank);
+        int pct = plugin.getConfig().getInt("upgrade.success-chance-per-rank." + rank.name(), fallback);
         if (pct < 0)   pct = 0;
         if (pct > 100) pct = 100;
         return pct;
+    }
+
+    /** Built-in default forge chance per rank, used when config omits a rank. */
+    public static int defaultRankChance(SigilRank rank) {
+        return switch (rank) {
+            case MINOR -> 90;
+            case MAJOR -> 60;
+            case GRAND -> 30;
+        };
     }
 
     private void attemptUpgrade(Player p, Inventory inv) {
@@ -372,7 +371,7 @@ public final class UpgradeGUI implements Listener {
         // attempt and a failed attempt both consume one slot.
         if (session != null) session.incrementUpgradeAttempts(p.getUniqueId());
 
-        int successPct = successPercentFor(inst.tier());
+        int successPct = successPercentForRank(def.rank());
         boolean succeeded = rng.nextInt(100) < successPct;
 
         if (xpCost > 0 && (succeeded || consumeXpOnFail)) {

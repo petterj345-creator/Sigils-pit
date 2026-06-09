@@ -58,6 +58,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "givecurrency" -> handleGiveCurrency(sender, args);
             case "settier"    -> handleSetMapStat(sender, args, true);
             case "setquality" -> handleSetMapStat(sender, args, false);
+            case "skill"      -> handleSkill(sender, args);
             case "sigil"      -> handleSigilSubcommand(sender, args);
             case "mythicdrops" -> handleMythicDrops(sender);
             case "markers"    -> handleMarkers(sender);
@@ -201,6 +202,69 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                 ? com.abyss.sigils.dungeon.DungeonMap.setTier(plugin, map, n)
                 : com.abyss.sigils.dungeon.DungeonMap.setQuality(plugin, map, n);
         p.sendMessage(Text.color("&aSet " + (tier ? "&cTier" : "&bQuality") + " &ato &f" + applied + " &aon the held map."));
+    }
+
+    /**
+     * /abyss skill — admin management of Tome of Mastery skill points.
+     *   give/take <player> <n>   add or remove earned points
+     *   reset <player>           wipe points, allocations, and clear history
+     *   book <player>            give a Tome of Mastery
+     *   info <player>            print points + allocated ranks
+     */
+    private void handleSkill(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("abyss.admin")) { noPerm(sender); return; }
+        if (args.length < 3) {
+            sender.sendMessage(Text.color("&7Usage: &f/abyss skill <give|take|reset|book|info> <player> [amount]"));
+            return;
+        }
+        String action = args[1].toLowerCase(Locale.ROOT);
+        Player target = Bukkit.getPlayerExact(args[2]);
+        if (target == null) { sender.sendMessage(Text.color("&cUnknown player.")); return; }
+        var skills = plugin.skills();
+        UUID id = target.getUniqueId();
+
+        switch (action) {
+            case "give", "add" -> {
+                int n = parseAmount(args, 3, 1);
+                skills.grantPoints(id, n);
+                sender.sendMessage(Text.color("&aGave &f" + target.getName() + " &a" + n
+                        + " skill point(s). &7Available: &f" + skills.availablePoints(id)));
+                target.sendMessage(Text.color("&6&l✦ &eYou received " + n + " skill point(s)!"));
+            }
+            case "take", "remove" -> {
+                int n = parseAmount(args, 3, 1);
+                skills.grantPoints(id, -n);
+                sender.sendMessage(Text.color("&aRemoved &f" + n + " &apoint(s) from &f" + target.getName()
+                        + "&7. Available: &f" + skills.availablePoints(id)));
+            }
+            case "reset" -> {
+                skills.resetPlayer(id);
+                sender.sendMessage(Text.color("&aReset all skill data for &f" + target.getName() + "&a."));
+                target.sendMessage(Text.color("&7Your Tome of Mastery has been reset by an admin."));
+            }
+            case "book" -> {
+                for (ItemStack o : target.getInventory().addItem(
+                        com.abyss.sigils.skills.SkillBookItem.create()).values())
+                    target.getWorld().dropItemNaturally(target.getLocation(), o);
+                sender.sendMessage(Text.color("&aGave &f" + target.getName() + " &aa Tome of Mastery."));
+            }
+            case "info" -> {
+                sender.sendMessage(Text.color("&6" + target.getName() + " &7— available &f"
+                        + skills.availablePoints(id) + "&7, earned &f" + skills.totalPoints(id)));
+                for (com.abyss.sigils.skills.SkillType s : com.abyss.sigils.skills.SkillType.values()) {
+                    int r = skills.rank(id, s);
+                    if (r > 0) sender.sendMessage(Text.color("  &8• &f" + s.display() + " &7" + r + "/" + s.maxRank()));
+                }
+            }
+            default -> sender.sendMessage(Text.color("&7Usage: &f/abyss skill <give|take|reset|book|info> <player> [amount]"));
+        }
+    }
+
+    /** Parse a positive amount from args[index], defaulting if absent/invalid. */
+    private int parseAmount(String[] args, int index, int def) {
+        if (args.length <= index) return def;
+        try { return Math.max(1, Integer.parseInt(args[index])); }
+        catch (NumberFormatException e) { return def; }
     }
 
     private void handleGiveDust(CommandSender sender, String[] args) {
@@ -487,7 +551,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             "help","sigils","leave","enterabyss",
             "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
-            "sigil","settier","setquality","mythicdrops","markers","setportal","removeportal"
+            "sigil","skill","settier","setquality","mythicdrops","markers","setportal","removeportal"
     );
 
     @Override
@@ -512,6 +576,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                         .map(Player::getName).filter(s -> s.startsWith(args[1])).toList();
                 case "sigil" -> java.util.stream.Stream.of("list","create","edit")
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
+                case "skill" -> java.util.stream.Stream.of("give","take","reset","book","info")
+                        .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 default -> List.of();
             };
         }
@@ -528,6 +594,10 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                 out.add("random");
                 out.addAll(plugin.sigils().all().stream().map(SigilDefinition::id).toList());
                 return out.stream().filter(s -> s.startsWith(args[2].toLowerCase())).toList();
+            }
+            if (sub.equals("skill")) {
+                return Bukkit.getOnlinePlayers().stream()
+                        .map(Player::getName).filter(s -> s.startsWith(args[2])).toList();
             }
         }
         return List.of();

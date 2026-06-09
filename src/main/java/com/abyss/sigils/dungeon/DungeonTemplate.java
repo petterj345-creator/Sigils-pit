@@ -92,6 +92,11 @@ public final class DungeonTemplate {
     // ----- ritual (Altar of Souls) -----
     /** Altar locations (armor stands) placed via the wand. Stored "stand on top". */
     private final List<Location> ritualAltars = new ArrayList<>();
+    /**
+     * How many of the placed altars actually spawn each run, chosen at random
+     * so the map feels different every play. 0 (or >= placed count) = use all.
+     */
+    private int ritualAltarsActive = 0;
     /** Mobs each ritual summons (count = how many of each). Don't count toward boss. */
     private final List<MobEntry> ritualMobs = new ArrayList<>();
     /** Souls granted per MythicMob id when killed during a ritual, as {min,max}. */
@@ -116,6 +121,30 @@ public final class DungeonTemplate {
     private int ritualReserveDepositPct = 10;
     private int ritualReserveDiscountPct = 10;
     private int ritualReserveLimit = 3;
+
+    // ----- maelstrom (rift event) -----
+    /** Rift marker locations placed via the wand. Stored "stand on top". */
+    private final List<Location> maelstromCenters = new ArrayList<>();
+    /** How many of the placed rifts actually open per run (0 = all). */
+    private int maelstromActive = 0;
+    /** Specific mobs the rift spawns. Empty + useTrash = use the dungeon trash list. */
+    private final List<MobEntry> maelstromMobs = new ArrayList<>();
+    /** If true, also draw from the template's default trash mobs (fast filler). */
+    private boolean maelstromUseTrash = false;
+    /** How long (seconds) a rift spawns before it collapses. */
+    private int maelstromDurationSeconds = 45;
+    /** Ticks between spawn pulses while a rift is open. */
+    private int maelstromSpawnIntervalTicks = 10;
+    /** Mobs spawned per pulse. */
+    private int maelstromMobsPerPulse = 4;
+    /** Radius (blocks) of the spawn circle. */
+    private int maelstromRadius = 6;
+    /** Cap on rift mobs alive at once, so it stays clearable. */
+    private int maelstromMaxAlive = 30;
+    /** Loot pool dropped when the rift collapses (gated by kill thresholds). */
+    private final List<MaelstromLoot> maelstromLoot = new ArrayList<>();
+    /** Max distinct loot items rolled into the collapse chest. */
+    private int maelstromMaxLootItems = 5;
 
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
@@ -159,6 +188,7 @@ public final class DungeonTemplate {
 
     // Ritual getters
     public List<Location> ritualAltars()              { return ritualAltars; }
+    public int ritualAltarsActive()                   { return ritualAltarsActive; }
     public List<MobEntry> ritualMobs()                { return ritualMobs; }
     public java.util.Map<String,int[]> ritualMobSouls() { return ritualMobSouls; }
     public List<RitualReward> ritualRewardPool()      { return ritualRewardPool; }
@@ -186,6 +216,24 @@ public final class DungeonTemplate {
     }
     /** True if this template has a usable ritual setup (altars + mobs). */
     public boolean hasRitual() { return !ritualAltars.isEmpty() && !ritualMobs.isEmpty(); }
+
+    // Maelstrom getters
+    public List<Location> maelstromCenters()  { return maelstromCenters; }
+    public int maelstromActive()              { return maelstromActive; }
+    public List<MobEntry> maelstromMobs()     { return maelstromMobs; }
+    public boolean maelstromUseTrash()        { return maelstromUseTrash; }
+    public int maelstromDurationSeconds()     { return maelstromDurationSeconds; }
+    public int maelstromSpawnIntervalTicks()  { return maelstromSpawnIntervalTicks; }
+    public int maelstromMobsPerPulse()        { return maelstromMobsPerPulse; }
+    public int maelstromRadius()              { return maelstromRadius; }
+    public int maelstromMaxAlive()            { return maelstromMaxAlive; }
+    public List<MaelstromLoot> maelstromLoot() { return maelstromLoot; }
+    public int maelstromMaxLootItems()        { return maelstromMaxLootItems; }
+    /** True if this template has a usable maelstrom (a rift + some mob source). */
+    public boolean hasMaelstrom() {
+        return !maelstromCenters.isEmpty()
+                && (!maelstromMobs.isEmpty() || (maelstromUseTrash && !defaultTrashMobs.isEmpty()));
+    }
 
     // ----- setters -----
     public void setMode(DungeonMode m)             { this.mode = m; }
@@ -228,6 +276,7 @@ public final class DungeonTemplate {
     // Ritual setters
     public void addRitualAltar(Location loc)  { ritualAltars.add(wipeWorld(loc)); }
     public void clearRitualAltars()           { ritualAltars.clear(); }
+    public void setRitualAltarsActive(int n)  { this.ritualAltarsActive = Math.max(0, n); }
     public void setRitualMobSouls(String id, int min, int max) {
         if (max <= 0) { ritualMobSouls.remove(id); return; }
         int lo = Math.max(0, min), hi = Math.max(lo, max);
@@ -246,6 +295,31 @@ public final class DungeonTemplate {
     public void setRitualReserveDepositPct(int n) { this.ritualReserveDepositPct = Math.max(0, Math.min(100, n)); }
     public void setRitualReserveDiscountPct(int n) { this.ritualReserveDiscountPct = Math.max(0, Math.min(100, n)); }
     public void setRitualReserveLimit(int n) { this.ritualReserveLimit = Math.max(0, n); }
+
+    // Maelstrom setters
+    public void addMaelstromCenter(Location loc)      { maelstromCenters.add(wipeWorld(loc)); }
+    public void setMaelstromActive(int n)             { this.maelstromActive = Math.max(0, n); }
+    public void setMaelstromUseTrash(boolean b)       { this.maelstromUseTrash = b; }
+    public void setMaelstromDurationSeconds(int n)    { this.maelstromDurationSeconds = Math.max(1, n); }
+    public void setMaelstromSpawnIntervalTicks(int n) { this.maelstromSpawnIntervalTicks = Math.max(1, n); }
+    public void setMaelstromMobsPerPulse(int n)       { this.maelstromMobsPerPulse = Math.max(1, n); }
+    public void setMaelstromRadius(int n)             { this.maelstromRadius = Math.max(1, n); }
+    public void setMaelstromMaxAlive(int n)           { this.maelstromMaxAlive = Math.max(1, n); }
+    public void setMaelstromMaxLootItems(int n)       { this.maelstromMaxLootItems = Math.max(0, n); }
+    /** Remove any maelstrom rift marker at the given block (stand-on-top match). Returns count removed. */
+    public int removeMaelstromCenterAt(int bx, int by, int bz) {
+        int removed = 0;
+        for (int i = maelstromCenters.size() - 1; i >= 0; i--) {
+            Location l = maelstromCenters.get(i);
+            int lx = (int) Math.floor(l.getX());
+            int ly = (int) Math.floor(l.getY());
+            int lz = (int) Math.floor(l.getZ());
+            if (lx == bx && lz == bz && (ly - 1 == by || ly == by)) {
+                maelstromCenters.remove(i); removed++;
+            }
+        }
+        return removed;
+    }
     /** Remove any ritual altar marker at the given block (stand-on-top match). Returns count removed. */
     public int removeRitualAltarAt(int bx, int by, int bz) {
         int removed = 0;
@@ -383,6 +457,7 @@ public final class DungeonTemplate {
         cfg.set("ritual.reserve.deposit-pct", ritualReserveDepositPct);
         cfg.set("ritual.reserve.discount-pct", ritualReserveDiscountPct);
         cfg.set("ritual.reserve.limit", ritualReserveLimit);
+        cfg.set("ritual.altars-active", ritualAltarsActive);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -412,6 +487,45 @@ public final class DungeonTemplate {
             cfg.set(base + ".price-min", r.priceMin());
             cfg.set(base + ".price-max", r.priceMax());
             cfg.set(base + ".amount", r.amount());
+            if (r.isMMOItem()) {
+                cfg.set(base + ".mmo-type", r.mmoType());
+                cfg.set(base + ".mmo-id", r.mmoId());
+            }
+        }
+
+        // ----- maelstrom -----
+        cfg.set("maelstrom.active", maelstromActive);
+        cfg.set("maelstrom.use-trash", maelstromUseTrash);
+        cfg.set("maelstrom.duration-seconds", maelstromDurationSeconds);
+        cfg.set("maelstrom.spawn-interval-ticks", maelstromSpawnIntervalTicks);
+        cfg.set("maelstrom.mobs-per-pulse", maelstromMobsPerPulse);
+        cfg.set("maelstrom.radius", maelstromRadius);
+        cfg.set("maelstrom.max-alive", maelstromMaxAlive);
+        cfg.set("maelstrom.max-loot-items", maelstromMaxLootItems);
+
+        List<java.util.Map<String, Object>> rifts = new ArrayList<>();
+        for (Location l : maelstromCenters) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("x", l.getX()); m.put("y", l.getY()); m.put("z", l.getZ());
+            m.put("yaw", l.getYaw()); m.put("pitch", l.getPitch());
+            rifts.add(m);
+        }
+        cfg.set("maelstrom.centers", rifts);
+
+        List<String> maelstromMobStrs = new ArrayList<>();
+        for (MobEntry e : maelstromMobs) maelstromMobStrs.add(e.encode());
+        cfg.set("maelstrom.mobs", maelstromMobStrs);
+
+        cfg.set("maelstrom.loot", null); // clear stale
+        for (int i = 0; i < maelstromLoot.size(); i++) {
+            MaelstromLoot r = maelstromLoot.get(i);
+            if (r.itemStack() == null) continue;
+            String base = "maelstrom.loot." + i;
+            cfg.set(base + ".item", r.itemStack());
+            cfg.set(base + ".chance", r.chancePercent());
+            cfg.set(base + ".min", r.minCount());
+            cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".min-kills", r.minKills());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -531,6 +645,8 @@ public final class DungeonTemplate {
         this.ritualPriceMax = cfg.getInt("ritual.price-max", 50);
         this.ritualRerollCost = cfg.getInt("ritual.reroll-cost", 25);
 
+        this.ritualAltarsActive = cfg.getInt("ritual.altars-active", 0);
+
         ritualAltars.clear();
         for (java.util.Map<?, ?> m : cfg.getMapList("ritual.altars")) {
             try {
@@ -591,6 +707,59 @@ public final class DungeonTemplate {
         this.ritualReserveDepositPct  = cfg.getInt("ritual.reserve.deposit-pct", 10);
         this.ritualReserveDiscountPct = cfg.getInt("ritual.reserve.discount-pct", 10);
         this.ritualReserveLimit       = cfg.getInt("ritual.reserve.limit", 3);
+
+        // ----- maelstrom -----
+        this.maelstromActive             = cfg.getInt("maelstrom.active", 0);
+        this.maelstromUseTrash           = cfg.getBoolean("maelstrom.use-trash", false);
+        this.maelstromDurationSeconds    = cfg.getInt("maelstrom.duration-seconds", 45);
+        this.maelstromSpawnIntervalTicks = cfg.getInt("maelstrom.spawn-interval-ticks", 10);
+        this.maelstromMobsPerPulse       = cfg.getInt("maelstrom.mobs-per-pulse", 4);
+        this.maelstromRadius             = cfg.getInt("maelstrom.radius", 6);
+        this.maelstromMaxAlive           = cfg.getInt("maelstrom.max-alive", 30);
+        this.maelstromMaxLootItems       = cfg.getInt("maelstrom.max-loot-items", 5);
+
+        maelstromCenters.clear();
+        for (java.util.Map<?, ?> m : cfg.getMapList("maelstrom.centers")) {
+            try {
+                maelstromCenters.add(new Location(null,
+                        ((Number) m.get("x")).doubleValue(),
+                        ((Number) m.get("y")).doubleValue(),
+                        ((Number) m.get("z")).doubleValue(),
+                        m.containsKey("yaw") ? ((Number) m.get("yaw")).floatValue() : 0f,
+                        m.containsKey("pitch") ? ((Number) m.get("pitch")).floatValue() : 0f));
+            } catch (Exception ignored) {}
+        }
+
+        maelstromMobs.clear();
+        for (String s : cfg.getStringList("maelstrom.mobs")) {
+            MobEntry e = MobEntry.decode(s);
+            if (e != null) maelstromMobs.add(e);
+        }
+
+        maelstromLoot.clear();
+        ConfigurationSection mloot = cfg.getConfigurationSection("maelstrom.loot");
+        if (mloot != null) {
+            List<String> keys = new ArrayList<>(mloot.getKeys(false));
+            keys.sort((a, b) -> {
+                try { return Integer.compare(Integer.parseInt(a), Integer.parseInt(b)); }
+                catch (NumberFormatException e) { return a.compareTo(b); }
+            });
+            for (String key : keys) {
+                ConfigurationSection entry = mloot.getConfigurationSection(key);
+                if (entry == null) continue;
+                org.bukkit.inventory.ItemStack stack = entry.getItemStack("item");
+                if (stack == null) continue;
+                MaelstromLoot ml = new MaelstromLoot(stack,
+                        entry.getDouble("chance", 100),
+                        entry.getInt("min", 1),
+                        entry.getInt("max", 1),
+                        entry.getInt("min-kills", 0));
+                String mmoType = entry.getString("mmo-type", null);
+                String mmoId = entry.getString("mmo-id", null);
+                if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
+                maelstromLoot.add(ml);
+            }
+        }
     }
 
     private static void writeLoc(YamlConfiguration cfg, String path, Location l) {

@@ -1,6 +1,7 @@
 package com.abyss.sigils.dungeon;
 
 import com.abyss.sigils.AbyssPlugin;
+import com.abyss.sigils.util.RandomPick;
 import com.abyss.sigils.util.Text;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -85,7 +86,11 @@ public final class RitualManager implements Listener {
 
         State state = new State(session, template);
         World w = session.world();
-        for (Location raw : template.ritualAltars()) {
+        // Place many altars in the editor, but only spawn a random subset each
+        // run so the map feels different every play. 0 = use all placed altars.
+        List<Location> chosen = RandomPick.some(
+                template.ritualAltars(), template.ritualAltarsActive(), rng);
+        for (Location raw : chosen) {
             Location loc = new Location(w, raw.getX(), raw.getY(), raw.getZ());
             Altar altar = new Altar(loc);
             spawnAltarEntities(altar);
@@ -218,11 +223,26 @@ public final class RitualManager implements Listener {
         int spawned = 0, failed = 0;
         for (MobEntry entry : t.ritualMobs()) {
             for (int i = 0; i < entry.count(); i++) {
-                Location loc = altar.loc.clone().add(
-                        rng.nextDouble() * 4 - 2, 0, rng.nextDouble() * 4 - 2);
+                // Spawn on a SAFE spot near the altar. The old code jittered the
+                // altar X/Z but kept its Y, so mobs could spawn inside a wall and
+                // die to suffocation within a second — which looked like "the
+                // mobs don't spawn / something kills them instantly".
+                Location loc = safeSpawn(altar.loc);
                 var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
-                if (ent.isPresent()) { state.activeMobs.add(ent.get().getUniqueId()); spawned++; }
-                else failed++;
+                if (ent.isPresent()) {
+                    Entity mob = ent.get();
+                    // Keep ritual mobs from despawning. If one vanished without a
+                    // death event, activeMobs would never drain — the altar would
+                    // stay ACTIVE and (before this change) the trash spawner stayed
+                    // paused, locking the whole dungeon.
+                    mob.setPersistent(true);
+                    if (mob instanceof org.bukkit.entity.LivingEntity le) {
+                        le.setRemoveWhenFarAway(false);
+                        le.setFallDistance(0);
+                    }
+                    state.activeMobs.add(mob.getUniqueId());
+                    spawned++;
+                } else failed++;
             }
         }
         if (failed > 0) {
@@ -262,6 +282,13 @@ public final class RitualManager implements Listener {
         if (killer != null) {
             int souls = state.template.rollSoulsFor(mythicId);
             if (souls > 0) {
+                // Tome of Mastery — Soul Harvest grants more souls per kill.
+                int rank = plugin.skills().rank(killer.getUniqueId(),
+                        com.abyss.sigils.skills.SkillType.SOUL_HARVEST);
+                if (rank > 0) {
+                    souls = (int) Math.round(souls
+                            * com.abyss.sigils.skills.SkillType.SOUL_HARVEST.multiplierAt(rank));
+                }
                 session.addSouls(killer.getUniqueId(), souls);
                 killer.sendMessage(Text.color("&b+ " + souls + " souls &7(total: &b"
                         + session.soulsOf(killer.getUniqueId()) + "&7)"));
@@ -308,6 +335,16 @@ public final class RitualManager implements Listener {
     public boolean isRitualActive(DungeonSession session) {
         State state = states.get(session.id());
         return state != null && state.activeAltar != -1;
+    }
+
+    /**
+     * Number of live ritual mobs summoned in this session (0 if none). The
+     * trash spawner subtracts this from the concurrent-mob cap so trash leaves
+     * room for ritual mobs instead of being hard-paused.
+     */
+    public int activeMobCount(DungeonSession session) {
+        State state = states.get(session.id());
+        return state == null ? 0 : state.activeMobs.size();
     }
 
     /** Force a fresh roll of a player's shop offers (used by the reroll button). */
@@ -372,6 +409,35 @@ public final class RitualManager implements Listener {
     // ============================================================
     // Helpers
     // ============================================================
+
+    /**
+     * A safe spawn point near the altar: jitter horizontally, then snap to a
+     * spot where the mob won't suffocate or fall — feet and head clear, solid
+     * ground underneath. Falls back to the altar itself, which is always valid
+     * (an admin stood on it to place it). This stops ritual mobs spawning
+     * inside walls/over holes and dying instantly.
+     */
+    private Location safeSpawn(Location altar) {
+        World w = altar.getWorld();
+        if (w == null) return altar.clone();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            int x = (int) Math.floor(altar.getX() + rng.nextDouble() * 4 - 2);
+            int z = (int) Math.floor(altar.getZ() + rng.nextDouble() * 4 - 2);
+            int baseY = altar.getBlockY();
+            for (int dy = 0; dy <= 3; dy++) {
+                if (standable(w, x, baseY + dy, z)) return new Location(w, x + 0.5, baseY + dy, z + 0.5);
+                if (standable(w, x, baseY - dy, z)) return new Location(w, x + 0.5, baseY - dy, z + 0.5);
+            }
+        }
+        return altar.clone();
+    }
+
+    /** Feet + head passable and solid ground below — i.e. a mob can stand here. */
+    private boolean standable(World w, int x, int y, int z) {
+        return w.getBlockAt(x, y, z).isPassable()
+                && w.getBlockAt(x, y + 1, z).isPassable()
+                && w.getBlockAt(x, y - 1, z).getType().isSolid();
+    }
 
     private UUID sessionIdOf(Player p) {
         DungeonSession s = plugin.dungeonManager().sessionOf(p);

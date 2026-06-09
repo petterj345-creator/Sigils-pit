@@ -29,7 +29,19 @@ public enum MapMod {
     RITUAL("ritual", "&5&l✦ Altar of Souls", "&5&lSoul Catalyst", Material.ECHO_SHARD,
             "&7Ritual altars appear in the dungeon.",
             "&7Activate them to summon souls,",
-            "&7then spend them at the soul shop.");
+            "&7then spend them at the soul shop."),
+
+    /**
+     * Maelstrom. Places rift markers in the instance; right-clicking one tears
+     * open a churning circle that spawns mobs at a tickrate for a fixed time,
+     * then collapses — deleting any mobs it spawned and dropping a loot chest
+     * whose contents scale with how many you killed. Configured per template in
+     * the editor (mobs/trash, timing, radius, loot + kill thresholds).
+     */
+    MAELSTROM("maelstrom", "&3&l✦ Maelstrom", "&3&lMaelstrom Catalyst", Material.HEART_OF_THE_SEA,
+            "&7A churning rift can be torn open in the",
+            "&7dungeon. Survive the horde it spews,",
+            "&7then loot the eye of the storm.");
 
     private final String id;
     private final String displayName;

@@ -98,7 +98,7 @@ public final class RewardChestManager implements Listener {
             // First time clicking — roll
             DungeonTemplate t = plugin.templates().get(session.templateName());
             if (t == null) { p.sendMessage(Text.color("&cTemplate missing.")); return; }
-            RewardRoller.Roll roll = RewardRoller.rollFor(plugin, t, session.quality());
+            RewardRoller.Roll roll = RewardRoller.rollFor(plugin, t, p.getUniqueId(), session.quality());
 
             // Give money + XP immediately, once per player per session
             if (!nonItemRewardsGiven.contains(key)) {

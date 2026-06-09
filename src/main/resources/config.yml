@@ -27,6 +27,15 @@ scaling:
     # Every N quality grants one extra possible loot item from the pool.
     quality-per-extra-item: 3
 
+# =========================================
+# Tome of Mastery — endgame skill book
+# =========================================
+# Players earn 1 skill point the first time they complete each map, and spend
+# them on the skill tree (right-click the book). The book never drops on death.
+skillbook:
+  # Give every player a Tome of Mastery on join (and restore it after death)?
+  give-on-join: true
+
 socket:
   # Legacy slot counts — only used if a player has no Book of Sigils item
   # in their inventory (e.g. very old saves). Modern behaviour: slots come
@@ -79,7 +88,8 @@ book:
     - { small: 10, big: 3, grand: 2 }   # T19
     - { small: 10, big: 3, grand: 3 }   # T20
 
-  # Success % when forging T(N) → T(N+1). Same shape as upgrade.success-chance-per-tier.
+  # Success % when forging T(N) → T(N+1), per book tier (books still use a
+  # per-tier curve; sigils use upgrade.success-chance-per-rank instead).
   # Index 0 = T1→T2, ..., index 18 = T19→T20.
   # Books are a huge power spike, so success is low and falls off toward T20.
   success-chance-per-tier:
@@ -143,11 +153,11 @@ upgrade:
   # Each click on the FORGE button counts as one attempt, whether it
   # succeeds or fails. Set to -1 for unlimited (the legacy behaviour).
   attempts-per-clear: 3
-  # Success % when going FROM tier N to tier N+1.
-  # Index 0 = T1->T2, index 1 = T2->T3, etc.
-  # If you provide fewer entries than tiers, the last value is reused.
-  success-chance-per-tier:
-    - 100   # T1 -> T2  (always succeeds)
-    - 100   # T2 -> T3  (always succeeds)
-    - 75    # T3 -> T4
-    - 50    # T4 -> T5
+  # Forge success %, keyed by the sigil's RANK. Better ranks are rarer, so
+  # they should upgrade less often — a GRAND sigil is never a sure thing.
+  # Edit these in-game: /abyss admin -> Forge Chances.
+  # Any rank you omit falls back to the built-in default (90/60/30).
+  success-chance-per-rank:
+    MINOR: 90
+    MAJOR: 60
+    GRAND: 30

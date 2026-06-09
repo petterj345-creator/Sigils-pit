@@ -1,12 +1,14 @@
 package com.abyss.sigils.dungeon;
 
 import com.abyss.sigils.AbyssPlugin;
+import com.abyss.sigils.skills.SkillType;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Stateless helper that, given a template, rolls the rewards for one player.
@@ -36,22 +38,32 @@ public final class RewardRoller {
     private RewardRoller() {}
 
     public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t) {
-        return rollFor(plugin, t, 0);
+        return rollFor(plugin, t, null, 0);
     }
 
     /**
-     * Roll rewards, scaled by the map's QUALITY: each quality grants more XP and
-     * money (config {@code scaling.quality.*}) and an extra possible loot item
-     * every {@code quality-per-extra-item} quality. Pass 0 for an unscaled roll.
+     * Roll rewards for a player, stacking two bonus sources:
+     *  - the player's Tome of Mastery skills (Greater Spoils / Treasure Hunter /
+     *    Scholar), passed via {@code player} (null to skip),
+     *  - the map's QUALITY ({@code scaling.quality.*}): more XP, money, and an
+     *    extra possible loot item every {@code quality-per-extra-item} quality.
      */
-    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, int quality) {
-        double xpMult = 1.0, moneyMult = 1.0;
+    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player, int quality) {
         int bonusItems = 0;
+        double moneyMult = 1.0, xpMult = 1.0;
+
+        // Tome of Mastery skills (per-player).
+        if (player != null && plugin.skills() != null) {
+            bonusItems += SkillType.GREATER_SPOILS.flatAt(plugin.skills().rank(player, SkillType.GREATER_SPOILS));
+            moneyMult *= SkillType.TREASURE_HUNTER.multiplierAt(plugin.skills().rank(player, SkillType.TREASURE_HUNTER));
+            xpMult *= SkillType.SCHOLAR.multiplierAt(plugin.skills().rank(player, SkillType.SCHOLAR));
+        }
+        // Map quality.
         if (quality > 0) {
-            xpMult = 1.0 + quality * plugin.getConfig().getDouble("scaling.quality.xp-percent", 10) / 100.0;
-            moneyMult = 1.0 + quality * plugin.getConfig().getDouble("scaling.quality.money-percent", 10) / 100.0;
+            xpMult *= 1.0 + quality * plugin.getConfig().getDouble("scaling.quality.xp-percent", 10) / 100.0;
+            moneyMult *= 1.0 + quality * plugin.getConfig().getDouble("scaling.quality.money-percent", 10) / 100.0;
             int per = Math.max(1, plugin.getConfig().getInt("scaling.quality.quality-per-extra-item", 3));
-            bonusItems = quality / per;
+            bonusItems += quality / per;
         }
 
         // Items

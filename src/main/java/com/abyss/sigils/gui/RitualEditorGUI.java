@@ -53,6 +53,32 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
                         : "&7"),
             null);
 
+        // 13 Altars active per run (random subset)
+        int placed = template.ritualAltars().size();
+        int active = template.ritualAltarsActive();
+        String activeLabel = (active <= 0 || active >= placed)
+                ? "&fAll &7(" + placed + ")"
+                : "&f" + active + " &7of &f" + placed;
+        set(13, icon(Material.TARGET,
+                "&dActive Altars per Run",
+                "&7How many of the placed altars actually",
+                "&7spawn each run — picked at random, so the",
+                "&7map feels different every time you play.",
+                "",
+                "&7Currently: " + activeLabel,
+                "&80 = always use every placed altar",
+                "",
+                "&eClick &7to set"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                ChatInput.prompt(plugin, p, "&fActive altars per run (0 = all)",
+                        String.valueOf(template.ritualAltarsActive()), text -> {
+                    try { template.setRitualAltarsActive(Integer.parseInt(text.trim())); plugin.templates().save(template); }
+                    catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                    Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                });
+            });
+
         // 20 Ritual mobs
         set(20, icon(Material.ZOMBIE_HEAD,
                 "&dRitual Mobs &7(" + template.ritualMobs().size() + ")",
@@ -172,8 +198,8 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
             });
 
         // 49 Back
-        set(49, icon(Material.ARROW, "&7← Back to editor"),
-            e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+        set(49, icon(Material.ARROW, "&7← Back to events"),
+            e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
     }
 
     /** Parse "min-max" or a single number and apply via the two setters. */
