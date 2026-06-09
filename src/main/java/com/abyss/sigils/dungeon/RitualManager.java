@@ -223,8 +223,11 @@ public final class RitualManager implements Listener {
         int spawned = 0, failed = 0;
         for (MobEntry entry : t.ritualMobs()) {
             for (int i = 0; i < entry.count(); i++) {
-                Location loc = altar.loc.clone().add(
-                        rng.nextDouble() * 4 - 2, 0, rng.nextDouble() * 4 - 2);
+                // Spawn on a SAFE spot near the altar. The old code jittered the
+                // altar X/Z but kept its Y, so mobs could spawn inside a wall and
+                // die to suffocation within a second — which looked like "the
+                // mobs don't spawn / something kills them instantly".
+                Location loc = safeSpawn(altar.loc);
                 var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
                 if (ent.isPresent()) {
                     Entity mob = ent.get();
@@ -233,7 +236,10 @@ public final class RitualManager implements Listener {
                     // stay ACTIVE and (before this change) the trash spawner stayed
                     // paused, locking the whole dungeon.
                     mob.setPersistent(true);
-                    if (mob instanceof org.bukkit.entity.LivingEntity le) le.setRemoveWhenFarAway(false);
+                    if (mob instanceof org.bukkit.entity.LivingEntity le) {
+                        le.setRemoveWhenFarAway(false);
+                        le.setFallDistance(0);
+                    }
                     state.activeMobs.add(mob.getUniqueId());
                     spawned++;
                 } else failed++;
@@ -403,6 +409,35 @@ public final class RitualManager implements Listener {
     // ============================================================
     // Helpers
     // ============================================================
+
+    /**
+     * A safe spawn point near the altar: jitter horizontally, then snap to a
+     * spot where the mob won't suffocate or fall — feet and head clear, solid
+     * ground underneath. Falls back to the altar itself, which is always valid
+     * (an admin stood on it to place it). This stops ritual mobs spawning
+     * inside walls/over holes and dying instantly.
+     */
+    private Location safeSpawn(Location altar) {
+        World w = altar.getWorld();
+        if (w == null) return altar.clone();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            int x = (int) Math.floor(altar.getX() + rng.nextDouble() * 4 - 2);
+            int z = (int) Math.floor(altar.getZ() + rng.nextDouble() * 4 - 2);
+            int baseY = altar.getBlockY();
+            for (int dy = 0; dy <= 3; dy++) {
+                if (standable(w, x, baseY + dy, z)) return new Location(w, x + 0.5, baseY + dy, z + 0.5);
+                if (standable(w, x, baseY - dy, z)) return new Location(w, x + 0.5, baseY - dy, z + 0.5);
+            }
+        }
+        return altar.clone();
+    }
+
+    /** Feet + head passable and solid ground below — i.e. a mob can stand here. */
+    private boolean standable(World w, int x, int y, int z) {
+        return w.getBlockAt(x, y, z).isPassable()
+                && w.getBlockAt(x, y + 1, z).isPassable()
+                && w.getBlockAt(x, y - 1, z).getType().isSolid();
+    }
 
     private UUID sessionIdOf(Player p) {
         DungeonSession s = plugin.dungeonManager().sessionOf(p);
