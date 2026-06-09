@@ -262,6 +262,13 @@ public final class RitualManager implements Listener {
         if (killer != null) {
             int souls = state.template.rollSoulsFor(mythicId);
             if (souls > 0) {
+                // Tome of Mastery — Soul Harvest grants more souls per kill.
+                int rank = plugin.skills().rank(killer.getUniqueId(),
+                        com.abyss.sigils.skills.SkillType.SOUL_HARVEST);
+                if (rank > 0) {
+                    souls = (int) Math.round(souls
+                            * com.abyss.sigils.skills.SkillType.SOUL_HARVEST.multiplierAt(rank));
+                }
                 session.addSouls(killer.getUniqueId(), souls);
                 killer.sendMessage(Text.color("&b+ " + souls + " souls &7(total: &b"
                         + session.soulsOf(killer.getUniqueId()) + "&7)"));

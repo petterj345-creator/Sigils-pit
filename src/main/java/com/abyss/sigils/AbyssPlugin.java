@@ -56,6 +56,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private com.abyss.sigils.integration.MythicDropWriter mythicDropWriter;
     private com.abyss.sigils.integration.MobDropStore mobDrops;
     private com.abyss.sigils.integration.ReservedRewardStore reservedRewards;
+    private com.abyss.sigils.skills.PlayerSkillStore skills;
     private EditorWandListener editorWandListener;
     private com.abyss.sigils.gui.EditorMarkers editorMarkers;
     private MarkerVisualizer markerVisualizer;
@@ -105,6 +106,11 @@ public final class AbyssPlugin extends JavaPlugin {
         // Per-player reserved (layaway) soul-shop items, persisted across maps.
         reservedRewards = new com.abyss.sigils.integration.ReservedRewardStore(this);
         reservedRewards.load();
+
+        // Endgame Tome of Mastery — per-player skill points + allocations.
+        skills = new com.abyss.sigils.skills.PlayerSkillStore(this);
+        Bukkit.getPluginManager().registerEvents(
+                new com.abyss.sigils.skills.SkillBookListener(this), this);
 
         dungeonManager = new DungeonManager(this);
         Bukkit.getPluginManager().registerEvents(dungeonManager, this);
@@ -183,6 +189,7 @@ public final class AbyssPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         if (store != null) store.save();
+        if (skills != null) skills.save();
         if (dungeonManager != null) dungeonManager.shutdown();
         if (mmoItemsHook != null && mmoItemsHook.available()) {
             Bukkit.getOnlinePlayers().forEach(mmoItemsHook::clearFor);
@@ -209,6 +216,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public com.abyss.sigils.integration.MythicDropWriter mythicDropWriter() { return mythicDropWriter; }
     public com.abyss.sigils.integration.MobDropStore mobDrops() { return mobDrops; }
     public com.abyss.sigils.integration.ReservedRewardStore reservedRewards() { return reservedRewards; }
+    public com.abyss.sigils.skills.PlayerSkillStore skills() { return skills; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
     public MarkerVisualizer markerVisualizer() { return markerVisualizer; }

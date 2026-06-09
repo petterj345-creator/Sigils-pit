@@ -1,12 +1,14 @@
 package com.abyss.sigils.dungeon;
 
 import com.abyss.sigils.AbyssPlugin;
+import com.abyss.sigils.skills.SkillType;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Stateless helper that, given a template, rolls the rewards for one player.
@@ -36,6 +38,23 @@ public final class RewardRoller {
     private RewardRoller() {}
 
     public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t) {
+        return rollFor(plugin, t, null);
+    }
+
+    /**
+     * Roll rewards for a specific player, applying their Tome of Mastery skills:
+     * Greater Spoils (more items), Treasure Hunter (more money), Scholar (more
+     * XP). Pass {@code null} for an unmodified roll.
+     */
+    public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player) {
+        int bonusItems = 0;
+        double moneyMult = 1.0, xpMult = 1.0;
+        if (player != null && plugin.skills() != null) {
+            bonusItems = SkillType.GREATER_SPOILS.flatAt(plugin.skills().rank(player, SkillType.GREATER_SPOILS));
+            moneyMult = SkillType.TREASURE_HUNTER.multiplierAt(plugin.skills().rank(player, SkillType.TREASURE_HUNTER));
+            xpMult = SkillType.SCHOLAR.multiplierAt(plugin.skills().rank(player, SkillType.SCHOLAR));
+        }
+
         // Items
         List<RewardEntry> candidates = new ArrayList<>();
         for (RewardEntry r : t.rewardPool()) {
@@ -43,7 +62,7 @@ public final class RewardRoller {
             if (RNG.nextDouble() * 100.0 < r.chancePercent()) candidates.add(r);
         }
         Collections.shuffle(candidates, RNG);
-        int cap = Math.min(candidates.size(), t.maxRewardItems());
+        int cap = Math.min(candidates.size(), t.maxRewardItems() + bonusItems);
         List<ItemStack> chosen = new ArrayList<>(cap);
         for (int i = 0; i < cap; i++) {
             RewardEntry r = candidates.get(i);
@@ -58,7 +77,7 @@ public final class RewardRoller {
         if (t.moneyMax() > 0 && RNG.nextDouble() * 100.0 < t.moneyChancePercent()) {
             double range = t.moneyMax() - t.moneyMin();
             money = t.moneyMin() + (range > 0 ? RNG.nextDouble() * range : 0);
-            money = Math.round(money * 100.0) / 100.0; // 2 decimal places
+            money = Math.round(money * moneyMult * 100.0) / 100.0; // 2 decimal places
         }
 
         // XP
@@ -66,6 +85,7 @@ public final class RewardRoller {
         if (t.xpLevelsMax() > 0 && RNG.nextDouble() * 100.0 < t.xpChancePercent()) {
             int range = t.xpLevelsMax() - t.xpLevelsMin();
             xp = t.xpLevelsMin() + (range > 0 ? RNG.nextInt(range + 1) : 0);
+            xp = (int) Math.round(xp * xpMult);
         }
 
         return new Roll(chosen, money, xp);

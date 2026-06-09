@@ -484,6 +484,19 @@ public final class DungeonManager implements Listener {
         session.setPhase(DungeonSession.Phase.COMPLETE);
         broadcast(session, "&6&lThe boss falls. The forge awakens.");
 
+        // Award a Tome of Mastery skill point the first time each player clears
+        // THIS template (repeat clears give nothing).
+        String clearedTpl = session.templateName();
+        for (UUID uid : session.players()) {
+            if (plugin.skills().markCompleted(uid, clearedTpl)) {
+                Player pl = Bukkit.getPlayer(uid);
+                if (pl != null) {
+                    pl.sendMessage(Text.color("&6&l✦ First clear! &e+1 skill point &7— spend it in your Tome of Mastery."));
+                    pl.playSound(pl.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+                }
+            }
+        }
+
         DungeonTemplate t = plugin.templates().get(session.templateName());
         World instanceWorld = session.world();
 

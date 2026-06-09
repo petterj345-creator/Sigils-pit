@@ -5,6 +5,15 @@
 # Set true to log GUI clicks + other diagnostics to console.
 debug: false
 
+# =========================================
+# Tome of Mastery — endgame skill book
+# =========================================
+# Players earn 1 skill point the first time they complete each map, and spend
+# them on the skill tree (right-click the book). The book never drops on death.
+skillbook:
+  # Give every player a Tome of Mastery on join (and restore it after death)?
+  give-on-join: true
+
 socket:
   # Legacy slot counts — only used if a player has no Book of Sigils item
   # in their inventory (e.g. very old saves). Modern behaviour: slots come
