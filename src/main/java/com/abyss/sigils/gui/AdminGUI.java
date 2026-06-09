@@ -106,6 +106,13 @@ public final class AdminGUI extends EditorGUI.Holder {
                 done(p, n + "x Sigil Dust");
             });
 
+        set(30, icon(Material.WRITABLE_BOOK, "&d&lEdit / Create Sigils",
+                "&7The full sigil list — same as &f/sigil list&7.",
+                "&7Click a sigil to edit it, or create new ones.",
+                "&7Shift-click to delete, right-click to get one.",
+                "", "&eClick to open"),
+            e -> SigilListGUI.openFor(plugin, (Player) e.getWhoClicked()));
+
         set(31, icon(Material.ZOMBIE_HEAD, "&c&lMob Drops",
                 "&7Set which MythicMobs drop sigils,",
                 "&7maps, or currency — and remove drops.",
@@ -119,6 +126,13 @@ public final class AdminGUI extends EditorGUI.Holder {
                 }
                 MythicDropsGUI.openFor(plugin, p);
             });
+
+        set(32, icon(Material.ANVIL, "&6&lForge Chances",
+                "&7Set the upgrade success % per sigil rank.",
+                "&7Better ranks are rarer to upgrade — a GRAND",
+                "&7sigil should never be a sure thing.",
+                "", "&eClick to open"),
+            e -> ForgeChancesGUI.openFor(plugin, (Player) e.getWhoClicked()));
     }
 
     private void nav(InventoryClickEvent e, Page to) {
