@@ -237,17 +237,43 @@ public final class MaelstromManager implements Listener {
             for (int i = 0; i < perPulse && rift.mobs.size() < maxAlive; i++) {
                 double ang = rng.nextDouble() * Math.PI * 2;
                 double dist = radius * (0.5 + rng.nextDouble() * 0.5);
-                Location loc = rift.center.clone().add(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+                Location ring = rift.center.clone().add(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+                // Snap to a safe, standable spot so mobs don't spawn inside a
+                // wall (suffocate) or over a hole (fall) and die instantly.
+                Location loc = safeSpawn(ring, rift.center);
                 MobEntry me = pool.get(rng.nextInt(pool.size()));
                 plugin.dungeonManager().spawnMythic(me.mythicId(), loc, me.level()).ifPresent(ent -> {
                     ent.setPersistent(true);
-                    if (ent instanceof LivingEntity le) le.setRemoveWhenFarAway(false);
+                    if (ent instanceof LivingEntity le) { le.setRemoveWhenFarAway(false); le.setFallDistance(0); }
                     rift.mobs.add(ent.getUniqueId());
                 });
             }
             rift.elapsedTicks += interval;
             if (rift.elapsedTicks >= durationTicks) collapse(state, rift);
         }, 0L, interval);
+    }
+
+    /**
+     * Snap a candidate spawn to a standable spot (feet + head clear, solid
+     * ground under) near the target, searching a small vertical window. Falls
+     * back to the rift center, which is always valid. Stops rift mobs spawning
+     * inside walls/over holes and dying the instant they appear.
+     */
+    private Location safeSpawn(Location target, Location fallback) {
+        World w = target.getWorld();
+        if (w == null) return fallback.clone();
+        int x = target.getBlockX(), z = target.getBlockZ(), baseY = target.getBlockY();
+        for (int dy = 0; dy <= 4; dy++) {
+            if (standable(w, x, baseY + dy, z)) return new Location(w, x + 0.5, baseY + dy, z + 0.5);
+            if (standable(w, x, baseY - dy, z)) return new Location(w, x + 0.5, baseY - dy, z + 0.5);
+        }
+        return fallback.clone();
+    }
+
+    private boolean standable(World w, int x, int y, int z) {
+        return w.getBlockAt(x, y, z).isPassable()
+                && w.getBlockAt(x, y + 1, z).isPassable()
+                && w.getBlockAt(x, y - 1, z).getType().isSolid();
     }
 
     private void drawRing(Rift rift, double radius) {
