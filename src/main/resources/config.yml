@@ -6,6 +6,17 @@
 debug: false
 
 # =========================================
+# Party entry (MMOCore)
+# =========================================
+# When MMOCore is installed, the player who opens an Abyss map enters right away
+# and their party members standing nearby get an invite to join via /abyss accept.
+party:
+  # How close (blocks) a party member must be to the opener to get an invite.
+  invite-radius: 16
+  # How long (seconds) an invite stays valid.
+  invite-seconds: 20
+
+# =========================================
 # Tome of Mastery — endgame skill book
 # =========================================
 # Players earn 1 skill point the first time they complete each map, and spend

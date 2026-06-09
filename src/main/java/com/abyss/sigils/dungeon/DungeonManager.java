@@ -40,6 +40,9 @@ public final class DungeonManager implements Listener {
     private final Map<UUID, DungeonSession> sessions = new HashMap<>();
     private final Map<UUID, UUID> playerToSession = new HashMap<>();
     private final Map<UUID, List<BukkitTask>> sessionTasks = new HashMap<>();
+    /** Pending party invites: invitee id -> (session to join, expiry millis). */
+    private final Map<UUID, long[]> inviteExpiry = new HashMap<>();   // invitee -> {expiresAtMillis}
+    private final Map<UUID, UUID> inviteSession = new HashMap<>();     // invitee -> session id
 
     public DungeonManager(AbyssPlugin plugin) { this.plugin = plugin; }
 
@@ -49,6 +52,51 @@ public final class DungeonManager implements Listener {
     }
 
     public DungeonSession sessionById(UUID id) { return sessions.get(id); }
+
+    // ============================================================
+    // Party invites (join a running dungeon)
+    // ============================================================
+
+    /** Send a player an invite to join a running session, expiring in {@code seconds}. */
+    public void invite(Player invitee, DungeonSession session, String templateName, String inviterName, int seconds) {
+        if (playerToSession.containsKey(invitee.getUniqueId())) return; // already in one
+        inviteSession.put(invitee.getUniqueId(), session.id());
+        inviteExpiry.put(invitee.getUniqueId(), new long[]{ System.currentTimeMillis() + seconds * 1000L });
+        invitee.sendMessage(Text.color("&5&l✦ &d" + inviterName + " &7opened &f" + templateName
+                + "&7. Type &a/abyss accept &7within &f" + seconds + "s &7to join."));
+    }
+
+    /** Accept a pending invite and teleport into the running session. */
+    public void acceptInvite(Player p) {
+        UUID sid = inviteSession.remove(p.getUniqueId());
+        long[] exp = inviteExpiry.remove(p.getUniqueId());
+        if (sid == null || exp == null) { p.sendMessage(Text.color("&7You have no pending Abyss invite.")); return; }
+        if (System.currentTimeMillis() > exp[0]) { p.sendMessage(Text.color("&cThat invite expired.")); return; }
+        if (playerToSession.containsKey(p.getUniqueId())) { p.sendMessage(Text.color("&cYou're already in The Abyss.")); return; }
+        DungeonSession session = sessions.get(sid);
+        if (session == null || session.phase() == DungeonSession.Phase.COMPLETE
+                || session.phase() == DungeonSession.Phase.FAILED) {
+            p.sendMessage(Text.color("&cThat dungeon is no longer joinable."));
+            return;
+        }
+        joinRunning(p, session);
+    }
+
+    /** Add a player to an already-running session (mid-run party join). */
+    private void joinRunning(Player joiner, DungeonSession session) {
+        DungeonTemplate t = plugin.templates().get(session.templateName());
+        if (t == null) { joiner.sendMessage(Text.color("&cThat dungeon's template is missing.")); return; }
+        World instance = session.world();
+        if (instance == null) { joiner.sendMessage(Text.color("&cThat dungeon is gone.")); return; }
+
+        playerToSession.put(joiner.getUniqueId(), session.id());
+        session.players().add(joiner.getUniqueId());
+        session.setLives(joiner.getUniqueId(), t.lives());
+        joiner.teleport(bindToWorld(t.playerSpawn(), instance));
+        if (session.progressBar() != null) session.progressBar().addPlayer(joiner);
+        joiner.sendMessage(Text.color("&5&lThe Abyss &7pulls you in to join the party."));
+        broadcast(session, "&a" + joiner.getName() + " &7joined the party.");
+    }
 
     /** Pick a random playable template and start. */
     public void start(Collection<Player> party) {

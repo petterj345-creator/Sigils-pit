@@ -67,4 +67,20 @@ public final class MMOCorePartyHook {
             return solo;
         }
     }
+
+    /**
+     * Party members (excluding the initiator) who are online, in the same world,
+     * and within {@code radius} blocks — i.e. standing near the portal with them.
+     */
+    public static List<Player> nearbyOtherPartyMembers(Player initiator, double radius) {
+        List<Player> out = new ArrayList<>();
+        double r2 = radius * radius;
+        for (Player m : onlinePartyMembers(initiator)) {
+            if (m.equals(initiator)) continue;
+            if (!m.getWorld().equals(initiator.getWorld())) continue;
+            if (m.getLocation().distanceSquared(initiator.getLocation()) <= r2) out.add(m);
+        }
+        return out;
+    }
 }
+

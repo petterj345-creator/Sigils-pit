@@ -45,6 +45,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "help"       -> sendHelp(sender);
             case "sigils"     -> { if (sender instanceof Player p) plugin.socketGUI().openFor(p); }
             case "leave"      -> { if (sender instanceof Player p) plugin.dungeonManager().leave(p); }
+            case "accept"     -> { if (sender instanceof Player p) plugin.dungeonManager().acceptInvite(p); }
             case "enterabyss" -> { if (sender instanceof Player p) plugin.dungeonManager().start(List.of(p)); }
             case "admin"      -> handleAdmin(sender);
             case "create"     -> handleCreate(sender, args);
@@ -520,7 +521,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private void noPerm(CommandSender s) { s.sendMessage(Text.color("&cNo permission.")); }
 
     private static final List<String> SUBS = List.of(
-            "help","sigils","leave","enterabyss",
+            "help","sigils","leave","accept","enterabyss",
             "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
             "sigil","skill","mythicdrops","markers","setportal","removeportal"
