@@ -1,6 +1,7 @@
 package com.abyss.sigils.dungeon;
 
 import com.abyss.sigils.AbyssPlugin;
+import com.abyss.sigils.skills.SkillType;
 import com.abyss.sigils.util.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -178,7 +179,7 @@ public final class MaelstromManager implements Listener {
         if (rift == null) return;
         e.setCancelled(true);
         if (rift.status == Status.IDLE) {
-            open(state, rift);
+            open(state, rift, p);
         } else if (rift.status == Status.ACTIVE) {
             p.sendMessage(Text.color("&7This maelstrom is already churning."));
         } else {
@@ -205,7 +206,7 @@ public final class MaelstromManager implements Listener {
         }
     }
 
-    private void open(State state, Rift rift) {
+    private void open(State state, Rift rift, Player opener) {
         DungeonTemplate t = state.template;
         List<MobEntry> pool = new ArrayList<>(t.maelstromMobs());
         if (t.maelstromUseTrash()) pool.addAll(t.defaultTrashMobs());
@@ -220,9 +221,14 @@ public final class MaelstromManager implements Listener {
         broadcast(state, "&3&l✦ &bA Maelstrom tears open! &7Slay everything that pours out.");
         playSound(state, Sound.BLOCK_BEACON_ACTIVATE, 0.6f);
 
-        final int interval = Math.max(1, t.maelstromSpawnIntervalTicks());
+        // Tome of Mastery — the opener's Rift Surge speeds spawns, Cataclysm
+        // adds mobs per pulse.
+        int surge = plugin.skills().rank(opener.getUniqueId(), SkillType.RIFT_SURGE);
+        int cata = plugin.skills().rank(opener.getUniqueId(), SkillType.CATACLYSM);
+        final int interval = Math.max(1, (int) Math.round(
+                t.maelstromSpawnIntervalTicks() * (1.0 - SkillType.RIFT_SURGE.totalAt(surge) / 100.0)));
         final int durationTicks = t.maelstromDurationSeconds() * 20;
-        final int perPulse = t.maelstromMobsPerPulse();
+        final int perPulse = t.maelstromMobsPerPulse() + SkillType.CATACLYSM.flatAt(cata);
         final int maxAlive = t.maelstromMaxAlive();
         final double radius = t.maelstromRadius();
 
@@ -338,7 +344,7 @@ public final class MaelstromManager implements Listener {
         if (inv == null) {
             DungeonTemplate t = plugin.templates().get(session.templateName());
             if (t == null) { p.sendMessage(Text.color("&cTemplate missing.")); return; }
-            inv = rollCache(t, cache.kills);
+            inv = rollCache(t, cache.kills, p.getUniqueId());
             cache.rolled.put(p.getUniqueId(), inv);
             boolean empty = true;
             for (ItemStack s : inv.getContents()) if (s != null && s.getType() != Material.AIR) { empty = false; break; }
@@ -349,7 +355,7 @@ public final class MaelstromManager implements Listener {
         p.openInventory(inv);
     }
 
-    private Inventory rollCache(DungeonTemplate t, int kills) {
+    private Inventory rollCache(DungeonTemplate t, int kills, UUID player) {
         List<MaelstromLoot> candidates = new ArrayList<>();
         for (MaelstromLoot l : t.maelstromLoot()) {
             if (l.itemStack() == null) continue;
@@ -357,7 +363,9 @@ public final class MaelstromManager implements Listener {
             if (rng.nextDouble() * 100.0 < l.chancePercent()) candidates.add(l);
         }
         Collections.shuffle(candidates, rng);
-        int cap = Math.min(candidates.size(), Math.max(0, t.maelstromMaxLootItems()));
+        // Tome of Mastery — Greater Spoils lets the cache roll more items.
+        int bonus = SkillType.GREATER_SPOILS.flatAt(plugin.skills().rank(player, SkillType.GREATER_SPOILS));
+        int cap = Math.min(candidates.size(), Math.max(0, t.maelstromMaxLootItems() + bonus));
         Inventory inv = Bukkit.createInventory(null, 27, Text.color("&3&lMaelstrom Cache"));
         int slot = 4;
         for (int i = 0; i < cap; i++) {
