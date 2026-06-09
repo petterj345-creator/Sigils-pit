@@ -147,6 +147,8 @@ public final class DungeonManager implements Listener {
 
         // Spawn ritual altars if the entry map carried the ritual modifier.
         plugin.ritualManager().init(session, template);
+        // Spawn maelstrom rifts if the entry map carried the maelstrom modifier.
+        plugin.maelstromManager().init(session, template);
 
         scheduleTimeout(session, template);
     }
@@ -302,6 +304,8 @@ public final class DungeonManager implements Listener {
         } catch (Throwable ignored) {}
         Player ritualKiller = (e.getKiller() instanceof Player kp) ? kp : null;
         if (plugin.ritualManager().handleMobDeath(session, entId, mythicId, ritualKiller)) return;
+        // Maelstrom mobs count toward the rift's kills, not the boss threshold.
+        if (plugin.maelstromManager().handleMobDeath(session, entId)) return;
 
         if (!session.aliveMobs().remove(entId)) return;
 
@@ -631,6 +635,7 @@ public final class DungeonManager implements Listener {
         if (s.progressBar() != null) s.progressBar().removeAll();
         plugin.rewardChests().cleanupSession(s.id());
         plugin.ritualManager().cleanup(s);
+        plugin.maelstromManager().cleanup(s);
         sessions.remove(s.id());
 
         World w = s.world();
@@ -791,6 +796,7 @@ public final class DungeonManager implements Listener {
             if (s.progressBar() != null) s.progressBar().removeAll();
             plugin.rewardChests().cleanupSession(s.id());
             plugin.ritualManager().cleanup(s);
+            plugin.maelstromManager().cleanup(s);
             World w = s.world();
             if (w != null) {
                 String name = w.getName();

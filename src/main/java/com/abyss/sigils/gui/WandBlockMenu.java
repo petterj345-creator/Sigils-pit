@@ -170,6 +170,23 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 refresh(p);
             });
 
+        // 26 → add maelstrom rift center
+        set(26, icon(Material.HEART_OF_THE_SEA,
+                sameMaelstromCenter() ? "&3Maelstrom Rift (set)" : "&3Add as Maelstrom",
+                "&7Where a Maelstrom rift can tear open",
+                "&7(maps with the maelstrom modifier).",
+                "&7Rifts here: &f" + template.maelstromCenters().size(),
+                "",
+                sameMaelstromCenter() ? "&7&oAlready a rift here" : "&7Click to add"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (sameMaelstromCenter()) { p.sendMessage(color("&7Already a maelstrom rift here.")); return; }
+                template.addMaelstromCenter(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aMaelstrom rift added &7(" + template.maelstromCenters().size() + " total)."));
+                refresh(p);
+            });
+
         // 32 → remove all markers at this block
         if (!existing.isEmpty()) {
             set(32, icon(Material.BARRIER, "&cRemove ALL markers here",
@@ -192,6 +209,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         if (sameForgeSpawn())      out.add(color("&8• &6Forge spawn"));
         if (sameExitPortalSpawn()) out.add(color("&8• &dExit portal spawn"));
         if (sameRitualAltar())     out.add(color("&8• &5Ritual altar"));
+        if (sameMaelstromCenter()) out.add(color("&8• &3Maelstrom rift"));
         int idx = findSpawnPointIndex();
         if (idx >= 0) {
             SpawnPoint sp = template.spawnPoints().get(idx);
@@ -218,6 +236,13 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private boolean sameRitualAltar() {
         for (Location l : template.ritualAltars()) {
+            if (sameBlock(l, block)) return true;
+        }
+        return false;
+    }
+
+    private boolean sameMaelstromCenter() {
+        for (Location l : template.maelstromCenters()) {
             if (sameBlock(l, block)) return true;
         }
         return false;
@@ -296,6 +321,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         for (int i = altars.size() - 1; i >= 0; i--) {
             if (sameBlock(altars.get(i), b)) {
                 altars.remove(i); removed++;
+            }
+        }
+        List<Location> rifts = t.maelstromCenters();
+        for (int i = rifts.size() - 1; i >= 0; i--) {
+            if (sameBlock(rifts.get(i), b)) {
+                rifts.remove(i); removed++;
             }
         }
         return removed;
