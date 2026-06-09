@@ -92,6 +92,11 @@ public final class DungeonTemplate {
     // ----- ritual (Altar of Souls) -----
     /** Altar locations (armor stands) placed via the wand. Stored "stand on top". */
     private final List<Location> ritualAltars = new ArrayList<>();
+    /**
+     * How many of the placed altars actually spawn each run, chosen at random
+     * so the map feels different every play. 0 (or >= placed count) = use all.
+     */
+    private int ritualAltarsActive = 0;
     /** Mobs each ritual summons (count = how many of each). Don't count toward boss. */
     private final List<MobEntry> ritualMobs = new ArrayList<>();
     /** Souls granted per MythicMob id when killed during a ritual, as {min,max}. */
@@ -159,6 +164,7 @@ public final class DungeonTemplate {
 
     // Ritual getters
     public List<Location> ritualAltars()              { return ritualAltars; }
+    public int ritualAltarsActive()                   { return ritualAltarsActive; }
     public List<MobEntry> ritualMobs()                { return ritualMobs; }
     public java.util.Map<String,int[]> ritualMobSouls() { return ritualMobSouls; }
     public List<RitualReward> ritualRewardPool()      { return ritualRewardPool; }
@@ -228,6 +234,7 @@ public final class DungeonTemplate {
     // Ritual setters
     public void addRitualAltar(Location loc)  { ritualAltars.add(wipeWorld(loc)); }
     public void clearRitualAltars()           { ritualAltars.clear(); }
+    public void setRitualAltarsActive(int n)  { this.ritualAltarsActive = Math.max(0, n); }
     public void setRitualMobSouls(String id, int min, int max) {
         if (max <= 0) { ritualMobSouls.remove(id); return; }
         int lo = Math.max(0, min), hi = Math.max(lo, max);
@@ -383,6 +390,7 @@ public final class DungeonTemplate {
         cfg.set("ritual.reserve.deposit-pct", ritualReserveDepositPct);
         cfg.set("ritual.reserve.discount-pct", ritualReserveDiscountPct);
         cfg.set("ritual.reserve.limit", ritualReserveLimit);
+        cfg.set("ritual.altars-active", ritualAltarsActive);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -530,6 +538,8 @@ public final class DungeonTemplate {
         this.ritualPriceMin = cfg.getInt("ritual.price-min", 10);
         this.ritualPriceMax = cfg.getInt("ritual.price-max", 50);
         this.ritualRerollCost = cfg.getInt("ritual.reroll-cost", 25);
+
+        this.ritualAltarsActive = cfg.getInt("ritual.altars-active", 0);
 
         ritualAltars.clear();
         for (java.util.Map<?, ?> m : cfg.getMapList("ritual.altars")) {
