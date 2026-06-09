@@ -112,6 +112,19 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to configure"),
             e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
+        // 25 Maelstrom (breach-style rift event)
+        set(25, icon(Material.HEART_OF_THE_SEA,
+                "&3&l✦ Maelstrom",
+                "&7Breach-style rift setup for maps that",
+                "&7carry the maelstrom modifier.",
+                "&7Rifts: &f" + template.maelstromCenters().size()
+                        + "  &7Mobs: &f" + template.maelstromMobs().size()
+                        + "  &7Loot: &f" + template.maelstromLoot().size(),
+                "",
+                "&8Place rifts with the wand.",
+                "&eClick &7to configure"),
+            e -> MaelstromEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 19 Spawn points
         set(19, icon(Material.ENDER_EYE,
                 "&bSpawn Points &7(" + template.spawnPoints().size() + ")",
@@ -371,6 +384,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 // Include all configured mods so admins can test them (e.g. ritual).
                 List<String> testMods = new java.util.ArrayList<>();
                 if (template.hasRitual()) testMods.add(com.abyss.sigils.dungeon.MapMod.RITUAL.id());
+                if (template.hasMaelstrom()) testMods.add(com.abyss.sigils.dungeon.MapMod.MAELSTROM.id());
                 plugin.dungeonManager().start(List.of(p), template, testMods);
             });
     }

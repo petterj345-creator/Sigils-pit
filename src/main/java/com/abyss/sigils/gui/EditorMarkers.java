@@ -91,6 +91,12 @@ public final class EditorMarkers implements Listener {
             Location l = boundTo(altars.get(i), w);
             spawnMarker(l, Material.PURPLE_WOOL, "§5§l✦ Ritual Altar #" + (i + 1));
         }
+        // Maelstrom rifts
+        List<Location> rifts = t.maelstromCenters();
+        for (int i = 0; i < rifts.size(); i++) {
+            Location l = boundTo(rifts.get(i), w);
+            spawnMarker(l, Material.PRISMARINE, "§3§l✦ Maelstrom Rift #" + (i + 1));
+        }
     }
 
     /** Spawn one block-display + text-display pair at a location. */
