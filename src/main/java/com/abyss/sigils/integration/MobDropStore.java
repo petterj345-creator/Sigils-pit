@@ -53,8 +53,11 @@ public final class MobDropStore {
     public void rollAndDrop(String mobId, Location loc, Player killer) {
         List<MobDropEntry> list = drops.get(mobId);
         if (list == null || list.isEmpty() || loc.getWorld() == null) return;
+        // Map TIER boosts drop sustain: higher tier = better drop odds, and any
+        // maps that drop come pre-tiered. 0 outside a tiered dungeon run.
+        int runTier = plugin.dungeonManager().mapTierOf(loc.getWorld());
         for (MobDropEntry entry : list) {
-            ItemStack item = entry.roll(plugin);
+            ItemStack item = entry.roll(plugin, runTier);
             if (item != null) loc.getWorld().dropItemNaturally(loc, item);
         }
     }

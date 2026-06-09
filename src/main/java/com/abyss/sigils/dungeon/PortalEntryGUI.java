@@ -294,13 +294,22 @@ public final class PortalEntryGUI implements Listener {
         final int mapTier = DungeonMap.tierOf(map);
         final int mapQuality = DungeonMap.qualityOf(map);
 
-        // Build party (sneak-at-time-of-confirm includes nearby players in real world)
-        List<Player> party;
-        if (p.isSneaking()) {
+        // With MMOCore installed, the opener enters now and nearby party members
+        // get an invite to join (no yanking AFK members across the map). Without
+        // MMOCore, keep the legacy behaviour: sneak to pull in nearby players.
+        final List<Player> party;
+        final List<Player> invitees;
+        if (com.abyss.sigils.integration.MMOCorePartyHook.available()) {
+            party = List.of(p);
+            double radius = plugin.getConfig().getDouble("party.invite-radius", 16);
+            invitees = com.abyss.sigils.integration.MMOCorePartyHook.nearbyOtherPartyMembers(p, radius);
+        } else if (p.isSneaking()) {
             party = p.getWorld().getNearbyEntitiesByType(Player.class, p.getLocation(), 8)
                     .stream().toList();
+            invitees = List.of();
         } else {
             party = List.of(p);
+            invitees = List.of();
         }
 
         // Consume the map. Set the slot to null so the close handler doesn't
@@ -314,6 +323,15 @@ public final class PortalEntryGUI implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             p.sendMessage(Text.color("&5&lThe Abyss &7is opening... &7(" + finalTemplate.name() + ")"));
             plugin.dungeonManager().start(party, finalTemplate, mapMods, mapTier, mapQuality);
+            // Invite nearby party members into the session that was just created.
+            if (!invitees.isEmpty()) {
+                DungeonSession session = plugin.dungeonManager().sessionOf(p);
+                if (session != null) {
+                    int seconds = plugin.getConfig().getInt("party.invite-seconds", 20);
+                    for (Player m : invitees)
+                        plugin.dungeonManager().invite(m, session, finalTemplate.name(), p.getName(), seconds);
+                }
+            }
         });
     }
 

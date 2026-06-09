@@ -48,6 +48,20 @@ public final class MapScalingGUI extends EditorGUI.Holder {
                 "", "&eClick &7to set"),
             e -> promptDouble((Player) e.getWhoClicked(), "scaling.tier.damage-percent-per-tier", "&fMob damage % per tier"));
 
+        set(15, icon(Material.PAPER, "&cTier — Drop Chance % per Tier",
+                "&7Per tier, mob drop chances are boosted",
+                "&7by this much (more maps/currency/sigils).",
+                "&7Currently: &f" + plugin.getConfig().getDouble("scaling.tier.drop-chance-percent-per-tier", 8) + "%",
+                "", "&eClick &7to set"),
+            e -> promptDouble((Player) e.getWhoClicked(), "scaling.tier.drop-chance-percent-per-tier", "&fDrop chance % per tier"));
+
+        set(16, icon(Material.MAP, "&cTier — Map Drop Tier Offset",
+                "&7Maps that drop in a tiered run come",
+                "&7pre-tiered at (run tier - this).",
+                "&7Currently: &f" + plugin.getConfig().getInt("scaling.tier.map-drop-tier-offset", 1),
+                "", "&eClick &7to set"),
+            e -> promptInt((Player) e.getWhoClicked(), "scaling.tier.map-drop-tier-offset", "&fMap drop tier offset"));
+
         // ---- Quality (rewards) ----
         set(28, icon(Material.GOLD_BLOCK, "&b&lQuality — Max",
                 "&7Highest quality a map can reach.",
