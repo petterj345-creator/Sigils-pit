@@ -172,8 +172,8 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
             });
 
         // 49 Back
-        set(49, icon(Material.ARROW, "&7← Back to editor"),
-            e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+        set(49, icon(Material.ARROW, "&7← Back to events"),
+            e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
     }
 
     /** Parse "min-max" or a single number and apply via the two setters. */

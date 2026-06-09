@@ -100,18 +100,17 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to pick a mob"),
             e -> MapDropMobPickerGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
-        // 16 Rituals (Altar of Souls)
+        // 16 Events (Ritual, and more to come)
         set(16, icon(Material.SOUL_LANTERN,
-                "&5&l✦ Rituals",
-                "&7Altar of Souls setup for maps that",
-                "&7carry the ritual modifier.",
+                "&5&l✦ Events",
+                "&7Optional encounters layered onto this map.",
+                "&7Currently: &fRitual &7(Altar of Souls)",
                 "&7Altars: &f" + template.ritualAltars().size()
                         + "  &7Mobs: &f" + template.ritualMobs().size()
                         + "  &7Shop items: &f" + template.ritualRewardPool().size(),
                 "",
-                "&8Place altars with the wand.",
                 "&eClick &7to configure"),
-            e -> RitualEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+            e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
         // 19 Spawn points
         set(19, icon(Material.ENDER_EYE,
