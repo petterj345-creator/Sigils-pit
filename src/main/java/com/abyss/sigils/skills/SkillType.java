@@ -33,7 +33,7 @@ public enum SkillType {
     // ----- Ritual -----
     SOUL_HARVEST("soul_harvest", "Soul Harvest", SkillCategory.RITUAL,
             Material.ECHO_SHARD, 5, 20, true, "souls per kill",
-            "Ritual mobs yield more souls when you kill them."),
+            "Altar mobs yield more souls when you kill them."),
 
     // ----- Maelstrom -----
     RIFT_SURGE("rift_surge", "Rift Surge", SkillCategory.MAELSTROM,

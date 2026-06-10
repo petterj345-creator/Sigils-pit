@@ -113,7 +113,7 @@ public final class RitualShopGUI implements Listener {
 
         inv.setItem(BALANCE_SLOT, icon(Material.ECHO_SHARD,
                 "&bYour Souls: &f" + balance,
-                "&7Earned by slaying ritual mobs.",
+                "&7Earned by slaying the summoned souls.",
                 "",
                 "&8Unspent souls are lost when you leave.",
                 "&8Reserved items are kept for next time."));
