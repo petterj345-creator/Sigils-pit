@@ -8,7 +8,7 @@ package com.abyss.sigils.skills;
 public enum SkillCategory {
 
     GENERAL("&f&lGeneral", "&7Bonuses that apply to every map."),
-    RITUAL("&5&lRitual",   "&7Altar of Souls bonuses."),
+    RITUAL("&5&lAltar of Souls", "&7Altar of Souls bonuses."),
     MAELSTROM("&3&lMaelstrom", "&7Rift event bonuses.");
 
     private final String display;

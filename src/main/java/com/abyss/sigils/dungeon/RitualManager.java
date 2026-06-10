@@ -71,6 +71,7 @@ public final class RitualManager implements Listener {
         int activeAltar = -1;
         int completed = 0;
         boolean shopUnlocked = false;
+        boolean spawning = false; // staggered ritual spawn in progress; blocks premature clear
         final Map<UUID, List<Offer>> offers = new HashMap<>();
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
     }
@@ -145,9 +146,9 @@ public final class RitualManager implements Listener {
         if (shopUnlocked) {
             label = "§6§l✦ Soul Shop ✦\n§7Right-click to open";
         } else label = switch (altar.status) {
-            case IDLE   -> "§5§l✦ Altar of Souls ✦\n§7Right-click to begin the ritual";
-            case ACTIVE -> "§c§l⚔ Ritual Active ⚔\n§7Slay the summoned souls!";
-            case DONE   -> "§a§l✔ Ritual Cleared";
+            case IDLE   -> "§5§l✦ Altar of Souls ✦\n§7Right-click to awaken the altar";
+            case ACTIVE -> "§c§l⚔ Altar Awakened ⚔\n§7Slay the summoned souls!";
+            case DONE   -> "§a§l✔ Altar Cleared";
         };
         td.setText(label);
     }
@@ -204,7 +205,7 @@ public final class RitualManager implements Listener {
             return;
         }
         if (state.activeAltar != -1) {
-            p.sendMessage(Text.color("&cA ritual is already active. Clear it first."));
+            p.sendMessage(Text.color("&cAn altar is already active. Clear it first."));
             return;
         }
         if (altar.status == Status.DONE) {
@@ -214,15 +215,56 @@ public final class RitualManager implements Listener {
         startRitual(state, altar);
     }
 
+    /** Ticks between each ritual mob spawn. A short stagger so a player can't
+     *  AoE/oneshot the whole batch in the single tick they appear (which raced
+     *  the clear bookkeeping), and so the summon reads as a cascade. */
+    private static final long SPAWN_INTERVAL_TICKS = 4L;
+
     private void startRitual(State state, Altar altar) {
         int idx = state.altars.indexOf(altar);
         altar.status = Status.ACTIVE;
         state.activeAltar = idx;
 
-        DungeonTemplate t = state.template;
-        int spawned = 0, failed = 0;
-        for (MobEntry entry : t.ritualMobs()) {
-            for (int i = 0; i < entry.count(); i++) {
+        // Flatten the configured mobs into one slot per individual spawn so we
+        // can drip them out across ticks rather than all at once.
+        List<MobEntry> queue = new ArrayList<>();
+        for (MobEntry entry : state.template.ritualMobs())
+            for (int i = 0; i < entry.count(); i++) queue.add(entry);
+
+        if (queue.isEmpty()) {
+            altar.status = Status.IDLE;
+            state.activeAltar = -1;
+            updateAltarText(altar, false);
+            broadcast(state, "&cThe altar fizzled — no souls answered. Try again.");
+            return;
+        }
+
+        updateAltarText(altar, false);
+        broadcast(state, "&5&l✦ &dThe altar awakens! &7Slay the summoned souls.");
+        playSoundToAll(state, Sound.BLOCK_BEACON_ACTIVATE, 1f);
+
+        // While spawning, handleMobDeath must NOT finish the ritual even if
+        // activeMobs momentarily empties (player oneshots an early spawn before
+        // later ones land) — that would orphan the remaining spawns. The guard
+        // is cleared in onSpawnComplete, which also does the final clear check.
+        state.spawning = true;
+        spawnRitualMobs(state, altar, queue);
+    }
+
+    /** Spawn the queued ritual mobs one per {@link #SPAWN_INTERVAL_TICKS}. */
+    private void spawnRitualMobs(State state, Altar altar, List<MobEntry> queue) {
+        final int[] index = {0};
+        final int[] spawned = {0};
+        final int[] failed = {0};
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override public void run() {
+                // The session ended (or the altar was reset) mid-spawn — stop.
+                if (states.get(state.session.id()) != state || altar.status != Status.ACTIVE) {
+                    state.spawning = false;
+                    cancel();
+                    return;
+                }
+                MobEntry entry = queue.get(index[0]++);
                 // Spawn on a SAFE spot near the altar. The old code jittered the
                 // altar X/Z but kept its Y, so mobs could spawn inside a wall and
                 // die to suffocation within a second — which looked like "the
@@ -233,18 +275,27 @@ public final class RitualManager implements Listener {
                     Entity mob = ent.get();
                     // Keep ritual mobs from despawning. If one vanished without a
                     // death event, activeMobs would never drain — the altar would
-                    // stay ACTIVE and (before this change) the trash spawner stayed
-                    // paused, locking the whole dungeon.
+                    // stay ACTIVE and the trash spawner stayed paused, locking
+                    // the whole dungeon.
                     mob.setPersistent(true);
                     if (mob instanceof org.bukkit.entity.LivingEntity le) {
                         le.setRemoveWhenFarAway(false);
                         le.setFallDistance(0);
                     }
                     state.activeMobs.add(mob.getUniqueId());
-                    spawned++;
-                } else failed++;
+                    spawned[0]++;
+                } else failed[0]++;
+
+                if (index[0] >= queue.size()) {
+                    cancel();
+                    onSpawnComplete(state, altar, spawned[0], failed[0]);
+                }
             }
-        }
+        }.runTaskTimer(plugin, 0L, SPAWN_INTERVAL_TICKS);
+    }
+
+    private void onSpawnComplete(State state, Altar altar, int spawned, int failed) {
+        state.spawning = false;
         if (failed > 0) {
             plugin.getLogger().warning("Ritual: " + failed + " mob(s) failed to spawn (spawned "
                     + spawned + "). Check the MythicMob ids and that nothing caps entity spawns.");
@@ -256,13 +307,15 @@ public final class RitualManager implements Listener {
             altar.status = Status.IDLE;
             state.activeAltar = -1;
             updateAltarText(altar, false);
-            broadcast(state, "&cThe ritual fizzled — no souls answered. Try again.");
+            broadcast(state, "&cThe altar fizzled — no souls answered. Try again.");
             return;
         }
 
-        updateAltarText(altar, false);
-        broadcast(state, "&5&l✦ &dA ritual has begun! &7Slay the summoned souls.");
-        playSoundToAll(state, Sound.BLOCK_BEACON_ACTIVATE, 1f);
+        // The player may have cleared every spawned mob before the last one
+        // landed; handleMobDeath deferred finishing while spawning, so do it now.
+        if (state.activeMobs.isEmpty() && state.activeAltar != -1) {
+            finishRitual(state);
+        }
     }
 
     // ============================================================
@@ -295,7 +348,7 @@ public final class RitualManager implements Listener {
             }
         }
 
-        if (state.activeMobs.isEmpty() && state.activeAltar != -1) {
+        if (state.activeMobs.isEmpty() && !state.spawning && state.activeAltar != -1) {
             finishRitual(state);
         }
         return true;
@@ -311,10 +364,10 @@ public final class RitualManager implements Listener {
         if (state.completed >= state.altars.size()) {
             state.shopUnlocked = true;
             refreshAllAltarText(state);
-            broadcast(state, "&6&l✦ All rituals cleared! &eRight-click an altar to open the soul shop.");
+            broadcast(state, "&6&l✦ All altars cleared! &eRight-click an altar to open the soul shop.");
             playSoundToAll(state, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f);
         } else {
-            broadcast(state, "&aRitual cleared! &7(" + state.completed + "/" + state.altars.size()
+            broadcast(state, "&aAltar cleared! &7(" + state.completed + "/" + state.altars.size()
                     + ") &7Activate the next altar.");
             playSoundToAll(state, Sound.BLOCK_BEACON_DEACTIVATE, 1f);
         }
@@ -338,9 +391,10 @@ public final class RitualManager implements Listener {
     }
 
     /**
-     * Number of live ritual mobs summoned in this session (0 if none). The
-     * trash spawner subtracts this from the concurrent-mob cap so trash leaves
-     * room for ritual mobs instead of being hard-paused.
+     * Number of live ritual mobs summoned in this session (0 if none). The trash
+     * spawner adds this on top of its concurrent-mob cap (the cap is raised by
+     * the live ritual count for the ritual's duration) so trash keeps its full
+     * budget and the summoned mobs always have room.
      */
     public int activeMobCount(DungeonSession session) {
         State state = states.get(session.id());

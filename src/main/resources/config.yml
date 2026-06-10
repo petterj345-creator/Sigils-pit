@@ -36,6 +36,10 @@ scaling:
     # Maps that drop inside a tiered run come pre-tiered at (run tier - this),
     # so high-tier runs sustain high-tier maps. 1 = a T10 run drops T9 maps.
     map-drop-tier-offset: 1
+    # Risk/reward: clearing a tougher (higher tier) map also pays more XP and
+    # money. Stacks on top of quality's reward bonus.
+    reward-xp-percent-per-tier: 5
+    reward-money-percent-per-tier: 5
   quality:
     # Highest quality a map can reach.
     max: 20

@@ -203,6 +203,8 @@ public final class DungeonMap {
                             + "% HP&7, &c+" + pct(tier * cfg.getDouble("scaling.tier.damage-percent-per-tier", 3)) + "% dmg"));
                     lore.add(Text.color("  &7Drops: &a+" + pct(tier * cfg.getDouble("scaling.tier.drop-chance-percent-per-tier", 8))
                             + "% &7chance, maps drop pre-tiered"));
+                    lore.add(Text.color("  &7Rewards: &a+" + pct(tier * cfg.getDouble("scaling.tier.reward-xp-percent-per-tier", 5))
+                            + "% XP&7, &a+" + pct(tier * cfg.getDouble("scaling.tier.reward-money-percent-per-tier", 5)) + "% money"));
                 }
                 if (quality > 0) {
                     lore.add(Text.color("&b✦ Quality &f+" + quality));

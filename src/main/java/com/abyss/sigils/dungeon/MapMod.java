@@ -27,7 +27,7 @@ public enum MapMod {
      * template in the editor (mobs, soul values, reward pool).
      */
     RITUAL("ritual", "&5&l✦ Altar of Souls", "&5&lSoul Catalyst", Material.ECHO_SHARD,
-            "&7Ritual altars appear in the dungeon.",
+            "&7Soul altars appear in the dungeon.",
             "&7Activate them to summon souls,",
             "&7then spend them at the soul shop."),
 

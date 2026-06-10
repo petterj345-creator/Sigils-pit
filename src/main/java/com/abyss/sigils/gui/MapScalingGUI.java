@@ -62,6 +62,20 @@ public final class MapScalingGUI extends EditorGUI.Holder {
                 "", "&eClick &7to set"),
             e -> promptInt((Player) e.getWhoClicked(), "scaling.tier.map-drop-tier-offset", "&fMap drop tier offset"));
 
+        set(11, icon(Material.EXPERIENCE_BOTTLE, "&cTier — Reward XP % per Tier",
+                "&7Risk/reward: a tougher map also pays",
+                "&7this much more XP at the end.",
+                "&7Currently: &f" + plugin.getConfig().getDouble("scaling.tier.reward-xp-percent-per-tier", 5) + "%",
+                "", "&eClick &7to set"),
+            e -> promptDouble((Player) e.getWhoClicked(), "scaling.tier.reward-xp-percent-per-tier", "&fTier reward XP % per tier"));
+
+        set(13, icon(Material.GOLD_INGOT, "&cTier — Reward Money % per Tier",
+                "&7Risk/reward: a tougher map also pays",
+                "&7this much more money at the end.",
+                "&7Currently: &f" + plugin.getConfig().getDouble("scaling.tier.reward-money-percent-per-tier", 5) + "%",
+                "", "&eClick &7to set"),
+            e -> promptDouble((Player) e.getWhoClicked(), "scaling.tier.reward-money-percent-per-tier", "&fTier reward money % per tier"));
+
         // ---- Quality (rewards) ----
         set(28, icon(Material.GOLD_BLOCK, "&b&lQuality — Max",
                 "&7Highest quality a map can reach.",
