@@ -72,6 +72,7 @@ public final class RitualManager implements Listener {
         int completed = 0;
         boolean shopUnlocked = false;
         boolean spawning = false; // staggered ritual spawn in progress; blocks premature clear
+        org.bukkit.scheduler.BukkitTask watchdog; // prunes vanished mobs so the ritual can't stall
         final Map<UUID, List<Offer>> offers = new HashMap<>();
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
     }
@@ -252,6 +253,37 @@ public final class RitualManager implements Listener {
         // is cleared in onSpawnComplete, which also does the final clear check.
         state.spawning = true;
         spawnRitualMobs(state, altar, queue);
+        startWatchdog(state);
+    }
+
+    /** How often (ticks) the watchdog reconciles tracked ritual mobs. */
+    private static final long WATCHDOG_INTERVAL = 20L;
+
+    /**
+     * Safety net against a ritual stalling forever. A summoned mob can leave the
+     * world WITHOUT firing a MythicMobDeathEvent — e.g. it spawns on a bad spot
+     * and falls into the void, or the server's entity cap culls it when the
+     * dungeon is full. Without a death event its UUID is never removed from
+     * {@code activeMobs}, the set never empties, and the altar stays ACTIVE
+     * forever (the ritual "stalls and doesn't end"). This periodic sweep drops
+     * any tracked mob whose entity no longer exists and finishes the ritual once
+     * none remain. Runs for the whole session; idles while no ritual is active.
+     */
+    private void startWatchdog(State state) {
+        if (state.watchdog != null) return; // already running for this session
+        state.watchdog = org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (states.get(state.session.id()) != state) { // session gone
+                if (state.watchdog != null) { state.watchdog.cancel(); state.watchdog = null; }
+                return;
+            }
+            // Nothing to reconcile while idle, or mid-spawn (mobs still landing).
+            if (state.activeAltar == -1 || state.spawning) return;
+            state.activeMobs.removeIf(id -> {
+                Entity e = plugin.getServer().getEntity(id);
+                return e == null || e.isDead();
+            });
+            if (state.activeMobs.isEmpty() && state.activeAltar != -1) finishRitual(state);
+        }, WATCHDOG_INTERVAL, WATCHDOG_INTERVAL);
     }
 
     /** Spawn the queued ritual mobs one per {@link #SPAWN_INTERVAL_TICKS}. */
@@ -451,6 +483,7 @@ public final class RitualManager implements Listener {
     public void cleanup(DungeonSession session) {
         State state = states.remove(session.id());
         if (state == null) return;
+        if (state.watchdog != null) { state.watchdog.cancel(); state.watchdog = null; }
         for (Altar a : state.altars) {
             removeEntity(a.standId);
             removeEntity(a.textId);
