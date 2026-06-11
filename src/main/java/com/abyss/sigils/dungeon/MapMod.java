@@ -41,7 +41,18 @@ public enum MapMod {
     MAELSTROM("maelstrom", "&3&l✦ Maelstrom", "&3&lMaelstrom Catalyst", Material.HEART_OF_THE_SEA,
             "&7A churning rift can be torn open in the",
             "&7dungeon. Survive the horde it spews,",
-            "&7then loot the eye of the storm.");
+            "&7then loot the eye of the storm."),
+
+    /**
+     * Reliquary. Places sealed reliquary markers in the instance; right-clicking
+     * one unseals it, summoning a guardian pack. Slay every guardian to crack the
+     * reliquary open, dropping a loot cache whose contents scale with the map
+     * tier. Configured per template in the editor (guardians, loot pool).
+     */
+    RELIQUARY("reliquary", "&6&l✦ Reliquary", "&6&lReliquary Catalyst", Material.TRIAL_KEY,
+            "&7Sealed reliquaries appear in the dungeon.",
+            "&7Slay the guardians that spill out to",
+            "&7crack one open and claim its hoard.");
 
     private final String id;
     private final String displayName;

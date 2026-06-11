@@ -100,14 +100,14 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&eClick &7to pick a mob"),
             e -> MapDropMobPickerGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
-        // 16 Events (Ritual, and more to come)
+        // 16 Events (Ritual, Maelstrom, Reliquary)
         set(16, icon(Material.SOUL_LANTERN,
                 "&5&l✦ Events",
                 "&7Optional encounters layered onto this map.",
-                "&7Currently: &fRitual &7(Altar of Souls)",
+                "&7Ritual, Maelstrom & Reliquary.",
                 "&7Altars: &f" + template.ritualAltars().size()
-                        + "  &7Mobs: &f" + template.ritualMobs().size()
-                        + "  &7Shop items: &f" + template.ritualRewardPool().size(),
+                        + "  &7Rifts: &f" + template.maelstromCenters().size()
+                        + "  &7Reliquaries: &f" + template.reliquaryCenters().size(),
                 "",
                 "&eClick &7to configure"),
             e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
@@ -385,6 +385,7 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 List<String> testMods = new java.util.ArrayList<>();
                 if (template.hasRitual()) testMods.add(com.abyss.sigils.dungeon.MapMod.RITUAL.id());
                 if (template.hasMaelstrom()) testMods.add(com.abyss.sigils.dungeon.MapMod.MAELSTROM.id());
+                if (template.hasReliquary()) testMods.add(com.abyss.sigils.dungeon.MapMod.RELIQUARY.id());
                 plugin.dungeonManager().start(List.of(p), template, testMods);
             });
     }

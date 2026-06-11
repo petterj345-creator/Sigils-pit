@@ -97,6 +97,12 @@ public final class EditorMarkers implements Listener {
             Location l = boundTo(rifts.get(i), w);
             spawnMarker(l, Material.PRISMARINE, "§3§l✦ Maelstrom Rift #" + (i + 1));
         }
+        // Reliquaries
+        List<Location> reliquaries = t.reliquaryCenters();
+        for (int i = 0; i < reliquaries.size(); i++) {
+            Location l = boundTo(reliquaries.get(i), w);
+            spawnMarker(l, Material.GOLD_BLOCK, "§6§l✦ Reliquary #" + (i + 1));
+        }
     }
 
     /** Spawn one block-display + text-display pair at a location. */
@@ -122,6 +128,7 @@ public final class EditorMarkers implements Listener {
                 case ORANGE_WOOL     -> Color.ORANGE;
                 case MAGENTA_WOOL    -> Color.FUCHSIA;
                 case PURPLE_WOOL     -> Color.PURPLE;
+                case GOLD_BLOCK      -> Color.YELLOW;
                 default              -> Color.WHITE;
             });
             // CRITICAL: don't persist these to disk. If they were persistent, the

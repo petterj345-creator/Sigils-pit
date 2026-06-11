@@ -41,7 +41,12 @@ public enum SkillType {
             "Maelstroms you open spawn mobs faster."),
     CATACLYSM("cataclysm", "Cataclysm", SkillCategory.MAELSTROM,
             Material.MAGMA_BLOCK, 5, 1, false, "mobs per pulse",
-            "Maelstroms you open spew more mobs per pulse.");
+            "Maelstroms you open spew more mobs per pulse."),
+
+    // ----- Reliquary -----
+    RELIC_HUNTER("relic_hunter", "Relic Hunter", SkillCategory.RELIQUARY,
+            Material.TRIAL_KEY, 4, 1, false, "reliquary loot items",
+            "Reliquaries you crack open yield more loot.");
 
     private final String id;
     private final String display;
