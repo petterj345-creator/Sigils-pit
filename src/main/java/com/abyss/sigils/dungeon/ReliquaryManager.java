@@ -72,6 +72,7 @@ public final class ReliquaryManager implements Listener {
         final DungeonSession session;
         final DungeonTemplate template;
         final List<Vault> vaults = new ArrayList<>();
+        org.bukkit.scheduler.BukkitTask watchdog; // prunes vanished guards so a vault can't stall
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
     }
 
@@ -260,6 +261,39 @@ public final class ReliquaryManager implements Listener {
         // The opener may have oneshot every guardian before the last one finished
         // spawning; handleMobDeath deferred while spawning, so crack now if empty.
         if (vault.guards.isEmpty()) crack(state, vault);
+
+        startWatchdog(state);
+    }
+
+    /** How often (ticks) the watchdog reconciles tracked guardians. */
+    private static final long WATCHDOG_INTERVAL = 20L;
+
+    /**
+     * Safety net against a reliquary stalling forever. A guardian can leave the
+     * world WITHOUT firing a MythicMobDeathEvent — e.g. it spawns on a bad spot
+     * and falls into the void, or the server's entity cap culls it when the
+     * dungeon is full. Without a death event its UUID is never removed from the
+     * vault's guard set, so the vault stays GUARDED forever and never cracks.
+     * This periodic sweep drops any tracked guardian whose entity no longer
+     * exists and cracks the vault once none remain. Runs for the whole session;
+     * idles while no vault is guarded.
+     */
+    private void startWatchdog(State state) {
+        if (state.watchdog != null) return; // already running for this session
+        state.watchdog = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (states.get(state.session.id()) != state) { // session gone
+                if (state.watchdog != null) { state.watchdog.cancel(); state.watchdog = null; }
+                return;
+            }
+            for (Vault v : state.vaults) {
+                if (v.status != Status.GUARDED || v.spawning) continue;
+                v.guards.removeIf(id -> {
+                    Entity e = plugin.getServer().getEntity(id);
+                    return e == null || e.isDead();
+                });
+                if (v.guards.isEmpty()) crack(state, v);
+            }
+        }, WATCHDOG_INTERVAL, WATCHDOG_INTERVAL);
     }
 
     /** A random spot in a small ring around the reliquary for a guardian to spawn. */
@@ -439,6 +473,7 @@ public final class ReliquaryManager implements Listener {
     public void cleanup(DungeonSession session) {
         State state = states.remove(session.id());
         if (state != null) {
+            if (state.watchdog != null) { state.watchdog.cancel(); state.watchdog = null; }
             for (Vault vault : state.vaults) {
                 for (UUID id : new HashSet<>(vault.guards)) removeEntity(id);
                 removeEntity(vault.standId);
