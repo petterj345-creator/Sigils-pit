@@ -53,23 +53,24 @@ public final class MaelstromEditorGUI extends EditorGUI.Holder {
                         : "&7"),
             null);
 
-        // 10 Active per run
+        // 10 Active per run (random min-max range)
         int placed = template.maelstromCenters().size();
-        int active = template.maelstromActive();
-        String activeLabel = (active <= 0 || active >= placed)
+        int amin = Math.min(template.maelstromActiveMin(), template.maelstromActive());
+        int amax = template.maelstromActive();
+        String activeLabel = (amax <= 0 || amax >= placed)
                 ? "&fAll &7(" + placed + ")"
-                : "&f" + active + " &7of &f" + placed;
+                : (amin == amax ? "&f" + amax : "&f" + amin + "&7–&f" + amax) + " &7of &f" + placed;
+        String activePrefill = amin == amax ? String.valueOf(amax) : amin + "-" + amax;
         set(10, icon(Material.TARGET,
                 "&dActive Rifts per Run",
                 "&7How many placed rifts actually open each",
-                "&7run — picked at random for variety.",
+                "&7run — a random count in this range.",
                 "",
                 "&7Currently: " + activeLabel,
                 "&80 = always use every placed rift",
                 "",
-                "&eClick &7to set"),
-            e -> promptInt((Player) e.getWhoClicked(), "&fActive rifts per run (0 = all)",
-                    template.maelstromActive(), template::setMaelstromActive));
+                "&eClick &7to set a range (e.g. 1-3)"),
+            e -> promptActiveRange((Player) e.getWhoClicked(), activePrefill));
 
         // 12 Mobs
         set(12, icon(Material.ZOMBIE_HEAD,
@@ -170,6 +171,27 @@ public final class MaelstromEditorGUI extends EditorGUI.Holder {
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),
             e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+    }
+
+    /** Prompt for a "min-max" range (or single number) for active rifts per run. */
+    private void promptActiveRange(Player p, String prefill) {
+        ChatInput.prompt(plugin, p, "&fActive rifts per run (e.g. 1-3, or 0 = all)", prefill, text -> {
+            try {
+                if (text.contains("-")) {
+                    String[] parts = text.split("-", 2);
+                    int lo = Integer.parseInt(parts[0].trim());
+                    int hi = Integer.parseInt(parts[1].trim());
+                    template.setMaelstromActiveMin(Math.min(lo, hi));
+                    template.setMaelstromActive(Math.max(lo, hi));
+                } else {
+                    int n = Integer.parseInt(text.trim());
+                    template.setMaelstromActiveMin(n);
+                    template.setMaelstromActive(n);
+                }
+                plugin.templates().save(template);
+            } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5' (0 = all)")); }
+            Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+        });
     }
 
     /** Prompt for a whole number, apply via the setter, save, and reopen. */

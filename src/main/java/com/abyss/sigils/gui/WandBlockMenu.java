@@ -187,6 +187,23 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 refresh(p);
             });
 
+        // 24 → add reliquary marker
+        set(24, icon(Material.TRIAL_KEY,
+                sameReliquaryCenter() ? "&6Reliquary (set)" : "&6Add as Reliquary",
+                "&7Where a sealed Reliquary can be unsealed",
+                "&7(maps with the reliquary modifier).",
+                "&7Reliquaries here: &f" + template.reliquaryCenters().size(),
+                "",
+                sameReliquaryCenter() ? "&7&oAlready a reliquary here" : "&7Click to add"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (sameReliquaryCenter()) { p.sendMessage(color("&7Already a reliquary here.")); return; }
+                template.addReliquaryCenter(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aReliquary added &7(" + template.reliquaryCenters().size() + " total)."));
+                refresh(p);
+            });
+
         // 32 → remove all markers at this block
         if (!existing.isEmpty()) {
             set(32, icon(Material.BARRIER, "&cRemove ALL markers here",
@@ -210,6 +227,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         if (sameExitPortalSpawn()) out.add(color("&8• &dExit portal spawn"));
         if (sameRitualAltar())     out.add(color("&8• &5Ritual altar"));
         if (sameMaelstromCenter()) out.add(color("&8• &3Maelstrom rift"));
+        if (sameReliquaryCenter()) out.add(color("&8• &6Reliquary"));
         int idx = findSpawnPointIndex();
         if (idx >= 0) {
             SpawnPoint sp = template.spawnPoints().get(idx);
@@ -243,6 +261,13 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private boolean sameMaelstromCenter() {
         for (Location l : template.maelstromCenters()) {
+            if (sameBlock(l, block)) return true;
+        }
+        return false;
+    }
+
+    private boolean sameReliquaryCenter() {
+        for (Location l : template.reliquaryCenters()) {
             if (sameBlock(l, block)) return true;
         }
         return false;
@@ -327,6 +352,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         for (int i = rifts.size() - 1; i >= 0; i--) {
             if (sameBlock(rifts.get(i), b)) {
                 rifts.remove(i); removed++;
+            }
+        }
+        List<Location> reliquaries = t.reliquaryCenters();
+        for (int i = reliquaries.size() - 1; i >= 0; i--) {
+            if (sameBlock(reliquaries.get(i), b)) {
+                reliquaries.remove(i); removed++;
             }
         }
         return removed;

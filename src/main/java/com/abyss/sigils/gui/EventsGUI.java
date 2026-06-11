@@ -46,6 +46,32 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&eClick &7to configure"),
             e -> RitualEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
+        // 22 Maelstrom (breach-style rift event)
+        set(22, icon(Material.HEART_OF_THE_SEA,
+                "&3&l✦ Maelstrom",
+                "&7Breach-style rift setup for maps that",
+                "&7carry the maelstrom modifier.",
+                "&7Rifts: &f" + template.maelstromCenters().size()
+                        + "  &7Mobs: &f" + template.maelstromMobs().size()
+                        + "  &7Loot: &f" + template.maelstromLoot().size(),
+                "",
+                "&8Place rifts with the wand.",
+                "&eClick &7to configure"),
+            e -> MaelstromEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
+        // 24 Reliquary (strongbox-style: unseal, clear guardians, loot)
+        set(24, icon(Material.TRIAL_KEY,
+                "&6&l✦ Reliquary",
+                "&7Sealed-chest setup for maps that",
+                "&7carry the reliquary modifier.",
+                "&7Reliquaries: &f" + template.reliquaryCenters().size()
+                        + "  &7Guards: &f" + template.reliquaryGuards().size()
+                        + "  &7Loot: &f" + template.reliquaryLoot().size(),
+                "",
+                "&8Place reliquaries with the wand.",
+                "&eClick &7to configure"),
+            e -> ReliquaryEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),
             e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));

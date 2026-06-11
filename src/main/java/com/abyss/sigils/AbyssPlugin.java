@@ -46,6 +46,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private DungeonManager dungeonManager;
     private com.abyss.sigils.dungeon.RitualManager ritualManager;
     private com.abyss.sigils.dungeon.MaelstromManager maelstromManager;
+    private com.abyss.sigils.dungeon.ReliquaryManager reliquaryManager;
     private RewardChestManager rewardChests;
     private UpgradeGUI upgradeGUI;
     private com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener;
@@ -122,6 +123,9 @@ public final class AbyssPlugin extends JavaPlugin {
         // Maelstrom (breach-style rift event) runtime.
         maelstromManager = new com.abyss.sigils.dungeon.MaelstromManager(this);
         Bukkit.getPluginManager().registerEvents(maelstromManager, this);
+        // Reliquary (strongbox-style: unseal, clear guardians, loot) runtime.
+        reliquaryManager = new com.abyss.sigils.dungeon.ReliquaryManager(this);
+        Bukkit.getPluginManager().registerEvents(reliquaryManager, this);
         // Lock down building inside play instances (abyss_inst_*).
         Bukkit.getPluginManager().registerEvents(
                 new com.abyss.sigils.dungeon.DungeonProtectionListener(this), this);
@@ -153,6 +157,7 @@ public final class AbyssPlugin extends JavaPlugin {
         RewardsGUI.register(this);
         com.abyss.sigils.gui.RitualRewardsGUI.register(this);
         com.abyss.sigils.gui.MaelstromLootGUI.register(this);
+        com.abyss.sigils.gui.ReliquaryLootGUI.register(this);
 
         editorWandListener = new EditorWandListener(this);
         Bukkit.getPluginManager().registerEvents(editorWandListener, this);
@@ -207,6 +212,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public DungeonManager dungeonManager() { return dungeonManager; }
     public com.abyss.sigils.dungeon.RitualManager ritualManager() { return ritualManager; }
     public com.abyss.sigils.dungeon.MaelstromManager maelstromManager() { return maelstromManager; }
+    public com.abyss.sigils.dungeon.ReliquaryManager reliquaryManager() { return reliquaryManager; }
     public RewardChestManager rewardChests() { return rewardChests; }
     public UpgradeGUI upgradeGUI() { return upgradeGUI; }
     public com.abyss.sigils.dungeon.MapRefreshListener mapRefreshListener() { return mapRefreshListener; }

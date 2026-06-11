@@ -96,17 +96,11 @@ public final class MaelstromManager implements Listener {
         World w = session.world();
 
         // Place many rifts in the editor, open a random subset each run so the
-        // map feels different every play. 0 = use all placed rifts.
-        List<Location> all = template.maelstromCenters();
-        int active = template.maelstromActive();
-        List<Location> chosen;
-        if (active <= 0 || active >= all.size()) {
-            chosen = new ArrayList<>(all);
-        } else {
-            List<Location> copy = new ArrayList<>(all);
-            Collections.shuffle(copy, rng);
-            chosen = new ArrayList<>(copy.subList(0, active));
-        }
+        // map feels different every play. The admin sets a min-max range; we roll
+        // a count in it (0 max = use all placed rifts).
+        List<Location> chosen = com.abyss.sigils.util.RandomPick.someInRange(
+                template.maelstromCenters(), template.maelstromActiveMin(),
+                template.maelstromActive(), rng);
 
         for (Location raw : chosen) {
             Location loc = new Location(w, raw.getX(), raw.getY(), raw.getZ());

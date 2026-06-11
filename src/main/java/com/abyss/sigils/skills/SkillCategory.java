@@ -9,7 +9,8 @@ public enum SkillCategory {
 
     GENERAL("&f&lGeneral", "&7Bonuses that apply to every map."),
     RITUAL("&5&lAltar of Souls", "&7Altar of Souls bonuses."),
-    MAELSTROM("&3&lMaelstrom", "&7Rift event bonuses.");
+    MAELSTROM("&3&lMaelstrom", "&7Rift event bonuses."),
+    RELIQUARY("&6&lReliquary", "&7Reliquary bonuses.");
 
     private final String display;
     private final String blurb;

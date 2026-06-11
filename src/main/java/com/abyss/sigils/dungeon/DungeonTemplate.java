@@ -94,9 +94,12 @@ public final class DungeonTemplate {
     private final List<Location> ritualAltars = new ArrayList<>();
     /**
      * How many of the placed altars actually spawn each run, chosen at random
-     * so the map feels different every play. 0 (or >= placed count) = use all.
+     * so the map feels different every play. This is the UPPER bound of the
+     * range; {@link #ritualAltarsActiveMin} is the lower bound. 0 = use all.
      */
     private int ritualAltarsActive = 0;
+    /** Lower bound of the random active-altar range (defaults to the max). */
+    private int ritualAltarsActiveMin = 0;
     /** Mobs each ritual summons (count = how many of each). Don't count toward boss. */
     private final List<MobEntry> ritualMobs = new ArrayList<>();
     /** Souls granted per MythicMob id when killed during a ritual, as {min,max}. */
@@ -125,8 +128,10 @@ public final class DungeonTemplate {
     // ----- maelstrom (rift event) -----
     /** Rift marker locations placed via the wand. Stored "stand on top". */
     private final List<Location> maelstromCenters = new ArrayList<>();
-    /** How many of the placed rifts actually open per run (0 = all). */
+    /** How many of the placed rifts actually open per run — upper bound (0 = all). */
     private int maelstromActive = 0;
+    /** Lower bound of the random active-rift range (defaults to the max). */
+    private int maelstromActiveMin = 0;
     /** Specific mobs the rift spawns. Empty + useTrash = use the dungeon trash list. */
     private final List<MobEntry> maelstromMobs = new ArrayList<>();
     /** If true, also draw from the template's default trash mobs (fast filler). */
@@ -145,6 +150,22 @@ public final class DungeonTemplate {
     private final List<MaelstromLoot> maelstromLoot = new ArrayList<>();
     /** Max distinct loot items rolled into the collapse chest. */
     private int maelstromMaxLootItems = 5;
+
+    // ----- reliquary (sealed guarded chest — "open, clear guards, loot") -----
+    /** Reliquary marker locations placed via the wand. Stored "stand on top". */
+    private final List<Location> reliquaryCenters = new ArrayList<>();
+    /** How many of the placed reliquaries unseal per run — upper bound (0 = all). */
+    private int reliquaryActive = 0;
+    /** Lower bound of the random active-reliquary range (defaults to the max). */
+    private int reliquaryActiveMin = 0;
+    /** Guardian pack summoned when a reliquary is unsealed (count = how many of each). */
+    private final List<MobEntry> reliquaryGuards = new ArrayList<>();
+    /** If true, also pull from the template's default trash mobs for the guard pack. */
+    private boolean reliquaryUseTrash = false;
+    /** Loot pool dropped when the reliquary cracks open (gated by guardians slain). */
+    private final List<MaelstromLoot> reliquaryLoot = new ArrayList<>();
+    /** Max distinct loot items rolled into the cracked-open cache. */
+    private int reliquaryMaxLootItems = 5;
 
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
@@ -189,6 +210,7 @@ public final class DungeonTemplate {
     // Ritual getters
     public List<Location> ritualAltars()              { return ritualAltars; }
     public int ritualAltarsActive()                   { return ritualAltarsActive; }
+    public int ritualAltarsActiveMin()                { return ritualAltarsActiveMin; }
     public List<MobEntry> ritualMobs()                { return ritualMobs; }
     public java.util.Map<String,int[]> ritualMobSouls() { return ritualMobSouls; }
     public List<RitualReward> ritualRewardPool()      { return ritualRewardPool; }
@@ -220,6 +242,7 @@ public final class DungeonTemplate {
     // Maelstrom getters
     public List<Location> maelstromCenters()  { return maelstromCenters; }
     public int maelstromActive()              { return maelstromActive; }
+    public int maelstromActiveMin()           { return maelstromActiveMin; }
     public List<MobEntry> maelstromMobs()     { return maelstromMobs; }
     public boolean maelstromUseTrash()        { return maelstromUseTrash; }
     public int maelstromDurationSeconds()     { return maelstromDurationSeconds; }
@@ -233,6 +256,20 @@ public final class DungeonTemplate {
     public boolean hasMaelstrom() {
         return !maelstromCenters.isEmpty()
                 && (!maelstromMobs.isEmpty() || (maelstromUseTrash && !defaultTrashMobs.isEmpty()));
+    }
+
+    // Reliquary getters
+    public List<Location> reliquaryCenters()  { return reliquaryCenters; }
+    public int reliquaryActive()              { return reliquaryActive; }
+    public int reliquaryActiveMin()           { return reliquaryActiveMin; }
+    public List<MobEntry> reliquaryGuards()   { return reliquaryGuards; }
+    public boolean reliquaryUseTrash()        { return reliquaryUseTrash; }
+    public List<MaelstromLoot> reliquaryLoot() { return reliquaryLoot; }
+    public int reliquaryMaxLootItems()        { return reliquaryMaxLootItems; }
+    /** True if this template has a usable reliquary (a marker + some guard source). */
+    public boolean hasReliquary() {
+        return !reliquaryCenters.isEmpty()
+                && (!reliquaryGuards.isEmpty() || (reliquaryUseTrash && !defaultTrashMobs.isEmpty()));
     }
 
     // ----- setters -----
@@ -277,6 +314,7 @@ public final class DungeonTemplate {
     public void addRitualAltar(Location loc)  { ritualAltars.add(wipeWorld(loc)); }
     public void clearRitualAltars()           { ritualAltars.clear(); }
     public void setRitualAltarsActive(int n)  { this.ritualAltarsActive = Math.max(0, n); }
+    public void setRitualAltarsActiveMin(int n) { this.ritualAltarsActiveMin = Math.max(0, n); }
     public void setRitualMobSouls(String id, int min, int max) {
         if (max <= 0) { ritualMobSouls.remove(id); return; }
         int lo = Math.max(0, min), hi = Math.max(lo, max);
@@ -299,6 +337,7 @@ public final class DungeonTemplate {
     // Maelstrom setters
     public void addMaelstromCenter(Location loc)      { maelstromCenters.add(wipeWorld(loc)); }
     public void setMaelstromActive(int n)             { this.maelstromActive = Math.max(0, n); }
+    public void setMaelstromActiveMin(int n)          { this.maelstromActiveMin = Math.max(0, n); }
     public void setMaelstromUseTrash(boolean b)       { this.maelstromUseTrash = b; }
     public void setMaelstromDurationSeconds(int n)    { this.maelstromDurationSeconds = Math.max(1, n); }
     public void setMaelstromSpawnIntervalTicks(int n) { this.maelstromSpawnIntervalTicks = Math.max(1, n); }
@@ -306,6 +345,27 @@ public final class DungeonTemplate {
     public void setMaelstromRadius(int n)             { this.maelstromRadius = Math.max(1, n); }
     public void setMaelstromMaxAlive(int n)           { this.maelstromMaxAlive = Math.max(1, n); }
     public void setMaelstromMaxLootItems(int n)       { this.maelstromMaxLootItems = Math.max(0, n); }
+
+    // Reliquary setters
+    public void addReliquaryCenter(Location loc)      { reliquaryCenters.add(wipeWorld(loc)); }
+    public void setReliquaryActive(int n)             { this.reliquaryActive = Math.max(0, n); }
+    public void setReliquaryActiveMin(int n)          { this.reliquaryActiveMin = Math.max(0, n); }
+    public void setReliquaryUseTrash(boolean b)       { this.reliquaryUseTrash = b; }
+    public void setReliquaryMaxLootItems(int n)       { this.reliquaryMaxLootItems = Math.max(0, n); }
+    /** Remove any reliquary marker at the given block (stand-on-top match). Returns count removed. */
+    public int removeReliquaryCenterAt(int bx, int by, int bz) {
+        int removed = 0;
+        for (int i = reliquaryCenters.size() - 1; i >= 0; i--) {
+            Location l = reliquaryCenters.get(i);
+            int lx = (int) Math.floor(l.getX());
+            int ly = (int) Math.floor(l.getY());
+            int lz = (int) Math.floor(l.getZ());
+            if (lx == bx && lz == bz && (ly - 1 == by || ly == by)) {
+                reliquaryCenters.remove(i); removed++;
+            }
+        }
+        return removed;
+    }
     /** Remove any maelstrom rift marker at the given block (stand-on-top match). Returns count removed. */
     public int removeMaelstromCenterAt(int bx, int by, int bz) {
         int removed = 0;
@@ -458,6 +518,7 @@ public final class DungeonTemplate {
         cfg.set("ritual.reserve.discount-pct", ritualReserveDiscountPct);
         cfg.set("ritual.reserve.limit", ritualReserveLimit);
         cfg.set("ritual.altars-active", ritualAltarsActive);
+        cfg.set("ritual.altars-active-min", ritualAltarsActiveMin);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -495,6 +556,7 @@ public final class DungeonTemplate {
 
         // ----- maelstrom -----
         cfg.set("maelstrom.active", maelstromActive);
+        cfg.set("maelstrom.active-min", maelstromActiveMin);
         cfg.set("maelstrom.use-trash", maelstromUseTrash);
         cfg.set("maelstrom.duration-seconds", maelstromDurationSeconds);
         cfg.set("maelstrom.spawn-interval-ticks", maelstromSpawnIntervalTicks);
@@ -521,6 +583,41 @@ public final class DungeonTemplate {
             MaelstromLoot r = maelstromLoot.get(i);
             if (r.itemStack() == null) continue;
             String base = "maelstrom.loot." + i;
+            cfg.set(base + ".item", r.itemStack());
+            cfg.set(base + ".chance", r.chancePercent());
+            cfg.set(base + ".min", r.minCount());
+            cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".min-kills", r.minKills());
+            if (r.isMMOItem()) {
+                cfg.set(base + ".mmo-type", r.mmoType());
+                cfg.set(base + ".mmo-id", r.mmoId());
+            }
+        }
+
+        // ----- reliquary -----
+        cfg.set("reliquary.active", reliquaryActive);
+        cfg.set("reliquary.active-min", reliquaryActiveMin);
+        cfg.set("reliquary.use-trash", reliquaryUseTrash);
+        cfg.set("reliquary.max-loot-items", reliquaryMaxLootItems);
+
+        List<java.util.Map<String, Object>> reliquaries = new ArrayList<>();
+        for (Location l : reliquaryCenters) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("x", l.getX()); m.put("y", l.getY()); m.put("z", l.getZ());
+            m.put("yaw", l.getYaw()); m.put("pitch", l.getPitch());
+            reliquaries.add(m);
+        }
+        cfg.set("reliquary.centers", reliquaries);
+
+        List<String> reliquaryGuardStrs = new ArrayList<>();
+        for (MobEntry e : reliquaryGuards) reliquaryGuardStrs.add(e.encode());
+        cfg.set("reliquary.guards", reliquaryGuardStrs);
+
+        cfg.set("reliquary.loot", null); // clear stale
+        for (int i = 0; i < reliquaryLoot.size(); i++) {
+            MaelstromLoot r = reliquaryLoot.get(i);
+            if (r.itemStack() == null) continue;
+            String base = "reliquary.loot." + i;
             cfg.set(base + ".item", r.itemStack());
             cfg.set(base + ".chance", r.chancePercent());
             cfg.set(base + ".min", r.minCount());
@@ -646,6 +743,9 @@ public final class DungeonTemplate {
         this.ritualRerollCost = cfg.getInt("ritual.reroll-cost", 25);
 
         this.ritualAltarsActive = cfg.getInt("ritual.altars-active", 0);
+        // Back-compat: a template saved before the range existed has no min key,
+        // so default min to the max → behaves exactly as before (deterministic).
+        this.ritualAltarsActiveMin = cfg.getInt("ritual.altars-active-min", ritualAltarsActive);
 
         ritualAltars.clear();
         for (java.util.Map<?, ?> m : cfg.getMapList("ritual.altars")) {
@@ -710,6 +810,7 @@ public final class DungeonTemplate {
 
         // ----- maelstrom -----
         this.maelstromActive             = cfg.getInt("maelstrom.active", 0);
+        this.maelstromActiveMin          = cfg.getInt("maelstrom.active-min", maelstromActive);
         this.maelstromUseTrash           = cfg.getBoolean("maelstrom.use-trash", false);
         this.maelstromDurationSeconds    = cfg.getInt("maelstrom.duration-seconds", 45);
         this.maelstromSpawnIntervalTicks = cfg.getInt("maelstrom.spawn-interval-ticks", 10);
@@ -758,6 +859,55 @@ public final class DungeonTemplate {
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
                 maelstromLoot.add(ml);
+            }
+        }
+
+        // ----- reliquary -----
+        this.reliquaryActive       = cfg.getInt("reliquary.active", 0);
+        this.reliquaryActiveMin    = cfg.getInt("reliquary.active-min", reliquaryActive);
+        this.reliquaryUseTrash     = cfg.getBoolean("reliquary.use-trash", false);
+        this.reliquaryMaxLootItems = cfg.getInt("reliquary.max-loot-items", 5);
+
+        reliquaryCenters.clear();
+        for (java.util.Map<?, ?> m : cfg.getMapList("reliquary.centers")) {
+            try {
+                reliquaryCenters.add(new Location(null,
+                        ((Number) m.get("x")).doubleValue(),
+                        ((Number) m.get("y")).doubleValue(),
+                        ((Number) m.get("z")).doubleValue(),
+                        m.containsKey("yaw") ? ((Number) m.get("yaw")).floatValue() : 0f,
+                        m.containsKey("pitch") ? ((Number) m.get("pitch")).floatValue() : 0f));
+            } catch (Exception ignored) {}
+        }
+
+        reliquaryGuards.clear();
+        for (String s : cfg.getStringList("reliquary.guards")) {
+            MobEntry e = MobEntry.decode(s);
+            if (e != null) reliquaryGuards.add(e);
+        }
+
+        reliquaryLoot.clear();
+        ConfigurationSection rloot = cfg.getConfigurationSection("reliquary.loot");
+        if (rloot != null) {
+            List<String> keys = new ArrayList<>(rloot.getKeys(false));
+            keys.sort((a, b) -> {
+                try { return Integer.compare(Integer.parseInt(a), Integer.parseInt(b)); }
+                catch (NumberFormatException e) { return a.compareTo(b); }
+            });
+            for (String key : keys) {
+                ConfigurationSection entry = rloot.getConfigurationSection(key);
+                if (entry == null) continue;
+                org.bukkit.inventory.ItemStack stack = entry.getItemStack("item");
+                if (stack == null) continue;
+                MaelstromLoot ml = new MaelstromLoot(stack,
+                        entry.getDouble("chance", 100),
+                        entry.getInt("min", 1),
+                        entry.getInt("max", 1),
+                        entry.getInt("min-kills", 0));
+                String mmoType = entry.getString("mmo-type", null);
+                String mmoId = entry.getString("mmo-id", null);
+                if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
+                reliquaryLoot.add(ml);
             }
         }
     }
