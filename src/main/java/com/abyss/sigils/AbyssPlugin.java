@@ -155,6 +155,7 @@ public final class AbyssPlugin extends JavaPlugin {
         AnvilInput.register(this);
         ChatInput.register(this);
         RewardsGUI.register(this);
+        com.abyss.sigils.gui.RewardPreviewGUI.register(this);
         com.abyss.sigils.gui.RitualRewardsGUI.register(this);
         com.abyss.sigils.gui.MaelstromLootGUI.register(this);
         com.abyss.sigils.gui.ReliquaryLootGUI.register(this);

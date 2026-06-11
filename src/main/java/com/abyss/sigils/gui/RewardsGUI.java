@@ -29,7 +29,8 @@ import java.util.List;
  *   Rows 0–2 (slots 0–26)  — drop zone for reward items. 27 slot capacity.
  *   Row 3 (slots 27–35)    — separator (filler)
  *   Row 4 (36..44)         — money + xp config
- *      36 max items, 38 money min/max+chance, 41 xp min/max+chance, 44 back arrow
+ *      36 max items, 38 money min/max+chance, 40 test-rewards preview,
+ *      41 xp min/max+chance, 44 back arrow
  *   Row 5 (slots 45–53)    — filler border + help book
  *
  * --- How click safety works ---
@@ -122,6 +123,14 @@ public final class RewardsGUI implements Listener {
                 "&eLeft-click &7→ set min",
                 "&eRight-click &7→ set max",
                 "&eDrop key &7→ set chance %"));
+
+        inv.setItem(CONTROL_ROW + 4, icon(Material.ENDER_EYE, "&5&lTest End Rewards",
+                "&7Virtually open the reward chest and",
+                "&7preview what this map will roll.",
+                "&7Simulate any tier/quality, reroll, or",
+                "&7batch-average many rolls.",
+                "",
+                "&eClick &7to preview"));
 
         inv.setItem(CONTROL_ROW + 8, icon(Material.ARROW, "&7← Back to editor"));
 
@@ -362,7 +371,11 @@ public final class RewardsGUI implements Listener {
             handleXpClick(e, holder, p);
             return;
         }
-        // Any other slot in the control row (37, 39, 40, 42, 43) — no-op, click stays cancelled.
+        if (relative == 4) {
+            RewardPreviewGUI.openFor(plugin, p, holder.template());
+            return;
+        }
+        // Any other slot in the control row (37, 39, 42, 43) — no-op, click stays cancelled.
     }
 
     private void handleMoneyClick(InventoryClickEvent e, Holder holder, Player p) {
