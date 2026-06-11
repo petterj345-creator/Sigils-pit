@@ -187,7 +187,28 @@ public final class WandBlockMenu extends EditorGUI.Holder {
                 refresh(p);
             });
 
-        // 24 → add reliquary marker
+        // 22 → add a shared event block (the recommended way: place one pool,
+        // every event spawns on a random subset of these).
+        set(22, icon(Material.RESPAWN_ANCHOR,
+                sameEventBlock() ? "&bEvent Block (set)" : "&b&lAdd Event Block",
+                "&7A shared anchor for ALL events. Maps with a",
+                "&7ritual / maelstrom / reliquary spawn on a",
+                "&7random subset of these — place one pool",
+                "&7here instead of separate markers per event.",
+                "&7Event blocks here: &f" + template.eventBlocks().size(),
+                "",
+                sameEventBlock() ? "&7&oAlready an event block here" : "&7Click to add"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                if (sameEventBlock()) { p.sendMessage(color("&7Already an event block here.")); return; }
+                template.addEventBlock(centerOf(block));
+                plugin.templates().save(template);
+                p.sendMessage(color("&aEvent block added &7(" + template.eventBlocks().size() + " total)."));
+                refresh(p);
+            });
+
+        // 24 → add reliquary marker (type-specific override; usually unnecessary
+        // now that a shared event block works for every event)
         set(24, icon(Material.TRIAL_KEY,
                 sameReliquaryCenter() ? "&6Reliquary (set)" : "&6Add as Reliquary",
                 "&7Where a sealed Reliquary can be unsealed",
@@ -225,6 +246,7 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         if (sameBossSpawn())       out.add(color("&8• &cBoss spawn"));
         if (sameForgeSpawn())      out.add(color("&8• &6Forge spawn"));
         if (sameExitPortalSpawn()) out.add(color("&8• &dExit portal spawn"));
+        if (sameEventBlock())      out.add(color("&8• &bEvent block"));
         if (sameRitualAltar())     out.add(color("&8• &5Ritual altar"));
         if (sameMaelstromCenter()) out.add(color("&8• &3Maelstrom rift"));
         if (sameReliquaryCenter()) out.add(color("&8• &6Reliquary"));
@@ -268,6 +290,13 @@ public final class WandBlockMenu extends EditorGUI.Holder {
 
     private boolean sameReliquaryCenter() {
         for (Location l : template.reliquaryCenters()) {
+            if (sameBlock(l, block)) return true;
+        }
+        return false;
+    }
+
+    private boolean sameEventBlock() {
+        for (Location l : template.eventBlocks()) {
             if (sameBlock(l, block)) return true;
         }
         return false;
@@ -358,6 +387,12 @@ public final class WandBlockMenu extends EditorGUI.Holder {
         for (int i = reliquaries.size() - 1; i >= 0; i--) {
             if (sameBlock(reliquaries.get(i), b)) {
                 reliquaries.remove(i); removed++;
+            }
+        }
+        List<Location> events = t.eventBlocks();
+        for (int i = events.size() - 1; i >= 0; i--) {
+            if (sameBlock(events.get(i), b)) {
+                events.remove(i); removed++;
             }
         }
         return removed;

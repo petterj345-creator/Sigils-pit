@@ -89,6 +89,17 @@ public final class DungeonTemplate {
      */
     private double mapDropChancePercent = 0.0;
 
+    // ----- shared event anchors -----
+    /**
+     * Generic event-anchor blocks placed via the wand. Any event (ritual,
+     * maelstrom, reliquary) that has NO type-specific markers placed spawns on a
+     * random subset of these instead — so an admin can place one shared pool of
+     * blocks once rather than separate markers per event type. A type-specific
+     * marker list, if non-empty, overrides this pool for that event. Stored
+     * "stand on top".
+     */
+    private final List<Location> eventBlocks = new ArrayList<>();
+
     // ----- ritual (Altar of Souls) -----
     /** Altar locations (armor stands) placed via the wand. Stored "stand on top". */
     private final List<Location> ritualAltars = new ArrayList<>();
@@ -236,8 +247,17 @@ public final class DungeonTemplate {
         int min = Math.max(0, r[0]), max = Math.max(min, r[1]);
         return min + (max > min ? java.util.concurrent.ThreadLocalRandom.current().nextInt(max - min + 1) : 0);
     }
-    /** True if this template has a usable ritual setup (altars + mobs). */
-    public boolean hasRitual() { return !ritualAltars.isEmpty() && !ritualMobs.isEmpty(); }
+    /** True if this template has a usable ritual setup (anchors + mobs). */
+    public boolean hasRitual() { return !ritualSpawnAnchors().isEmpty() && !ritualMobs.isEmpty(); }
+
+    // Shared event anchors
+    public List<Location> eventBlocks() { return eventBlocks; }
+    /** Where rituals spawn: type-specific altars if placed, else shared event blocks. */
+    public List<Location> ritualSpawnAnchors()    { return ritualAltars.isEmpty()     ? eventBlocks : ritualAltars; }
+    /** Where maelstroms open: type-specific rifts if placed, else shared event blocks. */
+    public List<Location> maelstromSpawnAnchors() { return maelstromCenters.isEmpty()  ? eventBlocks : maelstromCenters; }
+    /** Where reliquaries spawn: type-specific markers if placed, else shared event blocks. */
+    public List<Location> reliquarySpawnAnchors() { return reliquaryCenters.isEmpty()  ? eventBlocks : reliquaryCenters; }
 
     // Maelstrom getters
     public List<Location> maelstromCenters()  { return maelstromCenters; }
@@ -252,9 +272,9 @@ public final class DungeonTemplate {
     public int maelstromMaxAlive()            { return maelstromMaxAlive; }
     public List<MaelstromLoot> maelstromLoot() { return maelstromLoot; }
     public int maelstromMaxLootItems()        { return maelstromMaxLootItems; }
-    /** True if this template has a usable maelstrom (a rift + some mob source). */
+    /** True if this template has a usable maelstrom (an anchor + some mob source). */
     public boolean hasMaelstrom() {
-        return !maelstromCenters.isEmpty()
+        return !maelstromSpawnAnchors().isEmpty()
                 && (!maelstromMobs.isEmpty() || (maelstromUseTrash && !defaultTrashMobs.isEmpty()));
     }
 
@@ -266,9 +286,9 @@ public final class DungeonTemplate {
     public boolean reliquaryUseTrash()        { return reliquaryUseTrash; }
     public List<MaelstromLoot> reliquaryLoot() { return reliquaryLoot; }
     public int reliquaryMaxLootItems()        { return reliquaryMaxLootItems; }
-    /** True if this template has a usable reliquary (a marker + some guard source). */
+    /** True if this template has a usable reliquary (an anchor + some guard source). */
     public boolean hasReliquary() {
-        return !reliquaryCenters.isEmpty()
+        return !reliquarySpawnAnchors().isEmpty()
                 && (!reliquaryGuards.isEmpty() || (reliquaryUseTrash && !defaultTrashMobs.isEmpty()));
     }
 
@@ -309,6 +329,24 @@ public final class DungeonTemplate {
     /** -1 = inherit from config, otherwise clamped to [0, +inf). */
     public void setUpgradeAttemptsPerClear(int n)  { this.upgradeAttemptsPerClear = (n < 0) ? -1 : n; }
     public void setMapDropChancePercent(double p)  { this.mapDropChancePercent = clampPct(p); }
+
+    // Shared event-anchor setters
+    public void addEventBlock(Location loc) { eventBlocks.add(wipeWorld(loc)); }
+    public void clearEventBlocks()          { eventBlocks.clear(); }
+    /** Remove any shared event block at the given block (stand-on-top match). Returns count removed. */
+    public int removeEventBlockAt(int bx, int by, int bz) {
+        int removed = 0;
+        for (int i = eventBlocks.size() - 1; i >= 0; i--) {
+            Location l = eventBlocks.get(i);
+            int lx = (int) Math.floor(l.getX());
+            int ly = (int) Math.floor(l.getY());
+            int lz = (int) Math.floor(l.getZ());
+            if (lx == bx && lz == bz && (ly - 1 == by || ly == by)) {
+                eventBlocks.remove(i); removed++;
+            }
+        }
+        return removed;
+    }
 
     // Ritual setters
     public void addRitualAltar(Location loc)  { ritualAltars.add(wipeWorld(loc)); }
@@ -502,6 +540,16 @@ public final class DungeonTemplate {
                 cfg.set(base + ".mmo-id", r.mmoId());
             }
         }
+
+        // ----- shared event anchors -----
+        List<java.util.Map<String, Object>> eventBlockList = new ArrayList<>();
+        for (Location l : eventBlocks) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("x", l.getX()); m.put("y", l.getY()); m.put("z", l.getZ());
+            m.put("yaw", l.getYaw()); m.put("pitch", l.getPitch());
+            eventBlockList.add(m);
+        }
+        cfg.set("event-blocks", eventBlockList);
 
         // ----- ritual -----
         cfg.set("ritual.items-min", ritualItemsMin);
@@ -733,6 +781,19 @@ public final class DungeonTemplate {
                 if (mmoType != null && mmoId != null) re.setMMOItem(mmoType, mmoId);
                 rewardPool.add(re);
             }
+        }
+
+        // ----- shared event anchors -----
+        eventBlocks.clear();
+        for (java.util.Map<?, ?> m : cfg.getMapList("event-blocks")) {
+            try {
+                eventBlocks.add(new Location(null,
+                        ((Number) m.get("x")).doubleValue(),
+                        ((Number) m.get("y")).doubleValue(),
+                        ((Number) m.get("z")).doubleValue(),
+                        m.containsKey("yaw") ? ((Number) m.get("yaw")).floatValue() : 0f,
+                        m.containsKey("pitch") ? ((Number) m.get("pitch")).floatValue() : 0f));
+            } catch (Exception ignored) {}
         }
 
         // ----- ritual -----

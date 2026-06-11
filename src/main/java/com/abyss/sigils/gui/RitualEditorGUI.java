@@ -38,23 +38,25 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
     @Override protected void build(Player viewer) {
         fillBorder();
 
-        // 4 Altars (info — placed via wand)
+        // 4 Anchors (info — placed via wand)
+        int ritualAnchors = template.ritualSpawnAnchors().size();
+        boolean ritualUsesEvents = template.ritualAltars().isEmpty();
         set(4, icon(Material.PURPLE_WOOL,
-                "&5Ritual Altars: &f" + template.ritualAltars().size(),
-                "&7Armor stands players activate.",
-                "&7Place them in-world with the wand:",
-                "&8• Right-click a block → Add as Ritual Altar",
+                "&5Ritual Anchors: &f" + ritualAnchors,
+                "&7Where altars spawn (a random subset each run).",
+                ritualUsesEvents
+                        ? "&7Using shared &bevent blocks &7(" + template.eventBlocks().size() + ")."
+                        : "&7Using &5" + template.ritualAltars().size() + " &7ritual-specific altars.",
+                "&8• Wand → Add Event Block (shared by all events)",
+                "&8• Wand → Add as Ritual Altar (override)",
                 "",
-                template.ritualAltars().isEmpty()
-                        ? "&cNone placed yet — maps with the ritual"
-                        : "&aReady.",
-                template.ritualAltars().isEmpty()
-                        ? "&cmodifier won't spawn any altars."
-                        : "&7"),
+                ritualAnchors == 0
+                        ? "&cNo anchors — place event blocks or altars."
+                        : "&aReady."),
             null);
 
         // 13 Altars active per run (random min-max range)
-        int placed = template.ritualAltars().size();
+        int placed = template.ritualSpawnAnchors().size();
         int amin = Math.min(template.ritualAltarsActiveMin(), template.ritualAltarsActive());
         int amax = template.ritualAltarsActive();
         String activeLabel = (amax <= 0 || amax >= placed)

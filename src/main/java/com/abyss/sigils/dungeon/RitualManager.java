@@ -87,11 +87,12 @@ public final class RitualManager implements Listener {
 
         State state = new State(session, template);
         World w = session.world();
-        // Place many altars in the editor, but only spawn a random subset each
-        // run so the map feels different every play. The admin sets a min-max
-        // range; we roll a count in it (0 max = use all placed altars).
+        // Spawn on a random subset of the ritual's anchors each run so the map
+        // feels different every play. Anchors are the type-specific altars if any
+        // were placed, otherwise the shared event-block pool. The admin sets a
+        // min-max range; we roll a count in it (0 max = use all anchors).
         List<Location> chosen = RandomPick.someInRange(
-                template.ritualAltars(), template.ritualAltarsActiveMin(),
+                template.ritualSpawnAnchors(), template.ritualAltarsActiveMin(),
                 template.ritualAltarsActive(), rng);
         for (Location raw : chosen) {
             Location loc = new Location(w, raw.getX(), raw.getY(), raw.getZ());

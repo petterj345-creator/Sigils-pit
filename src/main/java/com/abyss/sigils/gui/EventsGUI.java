@@ -38,7 +38,7 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&5&l✦ Ritual",
                 "&7Altar of Souls setup for maps that",
                 "&7carry the ritual modifier.",
-                "&7Altars: &f" + template.ritualAltars().size()
+                "&7Anchors: &f" + template.ritualSpawnAnchors().size()
                         + "  &7Mobs: &f" + template.ritualMobs().size()
                         + "  &7Shop items: &f" + template.ritualRewardPool().size(),
                 "",
@@ -51,7 +51,7 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&3&l✦ Maelstrom",
                 "&7Breach-style rift setup for maps that",
                 "&7carry the maelstrom modifier.",
-                "&7Rifts: &f" + template.maelstromCenters().size()
+                "&7Anchors: &f" + template.maelstromSpawnAnchors().size()
                         + "  &7Mobs: &f" + template.maelstromMobs().size()
                         + "  &7Loot: &f" + template.maelstromLoot().size(),
                 "",
@@ -64,7 +64,7 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&6&l✦ Reliquary",
                 "&7Sealed-chest setup for maps that",
                 "&7carry the reliquary modifier.",
-                "&7Reliquaries: &f" + template.reliquaryCenters().size()
+                "&7Anchors: &f" + template.reliquarySpawnAnchors().size()
                         + "  &7Guards: &f" + template.reliquaryGuards().size()
                         + "  &7Loot: &f" + template.reliquaryLoot().size(),
                 "",

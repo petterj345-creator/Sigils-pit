@@ -95,11 +95,12 @@ public final class ReliquaryManager implements Listener {
         State state = new State(session, template);
         World w = session.world();
 
-        // Place many reliquaries in the editor, unseal a random subset each run so
-        // the map feels different every play. The admin sets a min-max range; we
-        // roll a count in it (0 max = use all placed reliquaries).
+        // Unseal a random subset of the reliquary's anchors each run so the map
+        // feels different every play. Anchors are the type-specific markers if any
+        // were placed, otherwise the shared event-block pool. The admin sets a
+        // min-max range; we roll a count in it (0 max = use all anchors).
         List<Location> chosen = com.abyss.sigils.util.RandomPick.someInRange(
-                template.reliquaryCenters(), template.reliquaryActiveMin(),
+                template.reliquarySpawnAnchors(), template.reliquaryActiveMin(),
                 template.reliquaryActive(), rng);
 
         for (Location raw : chosen) {

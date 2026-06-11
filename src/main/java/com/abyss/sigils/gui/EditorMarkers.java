@@ -103,6 +103,12 @@ public final class EditorMarkers implements Listener {
             Location l = boundTo(reliquaries.get(i), w);
             spawnMarker(l, Material.GOLD_BLOCK, "§6§l✦ Reliquary #" + (i + 1));
         }
+        // Shared event blocks (where any event spawns if no typed marker placed)
+        List<Location> events = t.eventBlocks();
+        for (int i = 0; i < events.size(); i++) {
+            Location l = boundTo(events.get(i), w);
+            spawnMarker(l, Material.CYAN_WOOL, "§b§l✦ Event Block #" + (i + 1));
+        }
     }
 
     /** Spawn one block-display + text-display pair at a location. */
@@ -129,6 +135,7 @@ public final class EditorMarkers implements Listener {
                 case MAGENTA_WOOL    -> Color.FUCHSIA;
                 case PURPLE_WOOL     -> Color.PURPLE;
                 case GOLD_BLOCK      -> Color.YELLOW;
+                case CYAN_WOOL       -> Color.AQUA;
                 default              -> Color.WHITE;
             });
             // CRITICAL: don't persist these to disk. If they were persistent, the
