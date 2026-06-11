@@ -38,23 +38,25 @@ public final class ReliquaryEditorGUI extends EditorGUI.Holder {
     @Override protected void build(Player viewer) {
         fillBorder();
 
-        // 4 Reliquaries (info — placed via wand)
+        // 4 Anchors (info — placed via wand)
+        int relicAnchors = template.reliquarySpawnAnchors().size();
+        boolean relicUsesEvents = template.reliquaryCenters().isEmpty();
         set(4, icon(Material.TRIAL_KEY,
-                "&6Reliquaries: &f" + template.reliquaryCenters().size(),
-                "&7Sealed chests players unseal & crack open.",
-                "&7Place them in-world with the wand:",
-                "&8• Right-click a block → Add as Reliquary",
+                "&6Reliquary Anchors: &f" + relicAnchors,
+                "&7Where reliquaries spawn (a random subset each run).",
+                relicUsesEvents
+                        ? "&7Using shared &bevent blocks &7(" + template.eventBlocks().size() + ")."
+                        : "&7Using &6" + template.reliquaryCenters().size() + " &7reliquary-specific markers.",
+                "&8• Wand → Add Event Block (shared by all events)",
+                "&8• Wand → Add as Reliquary (override)",
                 "",
-                template.reliquaryCenters().isEmpty()
-                        ? "&cNone placed yet — maps with the reliquary"
-                        : "&aReady.",
-                template.reliquaryCenters().isEmpty()
-                        ? "&cmodifier won't spawn any reliquaries."
-                        : "&7"),
+                relicAnchors == 0
+                        ? "&cNo anchors — place event blocks or reliquaries."
+                        : "&aReady."),
             null);
 
         // 10 Active per run (random min-max range)
-        int placed = template.reliquaryCenters().size();
+        int placed = template.reliquarySpawnAnchors().size();
         set(10, icon(Material.TARGET,
                 "&dActive Reliquaries per Run",
                 "&7How many placed reliquaries actually",

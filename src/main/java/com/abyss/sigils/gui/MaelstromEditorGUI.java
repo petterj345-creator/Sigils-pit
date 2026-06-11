@@ -38,23 +38,25 @@ public final class MaelstromEditorGUI extends EditorGUI.Holder {
     @Override protected void build(Player viewer) {
         fillBorder();
 
-        // 4 Rifts (info — placed via wand)
+        // 4 Anchors (info — placed via wand)
+        int riftAnchors = template.maelstromSpawnAnchors().size();
+        boolean riftUsesEvents = template.maelstromCenters().isEmpty();
         set(4, icon(Material.HEART_OF_THE_SEA,
-                "&3Rift Centers: &f" + template.maelstromCenters().size(),
-                "&7Where a Maelstrom can tear open.",
-                "&7Place them in-world with the wand:",
-                "&8• Right-click a block → Add as Maelstrom",
+                "&3Maelstrom Anchors: &f" + riftAnchors,
+                "&7Where a rift opens (a random subset each run).",
+                riftUsesEvents
+                        ? "&7Using shared &bevent blocks &7(" + template.eventBlocks().size() + ")."
+                        : "&7Using &3" + template.maelstromCenters().size() + " &7rift-specific markers.",
+                "&8• Wand → Add Event Block (shared by all events)",
+                "&8• Wand → Add as Maelstrom (override)",
                 "",
-                template.maelstromCenters().isEmpty()
-                        ? "&cNone placed yet — maps with the maelstrom"
-                        : "&aReady.",
-                template.maelstromCenters().isEmpty()
-                        ? "&cmodifier won't open any rifts."
-                        : "&7"),
+                riftAnchors == 0
+                        ? "&cNo anchors — place event blocks or rifts."
+                        : "&aReady."),
             null);
 
         // 10 Active per run (random min-max range)
-        int placed = template.maelstromCenters().size();
+        int placed = template.maelstromSpawnAnchors().size();
         int amin = Math.min(template.maelstromActiveMin(), template.maelstromActive());
         int amax = template.maelstromActive();
         String activeLabel = (amax <= 0 || amax >= placed)

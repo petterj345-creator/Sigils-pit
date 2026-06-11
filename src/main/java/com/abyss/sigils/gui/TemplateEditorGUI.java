@@ -105,9 +105,9 @@ public final class TemplateEditorGUI extends EditorGUI.Holder {
                 "&5&l✦ Events",
                 "&7Optional encounters layered onto this map.",
                 "&7Ritual, Maelstrom & Reliquary.",
-                "&7Altars: &f" + template.ritualAltars().size()
-                        + "  &7Rifts: &f" + template.maelstromCenters().size()
-                        + "  &7Reliquaries: &f" + template.reliquaryCenters().size(),
+                "&7Shared event blocks: &b" + template.eventBlocks().size(),
+                "&8Each event spawns on a random subset of",
+                "&8these (or its own markers, if you placed any).",
                 "",
                 "&eClick &7to configure"),
             e -> EventsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
