@@ -112,13 +112,13 @@ public final class RewardChestManager implements Listener {
                 nonItemRewardsGiven.add(key);
             }
 
-            // Build the chest GUI
+            // Build the chest GUI. Spread items out when there are few; once tier
+            // piles on extra loot, pack them into distinct slots so none are lost.
             inv = Bukkit.createInventory(null, 27, Text.color("&5&lReward Chest"));
-            int slot = 4;
-            for (ItemStack item : roll.items) {
-                // Distribute roughly centered in the chest
-                inv.setItem(Math.min(slot, 22), item);
-                slot += 2;
+            int shown = Math.min(roll.items.size(), 27);
+            for (int i = 0; i < shown; i++) {
+                int slot = shown <= 10 ? 4 + i * 2 : i;
+                inv.setItem(slot, roll.items.get(i));
             }
             rolledInventories.put(key, inv);
 

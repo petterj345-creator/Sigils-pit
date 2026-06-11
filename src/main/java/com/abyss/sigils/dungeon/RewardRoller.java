@@ -51,8 +51,8 @@ public final class RewardRoller {
      *    Scholar), passed via {@code player} (null to skip),
      *  - the map's QUALITY ({@code scaling.quality.*}): more XP, money, and an
      *    extra possible loot item every {@code quality-per-extra-item} quality,
-     *  - the map's TIER ({@code scaling.tier.reward-*}): more XP and money for
-     *    clearing a tougher map (the risk/reward payoff on top of drop sustain).
+     *  - the map's TIER ({@code scaling.tier.loot-*}): instead of paying more
+     *    XP/money, a tougher map's end chest holds MORE loot and RARER loot.
      */
     public static Roll rollFor(AbyssPlugin plugin, DungeonTemplate t, UUID player, int quality, int tier) {
         int bonusItems = 0;
@@ -71,17 +71,23 @@ public final class RewardRoller {
             int per = Math.max(1, plugin.getConfig().getInt("scaling.quality.quality-per-extra-item", 3));
             bonusItems += quality / per;
         }
-        // Map tier — risk/reward: tougher maps also pay more XP/money.
+        // Map tier — does NOT scale XP/money. Instead a tougher map's end chest
+        // holds MORE loot (extra slots per tier) and RARER loot: the rarityBoost
+        // closes each entry's gap from its chance% toward 100%, so a 5% entry
+        // gains far more than an 80% one — rare drops surface at high tier.
+        double rarityBoost = 0.0;
         if (tier > 0) {
-            xpMult *= 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.reward-xp-percent-per-tier", 5) / 100.0;
-            moneyMult *= 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.reward-money-percent-per-tier", 5) / 100.0;
+            bonusItems += tier * Math.max(0, plugin.getConfig().getInt("scaling.tier.loot-items-per-tier", 1));
+            rarityBoost = Math.min(1.0, tier
+                    * plugin.getConfig().getDouble("scaling.tier.loot-rarity-boost-per-tier", 4) / 100.0);
         }
 
         // Items
         List<RewardEntry> candidates = new ArrayList<>();
         for (RewardEntry r : t.rewardPool()) {
             if (r.itemStack() == null) continue;
-            if (RNG.nextDouble() * 100.0 < r.chancePercent()) candidates.add(r);
+            double chance = r.chancePercent() + (100.0 - r.chancePercent()) * rarityBoost;
+            if (RNG.nextDouble() * 100.0 < chance) candidates.add(r);
         }
         Collections.shuffle(candidates, RNG);
         int cap = Math.min(candidates.size(), t.maxRewardItems() + bonusItems);

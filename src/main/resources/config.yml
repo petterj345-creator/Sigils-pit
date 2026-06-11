@@ -36,10 +36,15 @@ scaling:
     # Maps that drop inside a tiered run come pre-tiered at (run tier - this),
     # so high-tier runs sustain high-tier maps. 1 = a T10 run drops T9 maps.
     map-drop-tier-offset: 1
-    # Risk/reward: clearing a tougher (higher tier) map also pays more XP and
-    # money. Stacks on top of quality's reward bonus.
-    reward-xp-percent-per-tier: 5
-    reward-money-percent-per-tier: 5
+    # Risk/reward: a tougher map does NOT pay more XP/money (that's quality's
+    # job). Instead, every map's end Reward Chest gives more and rarer loot per
+    # tier:
+    #   - loot-items-per-tier: extra loot items the end chest can roll.
+    #   - loot-rarity-boost-per-tier: % of each entry's gap to 100% chance that's
+    #     closed, so rarer (low-chance) loot surfaces far more at high tier.
+    #     Capped at 100% total (every eligible entry appears).
+    loot-items-per-tier: 1
+    loot-rarity-boost-per-tier: 4
   quality:
     # Highest quality a map can reach.
     max: 20
