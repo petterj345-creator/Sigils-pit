@@ -38,8 +38,9 @@ import java.util.*;
  * template has a reliquary configured) we spawn a sealed reliquary marker per
  * chosen center. A player right-clicks an idle reliquary to unseal it: a
  * guardian pack spawns and the reliquary locks. Slay EVERY guardian to crack it
- * open, dropping a loot cache whose contents scale with how many guardians were
- * slain and the map tier.
+ * open, dropping a loot cache. Cracking it is the reward in itself — the cache
+ * is NOT scaled by how many guardians were slain; its contents come from the
+ * reliquary loot pool (with the map tier and the player's skills adding items).
  *
  * Per-session runtime state lives here and is dropped when the session ends.
  */
@@ -75,12 +76,11 @@ public final class ReliquaryManager implements Listener {
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
     }
 
-    /** A dropped loot cache: rolled per-player, scaled by guardians slain + tier. */
+    /** A dropped loot cache: rolled per-player from the reliquary loot pool (+ tier/skills). */
     static final class Cache {
         final UUID sessionId;
-        final int slain;
         final Map<UUID, Inventory> rolled = new HashMap<>();
-        Cache(UUID sessionId, int slain) { this.sessionId = sessionId; this.slain = slain; }
+        Cache(UUID sessionId) { this.sessionId = sessionId; }
     }
 
     // ============================================================
@@ -343,7 +343,7 @@ public final class ReliquaryManager implements Listener {
         // Center is stored "stand on top", so the floor block is one below.
         Block floor = w.getBlockAt(vault.center.getBlockX(), vault.center.getBlockY() - 1, vault.center.getBlockZ());
         floor.setType(Material.CHEST);
-        caches.put(floor.getLocation(), new Cache(state.session.id(), vault.slain));
+        caches.put(floor.getLocation(), new Cache(state.session.id()));
     }
 
     // ============================================================
@@ -371,7 +371,7 @@ public final class ReliquaryManager implements Listener {
         if (inv == null) {
             DungeonTemplate t = plugin.templates().get(session.templateName());
             if (t == null) { p.sendMessage(Text.color("&cTemplate missing.")); return; }
-            inv = rollCache(t, cache.slain, session.tier(), p.getUniqueId());
+            inv = rollCache(t, session.tier(), p.getUniqueId());
             cache.rolled.put(p.getUniqueId(), inv);
             boolean empty = true;
             for (ItemStack s : inv.getContents()) if (s != null && s.getType() != Material.AIR) { empty = false; break; }
@@ -382,11 +382,12 @@ public final class ReliquaryManager implements Listener {
         p.openInventory(inv);
     }
 
-    private Inventory rollCache(DungeonTemplate t, int slain, int tier, UUID player) {
+    private Inventory rollCache(DungeonTemplate t, int tier, UUID player) {
         List<MaelstromLoot> candidates = new ArrayList<>();
         for (MaelstromLoot l : t.reliquaryLoot()) {
             if (l.itemStack() == null) continue;
-            if (slain < l.minKills()) continue;                  // gated by guardians slain
+            // Loot is NOT gated by how many guardians you slew — cracking the
+            // reliquary is the whole reward. Every configured entry is eligible.
             if (rng.nextDouble() * 100.0 < l.chancePercent()) candidates.add(l);
         }
         Collections.shuffle(candidates, rng);
