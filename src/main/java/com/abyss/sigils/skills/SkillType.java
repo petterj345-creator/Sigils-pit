@@ -30,8 +30,8 @@ public enum SkillType {
             Material.GOLD_INGOT, 4, 20, true, "money gained",
             "More money from map completion rewards."),
     ABYSSAL_OMEN("abyssal_omen", "Abyssal Omen", SkillCategory.GENERAL,
-            Material.RECOVERY_COMPASS, 5, 10, true, "chance to manifest an event on a blank map",
-            "A map with no events of its own has this chance to manifest one of its possible events, chosen at random."),
+            Material.RECOVERY_COMPASS, 5, 10, true, "event spawn chance",
+            "A map with no event can spawn one."),
 
     // ----- Ritual -----
     SOUL_HARVEST("soul_harvest", "Soul Harvest", SkillCategory.RITUAL,
