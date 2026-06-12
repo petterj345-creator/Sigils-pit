@@ -100,8 +100,9 @@ public final class MaelstromManager implements Listener {
         // were placed, otherwise the shared event-block pool. The admin sets a
         // min-max range; we roll a count in it (0 max = use all anchors).
         List<Location> chosen = com.abyss.sigils.util.RandomPick.someInRange(
-                template.maelstromSpawnAnchors(), template.maelstromActiveMin(),
+                session.unclaimedAnchors(template.maelstromSpawnAnchors()), template.maelstromActiveMin(),
                 template.maelstromActive(), rng);
+        session.claimAnchors(chosen);
 
         for (Location raw : chosen) {
             Location loc = new Location(w, raw.getX(), raw.getY(), raw.getZ());
