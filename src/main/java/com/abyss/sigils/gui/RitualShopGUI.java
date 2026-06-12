@@ -105,9 +105,11 @@ public final class RitualShopGUI implements Listener {
         }
 
         // Then offers (cash + items).
-        for (int i = 0; i < holder.offers.size() && slotIdx < SLOTS.length; i++, slotIdx++) {
-            int slot = SLOTS[slotIdx];
-            inv.setItem(slot, decorateOffer(holder, holder.offers.get(i), balance));
+        for (int i = 0; i < holder.offers.size() && slotIdx < SLOTS.length; i++) {
+            RitualManager.Offer offer = holder.offers.get(i);
+            if (offer.isCash() && offer.bought) continue; // a purchased cash offer leaves the shop
+            int slot = SLOTS[slotIdx++];
+            inv.setItem(slot, decorateOffer(holder, offer, balance));
             holder.slotToOffer.put(slot, i);
         }
 
@@ -141,20 +143,37 @@ public final class RitualShopGUI implements Listener {
         return t == null ? 0 : t.ritualRerollCost();
     }
 
+    /**
+     * What reserving an item offer costs: {@code [deposit paid now, balance owed later]}.
+     * Returns null if reserving is disabled here. The deposit is a percentage of the
+     * full price; the balance is the discounted total minus that deposit.
+     */
+    private int[] reserveCost(DungeonTemplate t, RitualManager.Offer offer) {
+        if (t == null || t.ritualReserveLimit() <= 0) return null;
+        int deposit = (int) Math.round(offer.price * t.ritualReserveDepositPct() / 100.0);
+        int lockedTotal = (int) Math.round(offer.price * (100 - t.ritualReserveDiscountPct()) / 100.0);
+        int remaining = Math.max(0, lockedTotal - deposit);
+        return new int[]{deposit, remaining};
+    }
+
     // ----- icons -----
 
     private ItemStack decorateOffer(Holder holder, RitualManager.Offer offer, int balance) {
         if (offer.isCash()) {
-            ItemStack s = icon(Material.PAPER,
-                    "&6&l$" + offer.cashAmount + " &eCash",
-                    "&7A bundle of coins.",
-                    "&7Price: &b" + offer.price + " souls",
-                    "",
-                    offer.bought ? "&a✔ Purchased"
-                            : (VaultHook.available()
-                                ? (balance >= offer.price ? "&eClick to buy" : "&cNot enough souls")
-                                : "&cVault not installed"));
-            return s;
+            List<String> lore = new ArrayList<>();
+            lore.add("&7A bundle of coins.");
+            lore.add("&7Price: &b" + offer.price + " souls");
+            lore.add("");
+            if (!VaultHook.available()) {
+                lore.add("&cVault not installed");
+            } else {
+                lore.add(balance >= offer.price ? "&eLeft-click to buy" : "&cNot enough souls");
+                int[] cost = reserveCost(template(holder.session), offer);
+                if (cost != null) {
+                    lore.add("&eRight-click &7→ reserve: &b" + cost[0] + " &7now, &b" + cost[1] + " &7later");
+                }
+            }
+            return icon(Material.PAPER, "&6&l$" + offer.cashAmount + " &eCash", lore.toArray(new String[0]));
         }
         RitualReward src = offer.source;
         ItemStack stack = src.itemStack().clone();
@@ -169,7 +188,10 @@ public final class RitualShopGUI implements Listener {
                 lore.add(color("&a✔ Bought / reserved"));
             } else {
                 lore.add(color(balance >= offer.price ? "&eLeft-click to buy" : "&cNot enough souls"));
-                lore.add(color("&eRight-click &7→ reserve for later"));
+                int[] cost = reserveCost(template(holder.session), offer);
+                if (cost != null) {
+                    lore.add(color("&eRight-click &7→ reserve: &b" + cost[0] + " &7now, &b" + cost[1] + " &7later"));
+                }
             }
             if (src.isMMOItem()) lore.add(color("&8Rolls fresh on purchase"));
             meta.setLore(lore);
@@ -179,6 +201,15 @@ public final class RitualShopGUI implements Listener {
     }
 
     private ItemStack decorateReserved(ReservedReward r, int balance) {
+        if (r.isCash()) {
+            return icon(Material.PAPER,
+                    "&6&l$" + r.cashAmount() + " &eCash &d(Reserved)",
+                    "&7A reserved bundle of coins.",
+                    "&7Remaining: &b" + r.remaining() + " souls",
+                    "",
+                    balance >= r.remaining() ? "&eLeft-click to collect" : "&cNot enough souls",
+                    "&cShift-left-click &7→ discard (no refund)");
+        }
         ItemStack stack = r.itemStack().clone();
         stack.setAmount(Math.max(1, Math.min(64, r.amount())));
         ItemMeta meta = stack.getItemMeta();
@@ -221,7 +252,11 @@ public final class RitualShopGUI implements Listener {
         RitualManager.Offer offer = holder.offers.get(offerIdx);
 
         if (offer.bought) { p.sendMessage(color("&7You already took that.")); return; }
-        if (offer.isCash()) { if (e.isLeftClick()) buyCash(holder, p, offer); return; }
+        if (offer.isCash()) {
+            if (e.isLeftClick()) buyCash(holder, p, offer);
+            else if (e.isRightClick()) reserve(holder, p, offer);
+            return;
+        }
         if (e.isRightClick()) reserve(holder, p, offer);
         else buyItem(holder, p, offer);
     }
@@ -267,23 +302,30 @@ public final class RitualShopGUI implements Listener {
         if (t == null) return;
         int limit = t.ritualReserveLimit();
         if (limit <= 0) { p.sendMessage(color("&cReserving is disabled here.")); return; }
+        if (offer.isCash() && !VaultHook.available()) {
+            p.sendMessage(color("&cMoney rewards need Vault, which isn't installed."));
+            return;
+        }
         if (plugin.reservedRewards().count(p.getUniqueId()) >= limit) {
             p.sendMessage(color("&cYou can only reserve &f" + limit + " &citems. Collect or discard one first."));
             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
-        int deposit = (int) Math.round(offer.price * t.ritualReserveDepositPct() / 100.0);
+        int[] cost = reserveCost(t, offer);
+        int deposit = cost[0], remaining = cost[1];
         if (!session.spendSouls(p.getUniqueId(), deposit)) {
             p.sendMessage(color("&cNeed &b" + deposit + " souls &cdeposit to reserve. &7You have &b"
                     + session.soulsOf(p.getUniqueId()) + "&7."));
             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
-        int lockedTotal = (int) Math.round(offer.price * (100 - t.ritualReserveDiscountPct()) / 100.0);
-        int remaining = Math.max(0, lockedTotal - deposit);
-        RitualReward src = offer.source;
-        plugin.reservedRewards().add(p.getUniqueId(),
-                new ReservedReward(src.itemStack().clone(), src.amount(), remaining, src.mmoType(), src.mmoId()));
+        if (offer.isCash()) {
+            plugin.reservedRewards().add(p.getUniqueId(), ReservedReward.cash(offer.cashAmount, remaining));
+        } else {
+            RitualReward src = offer.source;
+            plugin.reservedRewards().add(p.getUniqueId(),
+                    new ReservedReward(src.itemStack().clone(), src.amount(), remaining, src.mmoType(), src.mmoId()));
+        }
         offer.bought = true; // leaves the shop
         p.playSound(p.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1f, 1.4f);
         p.sendMessage(color("&dReserved! &7Paid &b" + deposit + " &7deposit, &b" + remaining
@@ -299,15 +341,26 @@ public final class RitualShopGUI implements Listener {
 
         if (shift) {
             plugin.reservedRewards().remove(p.getUniqueId(), idx);
-            p.sendMessage(color("&7Discarded a reserved item &8(deposit not refunded)&7."));
+            p.sendMessage(color("&7Discarded a reserved reward &8(deposit not refunded)&7."));
             reopen(p, session);
             return;
         }
+        if (r.isCash() && !VaultHook.available()) {
+            p.sendMessage(color("&cMoney rewards need Vault, which isn't installed."));
+            return;
+        }
         if (!session.spendSouls(p.getUniqueId(), r.remaining())) { notEnough(p, r.remaining()); return; }
-        give(p, r.resolve(plugin));
-        plugin.reservedRewards().remove(p.getUniqueId(), idx);
-        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
-        p.sendMessage(color("&aCollected your reserved item for &b" + r.remaining() + " souls&a."));
+        if (r.isCash()) {
+            VaultHook.deposit(p, r.cashAmount());
+            plugin.reservedRewards().remove(p.getUniqueId(), idx);
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
+            p.sendMessage(color("&aCollected &f" + VaultHook.format(r.cashAmount()) + " &afor &b" + r.remaining() + " souls&a."));
+        } else {
+            give(p, r.resolve(plugin));
+            plugin.reservedRewards().remove(p.getUniqueId(), idx);
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
+            p.sendMessage(color("&aCollected your reserved item for &b" + r.remaining() + " souls&a."));
+        }
         reopen(p, session);
     }
 

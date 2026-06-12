@@ -127,8 +127,9 @@ public final class AdminGUI extends EditorGUI.Holder {
                 MythicDropsGUI.openFor(plugin, p);
             });
 
-        set(32, icon(Material.ANVIL, "&6&lForge Chances",
-                "&7Set the upgrade success % per sigil rank.",
+        set(32, icon(Material.ANVIL, "&6&lForge Settings",
+                "&7Set the upgrade success % per sigil rank",
+                "&7and the XP-level cost per forge (0 = free).",
                 "&7Better ranks are rarer to upgrade — a GRAND",
                 "&7sigil should never be a sure thing.",
                 "", "&eClick to open"),

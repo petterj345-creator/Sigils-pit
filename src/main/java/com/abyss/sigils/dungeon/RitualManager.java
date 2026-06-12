@@ -93,8 +93,9 @@ public final class RitualManager implements Listener {
         // were placed, otherwise the shared event-block pool. The admin sets a
         // min-max range; we roll a count in it (0 max = use all anchors).
         List<Location> chosen = RandomPick.someInRange(
-                template.ritualSpawnAnchors(), template.ritualAltarsActiveMin(),
+                session.unclaimedAnchors(template.ritualSpawnAnchors()), template.ritualAltarsActiveMin(),
                 template.ritualAltarsActive(), rng);
+        session.claimAnchors(chosen);
         for (Location raw : chosen) {
             Location loc = new Location(w, raw.getX(), raw.getY(), raw.getZ());
             Altar altar = new Altar(loc);

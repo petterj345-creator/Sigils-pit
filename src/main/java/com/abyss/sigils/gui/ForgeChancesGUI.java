@@ -8,20 +8,22 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 /**
- * Admin editor for the per-rank forge success chances
- * ({@code upgrade.success-chance-per-rank} in config.yml). One button per rank;
- * click to type a new percent. Better ranks are meant to be rarer to upgrade,
- * so a GRAND sigil is never a sure thing.
+ * Admin editor for the forge settings: the per-rank success chances
+ * ({@code upgrade.success-chance-per-rank}) and the XP-level cost charged per
+ * forge attempt ({@code upgrade.xp-level-cost}; 0 = free). One button per rank
+ * plus an XP-cost button; click to type a new value. Better ranks are meant to
+ * be rarer to upgrade, so a GRAND sigil is never a sure thing.
  *
  * Values are written straight to config.yml and take effect immediately — the
  * forge reads them live on each attempt.
  */
 public final class ForgeChancesGUI extends EditorGUI.Holder {
 
-    private static final int SLOT_MINOR = 11;
-    private static final int SLOT_MAJOR = 13;
-    private static final int SLOT_GRAND = 15;
-    private static final int SLOT_BACK  = 22;
+    private static final int SLOT_MINOR   = 11;
+    private static final int SLOT_MAJOR   = 13;
+    private static final int SLOT_GRAND   = 15;
+    private static final int SLOT_XP_COST = 16;
+    private static final int SLOT_BACK    = 22;
 
     private final AbyssPlugin plugin;
 
@@ -31,7 +33,7 @@ public final class ForgeChancesGUI extends EditorGUI.Holder {
         new ForgeChancesGUI(plugin).open(p);
     }
 
-    @Override protected String title() { return color("&5&l✦ Forge Chances"); }
+    @Override protected String title() { return color("&5&l✦ Forge Settings"); }
 
     @Override protected int size() { return 27; }
 
@@ -44,6 +46,9 @@ public final class ForgeChancesGUI extends EditorGUI.Holder {
             e -> promptFor((Player) e.getWhoClicked(), SigilRank.MAJOR));
         set(SLOT_GRAND, rankIcon(Material.DIAMOND_BLOCK, "&5&lGRAND", SigilRank.GRAND),
             e -> promptFor((Player) e.getWhoClicked(), SigilRank.GRAND));
+
+        set(SLOT_XP_COST, xpCostIcon(),
+            e -> promptXpCost((Player) e.getWhoClicked()));
 
         set(SLOT_BACK, icon(Material.ARROW, "&7← Back to admin hub"),
             e -> AdminGUI.openHub(plugin, (Player) e.getWhoClicked()));
@@ -59,6 +64,40 @@ public final class ForgeChancesGUI extends EditorGUI.Holder {
                 "&7Currently: " + colorPct(pct) + pct + "%",
                 "",
                 "&eClick &7to set a new percent");
+    }
+
+    private org.bukkit.inventory.ItemStack xpCostIcon() {
+        int cost = xpCost();
+        return icon(Material.EXPERIENCE_BOTTLE,
+                "&fForge Cost: &aXP Levels",
+                "&7XP levels charged each time a player",
+                "&7clicks FORGE at the altar.",
+                "",
+                "&7Currently: " + (cost <= 0 ? "&aFree" : "&e" + cost + " level" + (cost == 1 ? "" : "s")),
+                "",
+                "&eClick &7to set (0 = free)");
+    }
+
+    private void promptXpCost(Player p) {
+        ChatInput.prompt(plugin, p, "&fXP levels per forge (0 = free)",
+                String.valueOf(xpCost()), text -> {
+            try {
+                int cost = Math.max(0, Integer.parseInt(text.trim()));
+                plugin.getConfig().set("upgrade.xp-level-cost", cost);
+                plugin.saveConfig();
+                p.sendMessage(color(cost <= 0
+                        ? "&aForging is now &lfree&a (no XP cost)."
+                        : "&aForge XP cost set to &f" + cost + " level" + (cost == 1 ? "" : "s") + "&a."));
+            } catch (NumberFormatException ex) {
+                p.sendMessage(color("&cMust be a whole number 0 or higher."));
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p));
+        });
+    }
+
+    /** Current configured XP-level cost per forge attempt (0 = free). */
+    private int xpCost() {
+        return plugin.getConfig().getInt("upgrade.xp-level-cost", 0);
     }
 
     private void promptFor(Player p, SigilRank rank) {

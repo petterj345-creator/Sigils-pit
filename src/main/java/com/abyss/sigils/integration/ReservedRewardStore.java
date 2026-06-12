@@ -66,6 +66,11 @@ public final class ReservedRewardStore {
             for (String ik : idxKeys) {
                 ConfigurationSection e = sec.getConfigurationSection(ik);
                 if (e == null) continue;
+                int cash = e.getInt("cash", 0);
+                if (cash > 0) {
+                    list.add(ReservedReward.cash(cash, e.getInt("remaining", 0)));
+                    continue;
+                }
                 ItemStack stack = e.getItemStack("item");
                 if (stack == null) continue;
                 list.add(new ReservedReward(stack,
@@ -85,9 +90,13 @@ public final class ReservedRewardStore {
             for (int i = 0; i < list.size(); i++) {
                 ReservedReward r = list.get(i);
                 String base = en.getKey() + "." + i;
+                cfg.set(base + ".remaining", r.remaining());
+                if (r.isCash()) {
+                    cfg.set(base + ".cash", r.cashAmount());
+                    continue;
+                }
                 cfg.set(base + ".item", r.itemStack());
                 cfg.set(base + ".amount", r.amount());
-                cfg.set(base + ".remaining", r.remaining());
                 if (r.isMMOItem()) {
                     cfg.set(base + ".mmo-type", r.mmoType());
                     cfg.set(base + ".mmo-id", r.mmoId());

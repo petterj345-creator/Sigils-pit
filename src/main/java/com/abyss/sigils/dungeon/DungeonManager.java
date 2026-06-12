@@ -208,7 +208,57 @@ public final class DungeonManager implements Listener {
         // Spawn reliquaries if the entry map carried the reliquary modifier.
         plugin.reliquaryManager().init(session, template);
 
+        // Tome of Mastery — Abyssal Omen may manifest an event on a blank map.
+        maybeManifestEvent(session, template);
+
         scheduleTimeout(session, template);
+    }
+
+    /**
+     * Tome of Mastery — Abyssal Omen. A map carrying NO event modifier has a
+     * chance (10% per skill rank, so 50% at max) to manifest ONE event anyway,
+     * picked at random from the events this template can actually run. The roll
+     * uses the highest Abyssal Omen rank among the party, so one invested member
+     * benefits the group.
+     */
+    private void maybeManifestEvent(DungeonSession session, DungeonTemplate template) {
+        // Blank maps only — never stack onto a map that already carries an event.
+        if (session.hasMod(MapMod.RITUAL.id())
+                || session.hasMod(MapMod.MAELSTROM.id())
+                || session.hasMod(MapMod.RELIQUARY.id())) return;
+
+        int rank = 0;
+        if (plugin.skills() != null) {
+            for (UUID id : session.players()) {
+                rank = Math.max(rank, plugin.skills().rank(id, com.abyss.sigils.skills.SkillType.ABYSSAL_OMEN));
+            }
+        }
+        if (rank <= 0) return;
+
+        Random rng = new Random();
+        if (rng.nextDouble() * 100.0 >= com.abyss.sigils.skills.SkillType.ABYSSAL_OMEN.totalAt(rank)) return;
+
+        // Pick at random among the events THIS template can actually run.
+        List<MapMod> options = new ArrayList<>();
+        if (template.hasRitual())    options.add(MapMod.RITUAL);
+        if (template.hasMaelstrom()) options.add(MapMod.MAELSTROM);
+        if (template.hasReliquary()) options.add(MapMod.RELIQUARY);
+        if (options.isEmpty()) return; // template defines no events — nothing to manifest
+
+        MapMod chosen = options.get(rng.nextInt(options.size()));
+        session.mapMods().add(chosen.id());
+
+        for (UUID id : session.players()) {
+            Player p = plugin.getServer().getPlayer(id);
+            if (p != null) p.sendMessage(Text.color("&5&l✦ &dThe Abyss stirs &7— this empty map manifests an event of its own…"));
+        }
+
+        // Run only the chosen event's init; it re-checks the mod + template support.
+        switch (chosen) {
+            case RITUAL    -> plugin.ritualManager().init(session, template);
+            case MAELSTROM -> plugin.maelstromManager().init(session, template);
+            case RELIQUARY -> plugin.reliquaryManager().init(session, template);
+        }
     }
 
     // ============================================================

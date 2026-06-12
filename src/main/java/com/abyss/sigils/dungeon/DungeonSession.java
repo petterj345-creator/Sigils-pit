@@ -75,6 +75,13 @@ public final class DungeonSession {
     // ----- ritual (Altar of Souls) -----
     /** Map modifiers active this run (MapMod ids), from the entry map item. */
     private final List<String> mapMods = new ArrayList<>();
+    /**
+     * Anchor blocks already taken by an event this run, keyed by block coords.
+     * Events init sequentially and share the {@code eventBlocks} fallback pool,
+     * so each one claims the blocks it spawns on and skips any a prior event
+     * already took — two events never manifest on the same block.
+     */
+    private final Set<String> claimedAnchors = new HashSet<>();
     /** Per-player soul balance, earned from ritual mobs, spent in the soul shop. */
     private final Map<UUID, Integer> souls = new HashMap<>();
 
@@ -96,6 +103,21 @@ public final class DungeonSession {
     public boolean hasMod(String id) {
         for (String m : mapMods) if (m.equalsIgnoreCase(id)) return true;
         return false;
+    }
+
+    private static String anchorKey(Location loc) {
+        return loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+    }
+    /** The anchors in {@code pool} that no event has claimed yet this run. */
+    public List<Location> unclaimedAnchors(List<Location> pool) {
+        if (pool == null || pool.isEmpty()) return new ArrayList<>();
+        List<Location> free = new ArrayList<>(pool.size());
+        for (Location loc : pool) if (!claimedAnchors.contains(anchorKey(loc))) free.add(loc);
+        return free;
+    }
+    /** Mark these anchor blocks as taken so no later event reuses them. */
+    public void claimAnchors(Collection<Location> locs) {
+        for (Location loc : locs) claimedAnchors.add(anchorKey(loc));
     }
 
     public int tier() { return tier; }

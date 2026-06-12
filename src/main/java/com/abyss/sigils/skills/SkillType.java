@@ -29,6 +29,9 @@ public enum SkillType {
     TREASURE_HUNTER("treasure_hunter", "Treasure Hunter", SkillCategory.GENERAL,
             Material.GOLD_INGOT, 4, 20, true, "money gained",
             "More money from map completion rewards."),
+    ABYSSAL_OMEN("abyssal_omen", "Abyssal Omen", SkillCategory.GENERAL,
+            Material.RECOVERY_COMPASS, 5, 10, true, "event spawn chance",
+            "A map with no event can spawn one."),
 
     // ----- Ritual -----
     SOUL_HARVEST("soul_harvest", "Soul Harvest", SkillCategory.RITUAL,
