@@ -8,6 +8,7 @@ import com.abyss.sigils.dungeon.MapMod;
 import com.abyss.sigils.sigils.SigilDefinition;
 import com.abyss.sigils.sigils.SigilInstance;
 import com.abyss.sigils.sigils.SigilItem;
+import com.abyss.sigils.skills.SkillBookItem;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -104,6 +105,17 @@ public final class AdminGUI extends EditorGUI.Holder {
                 int n = e.isShiftClick() ? 64 : 16;
                 give(p, SigilItem.createDust(n));
                 done(p, n + "x Sigil Dust");
+            });
+
+        set(25, icon(Material.ENCHANTED_BOOK, "&6&l✦ Tome of Mastery",
+                "&7The endgame skill-tree book.",
+                "&7Skill points persist server-side, so",
+                "&7a fresh copy keeps the player's progress.",
+                "", "&eClick to give yourself one"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                give(p, SkillBookItem.create());
+                done(p, "Tome of Mastery");
             });
 
         set(30, icon(Material.WRITABLE_BOOK, "&d&lEdit / Create Sigils",
