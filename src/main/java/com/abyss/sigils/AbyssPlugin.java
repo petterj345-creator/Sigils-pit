@@ -61,6 +61,7 @@ public final class AbyssPlugin extends JavaPlugin {
     private EditorWandListener editorWandListener;
     private com.abyss.sigils.gui.EditorMarkers editorMarkers;
     private MarkerVisualizer markerVisualizer;
+    private com.abyss.sigils.npc.TutorialGuide tutorialGuide;
 
     @Override
     public void onEnable() {
@@ -180,6 +181,23 @@ public final class AbyssPlugin extends JavaPlugin {
             getLogger().warning("MythicMobs not found — dungeon/item-type hooks disabled.");
         }
 
+        // Citizens tutorial NPC — soft dependency. Registers the "sigils"
+        // trait so admins can run /trait sigils on any NPC to make it read out
+        // the endgame guide (pages live under tutorial: in config.yml).
+        if (Bukkit.getPluginManager().getPlugin("Citizens") != null) {
+            tutorialGuide = new com.abyss.sigils.npc.TutorialGuide(this);
+            Bukkit.getPluginManager().registerEvents(
+                    new com.abyss.sigils.npc.TutorialNpcListener(tutorialGuide), this);
+            net.citizensnpcs.api.CitizensAPI.getTraitFactory().registerTrait(
+                    net.citizensnpcs.api.trait.TraitInfo.create(
+                            com.abyss.sigils.npc.SigilsTutorialTrait.class));
+            if (getCommand("sigilguide") != null) {
+                getCommand("sigilguide").setExecutor(
+                        new com.abyss.sigils.npc.TutorialGuideCommand(tutorialGuide));
+            }
+            getLogger().info("Citizens found — /trait sigils tutorial NPC enabled.");
+        }
+
         AbyssCommand cmd = new AbyssCommand(this);
         if (getCommand("abyss") != null) {
             getCommand("abyss").setExecutor(cmd);
@@ -226,6 +244,7 @@ public final class AbyssPlugin extends JavaPlugin {
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
     public MarkerVisualizer markerVisualizer() { return markerVisualizer; }
+    public com.abyss.sigils.npc.TutorialGuide tutorialGuide() { return tutorialGuide; }
 
     /** Gives new players the Book of Sigils on first join (if configured). */
     public static class BookOnJoinListener implements Listener {

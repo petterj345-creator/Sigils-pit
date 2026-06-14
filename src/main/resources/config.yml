@@ -58,6 +58,146 @@ skillbook:
   # Give every player a Tome of Mastery on join (and restore it after death)?
   give-on-join: true
 
+# =========================================
+# Tutorial NPC (Citizens)  —  /trait sigils
+# =========================================
+# Add the trait to any Citizens NPC with:   /npc select   then   /trait sigils
+# Players RIGHT-CLICK the NPC to open this guide and click the [Next]/[Back]/
+# [Topics] buttons (or left-click the NPC) to page through it.
+#
+# Everything here is plain text with &-colour codes. Add, remove, or reorder
+# pages freely — each page is a "title" plus a list of "lines". No rebuild
+# needed; edit and run /abyss reload.
+tutorial:
+  # Header shown above every page. {npc} = the NPC's name, {n}/{total} = paging.
+  title: "&5&l✦ {npc} &8— &5&lEndgame Codex &7({n}/{total})"
+  # Footer hint shown under the navigation buttons.
+  footer: "&8Right-click me for the next page, or use the buttons above."
+  pages:
+    - title: "Welcome, Delver"
+      lines:
+        - "&7So you want to master &5the Abyss&7? Good."
+        - "&7The endgame is a loop: &fclear maps&7, collect &fsigils"
+        - "&7and &fcurrency&7, &fupgrade your power&7, then dive &odeeper&7."
+        - ""
+        - "&7Click &a[Topics]&7 below to jump to any subject, or just"
+        - "&7keep right-clicking me to read it all in order."
+    - title: "The Book of Sigils"
+      lines:
+        - "&7Your &5Book of Sigils &7is your power core. Right-click"
+        - "&7it (or use &f/sigils&7) to open your socket menu."
+        - ""
+        - "&7It has two kinds of sockets:"
+        - "&8• &fSmall &7— hold &aMINOR &7sigils (your workhorses)."
+        - "&8• &fBig &7— hold &bMAJOR &7& &dGRAND &7sigils (the big stats)."
+        - ""
+        - "&7Drag a sigil into a matching socket and its stats apply"
+        - "&7instantly. More sockets unlock as you upgrade the book."
+    - title: "Sigils & Stats"
+      lines:
+        - "&7Sigils drop from mobs in the Abyss. Each has a &frank&7:"
+        - "&8• &aMINOR &7— common, everyday stats."
+        - "&8• &bMAJOR &7— the powerful stats: big damage %,"
+        - "  &7lifesteal, crit, and MMOItems stats."
+        - "&8• &dGRAND &7— the rarest, slotted only in late-tier books."
+        - ""
+        - "&7Stats cover &fCombat &7(damage, defense, crit, HP,"
+        - "&7lifesteal, thorns) and &fGathering &7(bonus ore/wood/crops)."
+    - title: "Dust & The Forge"
+      lines:
+        - "&7Clearing a map earns you a few &fforge attempts&7."
+        - "&7At the &6Forge of the Abyss &7you can:"
+        - "&8• &7Upgrade a &fsigil&7 — raises its tier, may roll a"
+        - "  &7bonus sub-stat. Rarer ranks succeed less often."
+        - "&8• &7Upgrade your &5Book&7 — drop the book in the forge"
+        - "  &7slot and click FORGE to open more sockets."
+        - ""
+        - "&7Higher ranks are a gamble — a &dGRAND &7is never certain."
+    - title: "Entering The Abyss"
+      lines:
+        - "&7Find the &5portal &7and right-click it. &fSneak &7first to"
+        - "&7pull nearby players in as a &fparty&7."
+        - ""
+        - "&7Maps run in one of two modes:"
+        - "&8• &fMAP &7— trash flows endlessly; the &cboss &7appears"
+        - "  &7once you've killed enough."
+        - "&8• &fWAVES &7— clear discrete waves; boss after the last."
+        - ""
+        - "&7Kill the boss → a &6reward chest &7& &6forge altar &7spawn."
+        - "&7Use &f/abyss leave &7to exit; the instance is wiped."
+    - title: "Maps, Tier & Quality"
+      lines:
+        - "&7Every map carries two numbers:"
+        - "&8• &cTier &7— combat difficulty: tougher mobs, more"
+        - "  &7frequent drops, &cand &7bigger XP/money payouts."
+        - "&8• &bQuality &7— reward bonus: more loot, XP and money."
+        - ""
+        - "&7You raise them with &dAbyssal currency &7items. Hold a"
+        - "&7currency on your cursor and click a map to roll a"
+        - "&7modifier onto it — Path-of-Exile style crafting."
+        - "&7Higher-tier runs even drop higher-tier maps to sustain you."
+    - title: "In-Map Events"
+      lines:
+        - "&7Maps can contain special &fevents &7— optional, high-risk,"
+        - "&7high-reward encounters you choose to trigger:"
+        - ""
+        - "&8• &3Maelstrom &7— a rift you tear open."
+        - "&8• &6Reliquary &7— a sealed strongbox to crack."
+        - "&8• &5Altar of Souls &7— a ritual that feeds a soul shop."
+        - ""
+        - "&7And with the &fAbyssal Omen &7skill, even a blank map can"
+        - "&7manifest one of these on its own. Read on for each."
+    - title: "Event: Maelstrom"
+      lines:
+        - "&3The Maelstrom &7is a breach-style rift."
+        - ""
+        - "&7Right-click it to &ftear it open&7. Mobs pour out in"
+        - "&7pulses — survive and keep killing to fill its meter."
+        - "&7Clear it for a dedicated &floot cache&7."
+        - ""
+        - "&7Skills &bRift Surge &7(spawn faster) and &cCataclysm"
+        - "&7(more mobs per pulse) make your rifts wilder — and richer."
+    - title: "Event: Reliquary"
+      lines:
+        - "&6The Reliquary &7is a sealed strongbox."
+        - ""
+        - "&7Unseal it, then defeat the &fguardians &7that awaken to"
+        - "&7protect it. Clear them all and it cracks open into loot."
+        - ""
+        - "&7The &6Relic Hunter &7skill makes every Reliquary you"
+        - "&7crack yield more items."
+    - title: "Event: Altar of Souls"
+      lines:
+        - "&5The Altar of Souls &7runs a ritual."
+        - ""
+        - "&7Mobs you kill during the ritual yield &fsouls&7. Spend"
+        - "&7them at the &fSoul Shop &7for rewards — and you can"
+        - "&freserve &7(lay away) an item to claim across future maps."
+        - ""
+        - "&7The &5Soul Harvest &7skill boosts souls per kill."
+    - title: "The Tome of Mastery"
+      lines:
+        - "&7Your &fTome of Mastery &7is a permanent skill tree."
+        - "&7Right-click it to open it. It never drops on death."
+        - ""
+        - "&7You earn &f1 skill point &7the FIRST time you complete"
+        - "&7each map. Spend points on nodes like:"
+        - "&8• &fGreater Spoils &7— more loot items per roll."
+        - "&8• &fScholar &7/ &fTreasure Hunter &7— more XP / money."
+        - "&8• &fAbyssal Omen &7— blank maps can spawn an event."
+        - "&8• &7…plus a branch for each event type."
+    - title: "The Endgame Loop"
+      lines:
+        - "&7Put it together:"
+        - ""
+        - "&f1. &7Dive the Abyss, kill mobs, grab sigils & currency."
+        - "&f2. &7Socket sigils; forge the best ones higher."
+        - "&f3. &7Use currency to push map &ctier &7& &bquality&7."
+        - "&f4. &7Run events for big caches; bank skill points."
+        - "&f5. &7Spend mastery points, then dive &odeeper&7."
+        - ""
+        - "&7That's the whole game. Now go earn it, Delver. &5✦"
+
 socket:
   # Legacy slot counts — only used if a player has no Book of Sigils item
   # in their inventory (e.g. very old saves). Modern behaviour: slots come
