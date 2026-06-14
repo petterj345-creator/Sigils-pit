@@ -105,6 +105,21 @@ That's it. The portal block (configured in `config.yml`) will pick a random play
 
 ---
 
+## Tutorial NPC (Citizens, optional)
+
+If [Citizens](https://www.spigotmc.org/resources/citizens.13811/) is installed, AbyssSigils registers a `sigils` trait that turns any NPC into an endgame guide:
+
+```text
+/npc create Loremaster      # or select an existing NPC with /npc select
+/trait sigils               # attach the guide
+```
+
+Players **right-click** the NPC to open a paginated "Endgame Codex" and click the **[Back] / [Next] / [Topics]** chat buttons (or left-click the NPC) to page through it. It covers the whole loop: the Book of Sigils, ranks & stats, the Forge, entering the Abyss, map tier/quality & currency, the Maelstrom / Reliquary / Altar of Souls events, and the Tome of Mastery.
+
+All the text lives under `tutorial:` in `config.yml` — edit the pages (each is a `title` + `lines`) and run `/abyss reload`; no rebuild needed. Citizens is a soft dependency: without it the plugin runs exactly as before, just without the trait.
+
+---
+
 ## How MythicMobs drops sigils
 
 AbyssSigils registers two custom MythicMobs item types. Use them in any droptable:
