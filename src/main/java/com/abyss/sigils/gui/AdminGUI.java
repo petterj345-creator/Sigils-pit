@@ -8,6 +8,7 @@ import com.abyss.sigils.dungeon.MapMod;
 import com.abyss.sigils.sigils.SigilDefinition;
 import com.abyss.sigils.sigils.SigilInstance;
 import com.abyss.sigils.sigils.SigilItem;
+import com.abyss.sigils.skills.SkillBookItem;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -209,6 +210,17 @@ public final class AdminGUI extends EditorGUI.Holder {
 
     private List<Entry> bookEntries() {
         List<Entry> out = new ArrayList<>();
+
+        // Tome of Mastery — the endgame skill-tree book. Skill points persist
+        // server-side, so a fresh copy keeps the player's progress.
+        ItemStack tome = SkillBookItem.create();
+        decorateGiveLore(tome, "&eClick &7→ give this tome");
+        out.add(new Entry(tome, e -> {
+            Player p = (Player) e.getWhoClicked();
+            give(p, SkillBookItem.create());
+            done(p, "Tome of Mastery");
+        }));
+
         int max = plugin.bookTiers().maxTier();
         for (int tier = 1; tier <= max; tier++) {
             final int t = tier;
