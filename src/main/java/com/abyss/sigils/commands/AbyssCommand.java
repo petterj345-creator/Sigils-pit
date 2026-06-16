@@ -127,8 +127,19 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         // Load world + tp + give wand + open editor
         org.bukkit.World w = plugin.templates().loadWorld(t);
         if (w == null) { p.sendMessage(Text.color("&cTemplate world missing on disk.")); return; }
-        int y = w.getHighestBlockYAt(0, 0) + 1;
-        p.teleport(new org.bukkit.Location(w, 0.5, y, 0.5));
+        // Drop the admin at the configured player spawn so editing starts where
+        // players actually begin. The stored location has world=null (wiped on
+        // save), so bind its coords to the freshly-loaded world. Fall back to the
+        // 0,0 surface when no player spawn has been placed yet.
+        org.bukkit.Location ps = t.playerSpawn();
+        org.bukkit.Location dest;
+        if (ps != null) {
+            dest = new org.bukkit.Location(w, ps.getX(), ps.getY(), ps.getZ(), ps.getYaw(), ps.getPitch());
+        } else {
+            int y = w.getHighestBlockYAt(0, 0) + 1;
+            dest = new org.bukkit.Location(w, 0.5, y, 0.5);
+        }
+        p.teleport(dest);
         plugin.editorWandListener().giveWand(p);
         com.abyss.sigils.gui.TemplateEditorGUI.openFor(plugin, p, t);
     }
