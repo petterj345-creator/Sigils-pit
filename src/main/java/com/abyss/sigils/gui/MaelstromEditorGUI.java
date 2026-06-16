@@ -77,9 +77,9 @@ public final class MaelstromEditorGUI extends EditorGUI.Holder {
         // 12 Mobs
         set(12, icon(Material.ZOMBIE_HEAD,
                 "&dMaelstrom Mobs &7(" + template.maelstromMobs().size() + ")",
-                "&7Specific mobs the rift spews.",
+                "&7Targeted mobs the rift spews.",
                 "&7Leave empty and enable &fUse Trash &7to just",
-                "&7fill with the dungeon's trash mobs.",
+                "&7fill from the shared Event Trash pool.",
                 "",
                 "&eClick &7to manage"),
             e -> {
@@ -91,9 +91,9 @@ public final class MaelstromEditorGUI extends EditorGUI.Holder {
         // 14 Use trash toggle
         set(14, icon(template.maelstromUseTrash() ? Material.LIME_DYE : Material.GRAY_DYE,
                 "&fUse Trash Mobs: " + (template.maelstromUseTrash() ? "&aON" : "&cOFF"),
-                "&7Also pull from the dungeon's Default Trash",
-                "&7Mobs — fast filler at a clearable rate,",
-                "&7just like the normal dungeon spawner.",
+                "&7Also pull from the shared &cEvent Trash &7pool",
+                "&7— spews them nonstop until the rift collapses.",
+                "&8Edit the pool in Events → Event Trash Mobs.",
                 "",
                 "&eClick &7to toggle"),
             e -> {

@@ -76,12 +76,13 @@ public final class ReliquaryEditorGUI extends EditorGUI.Holder {
                 });
             });
 
-        // 12 Guardian mobs
+        // 12 Guardian mobs (targeted)
         set(12, icon(Material.ZOMBIE_HEAD,
                 "&dGuardian Pack &7(" + template.reliquaryGuards().size() + ")",
-                "&7Mobs summoned when a reliquary is unsealed.",
-                "&7Slay them ALL to crack it open.",
+                "&7Targeted mobs summoned when a reliquary",
+                "&7is unsealed. Slay them ALL to crack it open.",
                 "&7They do NOT count toward the boss.",
+                "&7Leave empty to summon only trash mobs →",
                 "",
                 "&eClick &7to manage"),
             e -> {
@@ -90,17 +91,24 @@ public final class ReliquaryEditorGUI extends EditorGUI.Holder {
                         () -> Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template)));
             });
 
-        // 14 Use trash toggle
-        set(14, icon(template.reliquaryUseTrash() ? Material.LIME_DYE : Material.GRAY_DYE,
-                "&fUse Trash Mobs: " + (template.reliquaryUseTrash() ? "&aON" : "&cOFF"),
-                "&7Also add the dungeon's Default Trash Mobs",
-                "&7to the guardian pack (by their counts).",
+        // 14 Trash mobs per reliquary (drawn from the shared Event Trash pool)
+        set(14, icon(Material.ROTTEN_FLESH,
+                "&cTrash Mobs per Reliquary: &f" + template.reliquaryTrashCount(),
+                "&7Random mobs pulled from the shared",
+                "&7&cEvent Trash &7pool, added to the guardian",
+                "&7pack on TOP of the targeted guardians.",
+                "&8Edit the pool in Events → Event Trash Mobs.",
+                "&80 = targeted guardians only.",
                 "",
-                "&eClick &7to toggle"),
+                "&eClick &7to set"),
             e -> {
-                template.setReliquaryUseTrash(!template.reliquaryUseTrash());
-                plugin.templates().save(template);
-                refresh((Player) e.getWhoClicked());
+                Player p = (Player) e.getWhoClicked();
+                ChatInput.prompt(plugin, p, "&fTrash mobs per reliquary (0 = none)",
+                        String.valueOf(template.reliquaryTrashCount()), text -> {
+                    try { template.setReliquaryTrashCount(Integer.parseInt(text.trim())); plugin.templates().save(template); }
+                    catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a whole number.")); }
+                    Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                });
             });
 
         // 16 Loot

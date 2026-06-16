@@ -82,17 +82,37 @@ public final class RitualEditorGUI extends EditorGUI.Holder {
                 });
             });
 
-        // 20 Ritual mobs
+        // 20 Ritual mobs (targeted)
         set(20, icon(Material.ZOMBIE_HEAD,
                 "&dRitual Mobs &7(" + template.ritualMobs().size() + ")",
-                "&7Mobs summoned when a ritual starts.",
+                "&7Targeted mobs summoned when a ritual starts.",
                 "&7They do NOT count toward the boss.",
+                "&7Leave empty to summon only trash mobs →",
                 "",
                 "&eClick &7to manage"),
             e -> {
                 Player p = (Player) e.getWhoClicked();
                 MobListGUI.openFor(plugin, p, template, template.ritualMobs(), "Ritual Mobs",
                         () -> Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template)));
+            });
+
+        // 21 Trash mobs per ritual (drawn from the shared Event Trash pool)
+        set(21, icon(Material.ROTTEN_FLESH,
+                "&cTrash Mobs per Ritual: &f" + template.ritualTrashCount(),
+                "&7Random mobs pulled from the shared",
+                "&7&cEvent Trash &7pool, spawned on TOP of the",
+                "&7targeted Ritual Mobs.",
+                "&8Edit the pool in Events → Event Trash Mobs.",
+                "&80 = targeted mobs only.",
+                "",
+                "&eClick &7to set"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                ChatInput.prompt(plugin, p, "&fTrash mobs per ritual (0 = none)",
+                        String.valueOf(template.ritualTrashCount()), text -> {
+                    applyInt(text, template::setRitualTrashCount, p);
+                    Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template));
+                });
             });
 
         // 22 Souls per mob
