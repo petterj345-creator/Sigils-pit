@@ -206,9 +206,13 @@ public final class ReliquaryManager implements Listener {
 
     private void open(State state, Vault vault, Player opener) {
         DungeonTemplate t = state.template;
-        List<MobEntry> packDefs = new ArrayList<>(t.reliquaryGuards());
-        if (t.reliquaryUseTrash()) packDefs.addAll(t.defaultTrashMobs());
-        if (packDefs.isEmpty()) {
+        // Targeted guardians (flattened by their count) plus N random picks from
+        // the shared event-trash pool. Each trash pick is a single mob.
+        List<MobEntry> toSpawn = new ArrayList<>();
+        for (MobEntry entry : t.reliquaryGuards())
+            for (int i = 0; i < Math.max(1, entry.count()); i++) toSpawn.add(entry);
+        toSpawn.addAll(t.rollEventTrash(t.reliquaryTrashCount()));
+        if (toSpawn.isEmpty()) {
             broadcast(state, "&cThe reliquary is sealed shut — no guardians are configured.");
             return;
         }
@@ -225,21 +229,19 @@ public final class ReliquaryManager implements Listener {
         playSound(state, Sound.BLOCK_BEACON_ACTIVATE, 0.7f);
 
         int spawned = 0, failed = 0;
-        for (MobEntry entry : packDefs) {
-            for (int i = 0; i < Math.max(1, entry.count()); i++) {
-                Location loc = safeSpawn(ringSpot(vault.center), vault.center);
-                var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
-                if (ent.isPresent()) {
-                    Entity mob = ent.get();
-                    // Keep guardians from despawning — a guardian that vanished
-                    // without a death event would leave the reliquary forever
-                    // guarded (uncrackable).
-                    mob.setPersistent(true);
-                    if (mob instanceof LivingEntity le) { le.setRemoveWhenFarAway(false); le.setFallDistance(0); }
-                    vault.guards.add(mob.getUniqueId());
-                    spawned++;
-                } else failed++;
-            }
+        for (MobEntry entry : toSpawn) {
+            Location loc = safeSpawn(ringSpot(vault.center), vault.center);
+            var ent = plugin.dungeonManager().spawnMythic(entry.mythicId(), loc, entry.level());
+            if (ent.isPresent()) {
+                Entity mob = ent.get();
+                // Keep guardians from despawning — a guardian that vanished
+                // without a death event would leave the reliquary forever
+                // guarded (uncrackable).
+                mob.setPersistent(true);
+                if (mob instanceof LivingEntity le) { le.setRemoveWhenFarAway(false); le.setFallDistance(0); }
+                vault.guards.add(mob.getUniqueId());
+                spawned++;
+            } else failed++;
         }
         if (failed > 0) {
             plugin.getLogger().warning("Reliquary: " + failed + " guardian(s) failed to spawn (spawned "

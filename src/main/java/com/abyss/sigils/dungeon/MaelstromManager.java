@@ -205,7 +205,7 @@ public final class MaelstromManager implements Listener {
     private void open(State state, Rift rift, Player opener) {
         DungeonTemplate t = state.template;
         List<MobEntry> pool = new ArrayList<>(t.maelstromMobs());
-        if (t.maelstromUseTrash()) pool.addAll(t.defaultTrashMobs());
+        if (t.maelstromUseTrash()) pool.addAll(t.eventTrashMobs());
         if (pool.isEmpty()) {
             broadcast(state, "&cThe rift sputters — no mobs are configured.");
             return;
