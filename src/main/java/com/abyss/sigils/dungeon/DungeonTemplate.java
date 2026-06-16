@@ -100,6 +100,15 @@ public final class DungeonTemplate {
      */
     private final List<Location> eventBlocks = new ArrayList<>();
 
+    /**
+     * Shared trash pool that ALL events (ritual, maelstrom, reliquary) draw
+     * from. Separate from {@link #defaultTrashMobs}, which feeds the normal
+     * MAP-mode dungeon spawner. Set once per map via Events → Event Trash Mobs;
+     * each event decides how many to pull — a per-event count for ritual and
+     * reliquary, or a continuous toggle for the maelstrom.
+     */
+    private final List<MobEntry> eventTrashMobs = new ArrayList<>();
+
     // ----- ritual (Altar of Souls) -----
     /** Altar locations (armor stands) placed via the wand. Stored "stand on top". */
     private final List<Location> ritualAltars = new ArrayList<>();
@@ -113,6 +122,11 @@ public final class DungeonTemplate {
     private int ritualAltarsActiveMin = 0;
     /** Mobs each ritual summons (count = how many of each). Don't count toward boss. */
     private final List<MobEntry> ritualMobs = new ArrayList<>();
+    /**
+     * Random mobs pulled from {@link #eventTrashMobs} each ritual, spawned on
+     * TOP of {@link #ritualMobs}. 0 = targeted mobs only.
+     */
+    private int ritualTrashCount = 0;
     /** Souls granted per MythicMob id when killed during a ritual, as {min,max}. */
     private final java.util.Map<String, int[]> ritualMobSouls = new java.util.LinkedHashMap<>();
     /** Purchasable items in the soul shop. */
@@ -171,8 +185,11 @@ public final class DungeonTemplate {
     private int reliquaryActiveMin = 0;
     /** Guardian pack summoned when a reliquary is unsealed (count = how many of each). */
     private final List<MobEntry> reliquaryGuards = new ArrayList<>();
-    /** If true, also pull from the template's default trash mobs for the guard pack. */
-    private boolean reliquaryUseTrash = false;
+    /**
+     * Random mobs pulled from {@link #eventTrashMobs} each reliquary, added to
+     * the targeted guardian pack. 0 = targeted guardians only.
+     */
+    private int reliquaryTrashCount = 0;
     /** Loot pool dropped when the reliquary cracks open (gated by guardians slain). */
     private final List<MaelstromLoot> reliquaryLoot = new ArrayList<>();
     /** Max distinct loot items rolled into the cracked-open cache. */
@@ -195,6 +212,7 @@ public final class DungeonTemplate {
     public Location exitPortalSpawn() { return exitPortalSpawn == null ? null : exitPortalSpawn.clone(); }
     public List<SpawnPoint> spawnPoints()     { return spawnPoints; }
     public List<MobEntry> defaultTrashMobs()  { return defaultTrashMobs; }
+    public List<MobEntry> eventTrashMobs()    { return eventTrashMobs; }
     public List<Wave> waves()                 { return waves; }
     public String bossMobId()         { return bossMobId; }
     public int bossLevel()            { return bossLevel; }
@@ -223,6 +241,7 @@ public final class DungeonTemplate {
     public int ritualAltarsActive()                   { return ritualAltarsActive; }
     public int ritualAltarsActiveMin()                { return ritualAltarsActiveMin; }
     public List<MobEntry> ritualMobs()                { return ritualMobs; }
+    public int ritualTrashCount()                     { return ritualTrashCount; }
     public java.util.Map<String,int[]> ritualMobSouls() { return ritualMobSouls; }
     public List<RitualReward> ritualRewardPool()      { return ritualRewardPool; }
     public int ritualItemsMin()                       { return ritualItemsMin; }
@@ -247,8 +266,11 @@ public final class DungeonTemplate {
         int min = Math.max(0, r[0]), max = Math.max(min, r[1]);
         return min + (max > min ? java.util.concurrent.ThreadLocalRandom.current().nextInt(max - min + 1) : 0);
     }
-    /** True if this template has a usable ritual setup (anchors + mobs). */
-    public boolean hasRitual() { return !ritualSpawnAnchors().isEmpty() && !ritualMobs.isEmpty(); }
+    /** True if this template has a usable ritual setup (anchors + some mob source). */
+    public boolean hasRitual() {
+        return !ritualSpawnAnchors().isEmpty()
+                && (!ritualMobs.isEmpty() || (ritualTrashCount > 0 && !eventTrashMobs.isEmpty()));
+    }
 
     // Shared event anchors
     public List<Location> eventBlocks() { return eventBlocks; }
@@ -258,6 +280,20 @@ public final class DungeonTemplate {
     public List<Location> maelstromSpawnAnchors() { return maelstromCenters.isEmpty()  ? eventBlocks : maelstromCenters; }
     /** Where reliquaries spawn: type-specific markers if placed, else shared event blocks. */
     public List<Location> reliquarySpawnAnchors() { return reliquaryCenters.isEmpty()  ? eventBlocks : reliquaryCenters; }
+
+    /**
+     * Roll {@code n} random picks from the shared event-trash pool. Each pick is
+     * a single mob (the entry's count is ignored — the pool acts as a weighted
+     * bag), spawned at the entry's level. Returns an empty list when no trash is
+     * configured or {@code n <= 0}.
+     */
+    public List<MobEntry> rollEventTrash(int n) {
+        List<MobEntry> out = new ArrayList<>();
+        if (n <= 0 || eventTrashMobs.isEmpty()) return out;
+        var rng = java.util.concurrent.ThreadLocalRandom.current();
+        for (int i = 0; i < n; i++) out.add(eventTrashMobs.get(rng.nextInt(eventTrashMobs.size())));
+        return out;
+    }
 
     // Maelstrom getters
     public List<Location> maelstromCenters()  { return maelstromCenters; }
@@ -275,7 +311,7 @@ public final class DungeonTemplate {
     /** True if this template has a usable maelstrom (an anchor + some mob source). */
     public boolean hasMaelstrom() {
         return !maelstromSpawnAnchors().isEmpty()
-                && (!maelstromMobs.isEmpty() || (maelstromUseTrash && !defaultTrashMobs.isEmpty()));
+                && (!maelstromMobs.isEmpty() || (maelstromUseTrash && !eventTrashMobs.isEmpty()));
     }
 
     // Reliquary getters
@@ -283,13 +319,13 @@ public final class DungeonTemplate {
     public int reliquaryActive()              { return reliquaryActive; }
     public int reliquaryActiveMin()           { return reliquaryActiveMin; }
     public List<MobEntry> reliquaryGuards()   { return reliquaryGuards; }
-    public boolean reliquaryUseTrash()        { return reliquaryUseTrash; }
+    public int reliquaryTrashCount()          { return reliquaryTrashCount; }
     public List<MaelstromLoot> reliquaryLoot() { return reliquaryLoot; }
     public int reliquaryMaxLootItems()        { return reliquaryMaxLootItems; }
     /** True if this template has a usable reliquary (an anchor + some guard source). */
     public boolean hasReliquary() {
         return !reliquarySpawnAnchors().isEmpty()
-                && (!reliquaryGuards.isEmpty() || (reliquaryUseTrash && !defaultTrashMobs.isEmpty()));
+                && (!reliquaryGuards.isEmpty() || (reliquaryTrashCount > 0 && !eventTrashMobs.isEmpty()));
     }
 
     // ----- setters -----
@@ -353,6 +389,7 @@ public final class DungeonTemplate {
     public void clearRitualAltars()           { ritualAltars.clear(); }
     public void setRitualAltarsActive(int n)  { this.ritualAltarsActive = Math.max(0, n); }
     public void setRitualAltarsActiveMin(int n) { this.ritualAltarsActiveMin = Math.max(0, n); }
+    public void setRitualTrashCount(int n)    { this.ritualTrashCount = Math.max(0, n); }
     public void setRitualMobSouls(String id, int min, int max) {
         if (max <= 0) { ritualMobSouls.remove(id); return; }
         int lo = Math.max(0, min), hi = Math.max(lo, max);
@@ -388,7 +425,7 @@ public final class DungeonTemplate {
     public void addReliquaryCenter(Location loc)      { reliquaryCenters.add(wipeWorld(loc)); }
     public void setReliquaryActive(int n)             { this.reliquaryActive = Math.max(0, n); }
     public void setReliquaryActiveMin(int n)          { this.reliquaryActiveMin = Math.max(0, n); }
-    public void setReliquaryUseTrash(boolean b)       { this.reliquaryUseTrash = b; }
+    public void setReliquaryTrashCount(int n)         { this.reliquaryTrashCount = Math.max(0, n); }
     public void setReliquaryMaxLootItems(int n)       { this.reliquaryMaxLootItems = Math.max(0, n); }
     /** Remove any reliquary marker at the given block (stand-on-top match). Returns count removed. */
     public int removeReliquaryCenterAt(int bx, int by, int bz) {
@@ -501,6 +538,11 @@ public final class DungeonTemplate {
         for (MobEntry e : defaultTrashMobs) trashStrs.add(e.encode());
         cfg.set("default-trash-mobs", trashStrs);
 
+        // Shared event-trash list (all events draw from this)
+        List<String> eventTrashStrs = new ArrayList<>();
+        for (MobEntry e : eventTrashMobs) eventTrashStrs.add(e.encode());
+        cfg.set("event-trash-mobs", eventTrashStrs);
+
         // Waves
         List<java.util.Map<String, Object>> waveList = new ArrayList<>();
         for (Wave w : waves) {
@@ -567,6 +609,7 @@ public final class DungeonTemplate {
         cfg.set("ritual.reserve.limit", ritualReserveLimit);
         cfg.set("ritual.altars-active", ritualAltarsActive);
         cfg.set("ritual.altars-active-min", ritualAltarsActiveMin);
+        cfg.set("ritual.trash-count", ritualTrashCount);
 
         List<java.util.Map<String, Object>> altars = new ArrayList<>();
         for (Location l : ritualAltars) {
@@ -645,7 +688,7 @@ public final class DungeonTemplate {
         // ----- reliquary -----
         cfg.set("reliquary.active", reliquaryActive);
         cfg.set("reliquary.active-min", reliquaryActiveMin);
-        cfg.set("reliquary.use-trash", reliquaryUseTrash);
+        cfg.set("reliquary.trash-count", reliquaryTrashCount);
         cfg.set("reliquary.max-loot-items", reliquaryMaxLootItems);
 
         List<java.util.Map<String, Object>> reliquaries = new ArrayList<>();
@@ -729,6 +772,12 @@ public final class DungeonTemplate {
             if (e != null) defaultTrashMobs.add(e);
         }
 
+        eventTrashMobs.clear();
+        for (String s : cfg.getStringList("event-trash-mobs")) {
+            MobEntry e = MobEntry.decode(s);
+            if (e != null) eventTrashMobs.add(e);
+        }
+
         waves.clear();
         List<java.util.Map<?, ?>> wvs = cfg.getMapList("waves");
         for (java.util.Map<?, ?> m : wvs) {
@@ -807,6 +856,7 @@ public final class DungeonTemplate {
         // Back-compat: a template saved before the range existed has no min key,
         // so default min to the max → behaves exactly as before (deterministic).
         this.ritualAltarsActiveMin = cfg.getInt("ritual.altars-active-min", ritualAltarsActive);
+        this.ritualTrashCount = cfg.getInt("ritual.trash-count", 0);
 
         ritualAltars.clear();
         for (java.util.Map<?, ?> m : cfg.getMapList("ritual.altars")) {
@@ -926,7 +976,7 @@ public final class DungeonTemplate {
         // ----- reliquary -----
         this.reliquaryActive       = cfg.getInt("reliquary.active", 0);
         this.reliquaryActiveMin    = cfg.getInt("reliquary.active-min", reliquaryActive);
-        this.reliquaryUseTrash     = cfg.getBoolean("reliquary.use-trash", false);
+        this.reliquaryTrashCount   = cfg.getInt("reliquary.trash-count", 0);
         this.reliquaryMaxLootItems = cfg.getInt("reliquary.max-loot-items", 5);
 
         reliquaryCenters.clear();

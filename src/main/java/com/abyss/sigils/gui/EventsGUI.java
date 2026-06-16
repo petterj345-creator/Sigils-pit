@@ -2,6 +2,7 @@ package com.abyss.sigils.gui;
 
 import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.DungeonTemplate;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
@@ -71,6 +72,25 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&8Place reliquaries with the wand.",
                 "&eClick &7to configure"),
             e -> ReliquaryEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
+        // 31 Event Trash Mobs — ONE shared pool every event draws from
+        set(31, icon(Material.ROTTEN_FLESH,
+                "&c&l✦ Event Trash Mobs &7(" + template.eventTrashMobs().size() + ")",
+                "&7One shared mob pool for ALL events on",
+                "&7this map. Set it once here instead of",
+                "&7editing every event by hand.",
+                "",
+                "&7• &dRitual&7/&6Reliquary&7 pull a set number",
+                "&7  (configure the count inside each event)",
+                "&7• &3Maelstrom&7 spews them nonstop until it ends",
+                "",
+                "&8Targeted mobs per event still work on top.",
+                "&eClick &7to manage"),
+            e -> {
+                Player p = (Player) e.getWhoClicked();
+                MobListGUI.openFor(plugin, p, template, template.eventTrashMobs(), "Event Trash Mobs",
+                        () -> Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template)));
+            });
 
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),

@@ -235,6 +235,9 @@ public final class RitualManager implements Listener {
         List<MobEntry> queue = new ArrayList<>();
         for (MobEntry entry : state.template.ritualMobs())
             for (int i = 0; i < entry.count(); i++) queue.add(entry);
+        // Plus N random picks from the shared event-trash pool, on top of the
+        // targeted ritual mobs above.
+        queue.addAll(state.template.rollEventTrash(state.template.ritualTrashCount()));
 
         if (queue.isEmpty()) {
             altar.status = Status.IDLE;
