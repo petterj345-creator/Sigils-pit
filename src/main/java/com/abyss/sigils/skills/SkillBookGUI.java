@@ -21,6 +21,7 @@ public final class SkillBookGUI extends EditorGUI.Holder {
     private static final int ROW_RITUAL     = 19;
     private static final int ROW_MAELSTROM  = 28;
     private static final int ROW_RELIQUARY  = 37;
+    private static final int ROW_SUNDERING  = 46; // bottom row, left of the respec button
     private static final int INFO_SLOT   = 4;
     private static final int RESPEC_SLOT = 49;
 
@@ -56,6 +57,7 @@ public final class SkillBookGUI extends EditorGUI.Holder {
         placeCategory(viewer, SkillCategory.RITUAL, ROW_RITUAL);
         placeCategory(viewer, SkillCategory.MAELSTROM, ROW_MAELSTROM);
         placeCategory(viewer, SkillCategory.RELIQUARY, ROW_RELIQUARY);
+        placeCategory(viewer, SkillCategory.SUNDERING, ROW_SUNDERING);
 
         set(RESPEC_SLOT, icon(Material.GRINDSTONE,
                 "&c&lRespec",

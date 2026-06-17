@@ -49,7 +49,15 @@ public enum SkillType {
     // ----- Reliquary -----
     RELIC_HUNTER("relic_hunter", "Relic Hunter", SkillCategory.RELIQUARY,
             Material.TRIAL_KEY, 4, 1, false, "reliquary loot items",
-            "Reliquaries you crack open yield more loot.");
+            "Reliquaries you crack open yield more loot."),
+
+    // ----- The Sundering -----
+    EXCAVATOR("excavator", "Excavator", SkillCategory.SUNDERING,
+            Material.TNT, 5, 1, false, "seismic charges",
+            "You start each Sundering with more charges to plant."),
+    PROSPECTOR("prospector", "Prospector", SkillCategory.SUNDERING,
+            Material.AMETHYST_SHARD, 5, 15, true, "shards per kill",
+            "Unearthed mobs yield more Shards when you kill them.");
 
     private final String id;
     private final String display;

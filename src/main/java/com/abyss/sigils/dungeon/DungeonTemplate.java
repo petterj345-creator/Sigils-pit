@@ -195,6 +195,27 @@ public final class DungeonTemplate {
     /** Max distinct loot items rolled into the cracked-open cache. */
     private int reliquaryMaxLootItems = 5;
 
+    // ----- the sundering (expedition-style: plant charges, detonate, loot) -----
+    /**
+     * Wares stocked by the Sundered Hoard vendor. Its OWN pool, separate from the
+     * maelstrom/reliquary pools. Reuses {@link MaelstromLoot} (item + chance% +
+     * count range), but the vendor prices items by their chance% (rarer = pricier)
+     * rather than rolling them into a cache; {@code minKills} is unused here.
+     */
+    private final List<MaelstromLoot> sunderingLoot = new ArrayList<>();
+    /** Per-template Sundering tunables (defaults match the old global config). */
+    private int sunderingCharges        = 5;   // charges handed to each player
+    private int sunderingBlastRadius     = 4;   // blocks a charge unearths/triggers
+    private int sunderingChainRange      = 8;   // max gap when chaining charges
+    private int sunderingBuriedPacks     = 12;  // buried mob packs in the field
+    private int sunderingRemnants        = 5;   // Remnant monoliths scattered in
+    private int sunderingFieldRadius     = 14;  // how far the field scatters
+    private int sunderingMobsPerPackMin  = 2;
+    private int sunderingMobsPerPackMax  = 4;
+    private int sunderingShardsPerKill   = 5;   // base Shards per unearthed kill
+    private int sunderingVendorOffers    = 6;   // items the Shard vendor stocks
+    private int sunderingMaxAlive        = 60;  // safety cap on mobs per detonation
+
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
         this.configFile = configFile;
@@ -327,6 +348,33 @@ public final class DungeonTemplate {
         return !reliquarySpawnAnchors().isEmpty()
                 && (!reliquaryGuards.isEmpty() || (reliquaryTrashCount > 0 && !eventTrashMobs.isEmpty()));
     }
+
+    // Sundering getters
+    public List<MaelstromLoot> sunderingLoot() { return sunderingLoot; }
+    public int sunderingCharges()       { return sunderingCharges; }
+    public int sunderingBlastRadius()   { return sunderingBlastRadius; }
+    public int sunderingChainRange()    { return sunderingChainRange; }
+    public int sunderingBuriedPacks()   { return sunderingBuriedPacks; }
+    public int sunderingRemnants()      { return sunderingRemnants; }
+    public int sunderingFieldRadius()   { return sunderingFieldRadius; }
+    public int sunderingMobsPerPackMin(){ return sunderingMobsPerPackMin; }
+    public int sunderingMobsPerPackMax(){ return sunderingMobsPerPackMax; }
+    public int sunderingShardsPerKill() { return sunderingShardsPerKill; }
+    public int sunderingVendorOffers()  { return sunderingVendorOffers; }
+    public int sunderingMaxAlive()      { return sunderingMaxAlive; }
+
+    // Sundering setters (clamped)
+    public void setSunderingCharges(int n)       { this.sunderingCharges = Math.max(1, n); }
+    public void setSunderingBlastRadius(int n)   { this.sunderingBlastRadius = Math.max(1, n); }
+    public void setSunderingChainRange(int n)    { this.sunderingChainRange = Math.max(1, n); }
+    public void setSunderingBuriedPacks(int n)   { this.sunderingBuriedPacks = Math.max(1, n); }
+    public void setSunderingRemnants(int n)      { this.sunderingRemnants = Math.max(0, n); }
+    public void setSunderingFieldRadius(int n)   { this.sunderingFieldRadius = Math.max(1, n); }
+    public void setSunderingMobsPerPackMin(int n){ this.sunderingMobsPerPackMin = Math.max(0, n); }
+    public void setSunderingMobsPerPackMax(int n){ this.sunderingMobsPerPackMax = Math.max(this.sunderingMobsPerPackMin, n); }
+    public void setSunderingShardsPerKill(int n) { this.sunderingShardsPerKill = Math.max(0, n); }
+    public void setSunderingVendorOffers(int n)  { this.sunderingVendorOffers = Math.max(0, n); }
+    public void setSunderingMaxAlive(int n)      { this.sunderingMaxAlive = Math.max(1, n); }
 
     // ----- setters -----
     public void setMode(DungeonMode m)             { this.mode = m; }
@@ -720,6 +768,34 @@ public final class DungeonTemplate {
             }
         }
 
+        // ----- the sundering -----
+        cfg.set("sundering.charges", sunderingCharges);
+        cfg.set("sundering.blast-radius", sunderingBlastRadius);
+        cfg.set("sundering.chain-range", sunderingChainRange);
+        cfg.set("sundering.buried-packs", sunderingBuriedPacks);
+        cfg.set("sundering.remnants", sunderingRemnants);
+        cfg.set("sundering.field-radius", sunderingFieldRadius);
+        cfg.set("sundering.mobs-per-pack-min", sunderingMobsPerPackMin);
+        cfg.set("sundering.mobs-per-pack-max", sunderingMobsPerPackMax);
+        cfg.set("sundering.shards-per-kill", sunderingShardsPerKill);
+        cfg.set("sundering.vendor-offers", sunderingVendorOffers);
+        cfg.set("sundering.max-alive", sunderingMaxAlive);
+        cfg.set("sundering.loot", null); // clear stale
+        for (int i = 0; i < sunderingLoot.size(); i++) {
+            MaelstromLoot r = sunderingLoot.get(i);
+            if (r.itemStack() == null) continue;
+            String base = "sundering.loot." + i;
+            cfg.set(base + ".item", r.itemStack());
+            cfg.set(base + ".chance", r.chancePercent());
+            cfg.set(base + ".min", r.minCount());
+            cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".min-kills", r.minKills());
+            if (r.isMMOItem()) {
+                cfg.set(base + ".mmo-type", r.mmoType());
+                cfg.set(base + ".mmo-id", r.mmoId());
+            }
+        }
+
         configFile.getParentFile().mkdirs();
         cfg.save(configFile);
     }
@@ -1019,6 +1095,43 @@ public final class DungeonTemplate {
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
                 reliquaryLoot.add(ml);
+            }
+        }
+
+        // ----- the sundering -----
+        this.sunderingCharges        = cfg.getInt("sundering.charges", 5);
+        this.sunderingBlastRadius     = cfg.getInt("sundering.blast-radius", 4);
+        this.sunderingChainRange      = cfg.getInt("sundering.chain-range", 8);
+        this.sunderingBuriedPacks     = cfg.getInt("sundering.buried-packs", 12);
+        this.sunderingRemnants        = cfg.getInt("sundering.remnants", 5);
+        this.sunderingFieldRadius     = cfg.getInt("sundering.field-radius", 14);
+        this.sunderingMobsPerPackMin  = cfg.getInt("sundering.mobs-per-pack-min", 2);
+        this.sunderingMobsPerPackMax  = cfg.getInt("sundering.mobs-per-pack-max", 4);
+        this.sunderingShardsPerKill   = cfg.getInt("sundering.shards-per-kill", 5);
+        this.sunderingVendorOffers    = cfg.getInt("sundering.vendor-offers", 6);
+        this.sunderingMaxAlive        = cfg.getInt("sundering.max-alive", 60);
+        sunderingLoot.clear();
+        ConfigurationSection sloot = cfg.getConfigurationSection("sundering.loot");
+        if (sloot != null) {
+            List<String> keys = new ArrayList<>(sloot.getKeys(false));
+            keys.sort((a, b) -> {
+                try { return Integer.compare(Integer.parseInt(a), Integer.parseInt(b)); }
+                catch (NumberFormatException e) { return a.compareTo(b); }
+            });
+            for (String key : keys) {
+                ConfigurationSection entry = sloot.getConfigurationSection(key);
+                if (entry == null) continue;
+                org.bukkit.inventory.ItemStack stack = entry.getItemStack("item");
+                if (stack == null) continue;
+                MaelstromLoot ml = new MaelstromLoot(stack,
+                        entry.getDouble("chance", 100),
+                        entry.getInt("min", 1),
+                        entry.getInt("max", 1),
+                        entry.getInt("min-kills", 0));
+                String mmoType = entry.getString("mmo-type", null);
+                String mmoId = entry.getString("mmo-id", null);
+                if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
+                sunderingLoot.add(ml);
             }
         }
     }
