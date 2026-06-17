@@ -2,6 +2,7 @@ package com.abyss.sigils.gui;
 
 import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.MobEntry;
+import com.abyss.sigils.integration.MobPackIndex;
 import io.lumine.mythic.api.mobs.MythicMob;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import org.bukkit.Material;
@@ -104,9 +105,11 @@ public final class MobPickerGUI extends EditorGUI.Holder {
             if (slot >= 44) break;
             final MythicMob mob = filtered.get(i);
             String displayName = niceName(mob);
+            String pack = MobPackIndex.packOf(mob.getInternalName());
             ItemStack ic = icon(Material.ZOMBIE_HEAD,
                     "&f" + displayName,
                     "&8" + mob.getInternalName(),
+                    pack != null ? "&dPack: &7" + pack : "&8(no pack)",
                     "",
                     "&eClick &7to configure count/level");
             set(slot, ic, e -> {
@@ -165,8 +168,8 @@ public final class MobPickerGUI extends EditorGUI.Holder {
                 if (id.contains(q) || name.contains(q)) out.add(m);
             }
         } catch (Throwable ignored) {}
-        // Sort by internal name for stable ordering
-        out.sort((a, b) -> a.getInternalName().compareToIgnoreCase(b.getInternalName()));
+        // Pack mobs first (grouped by pack), then everything else; alphabetical within each group.
+        out.sort((a, b) -> MobPackIndex.comparePackThenName(a.getInternalName(), b.getInternalName()));
         return out;
     }
 

@@ -2,6 +2,7 @@ package com.abyss.sigils.gui;
 
 import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.DungeonTemplate;
+import com.abyss.sigils.integration.MobPackIndex;
 import io.lumine.mythic.api.mobs.MythicMob;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import org.bukkit.Material;
@@ -85,9 +86,11 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
             if (slot % 9 == 8) slot += 2;
             if (slot >= 44) break;
             final MythicMob m = mobs.get(i);
+            String pack = MobPackIndex.packOf(m.getInternalName());
             ItemStack ic = icon(Material.ZOMBIE_HEAD,
                     "&f" + MobPickerGUI.niceName(m),
                     "&7Internal ID: &8" + m.getInternalName(),
+                    pack != null ? "&dPack: &7" + pack : "&8(no pack)",
                     "",
                     "&eClick &7to configure map drop");
             set(slot, ic, e -> MobMapDropGUI.openFor(plugin, (Player) e.getWhoClicked(), m, template));
@@ -123,7 +126,8 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
                 }
             }
         } catch (Throwable ignored) {}
-        out.sort((a, b) -> a.getInternalName().compareToIgnoreCase(b.getInternalName()));
+        // Pack mobs first (grouped by pack), then everything else; alphabetical within each group.
+        out.sort((a, b) -> MobPackIndex.comparePackThenName(a.getInternalName(), b.getInternalName()));
         return out;
     }
 }
