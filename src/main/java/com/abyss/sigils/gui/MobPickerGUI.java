@@ -4,15 +4,11 @@ import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.MobEntry;
 import com.abyss.sigils.integration.MobPackIndex;
 import io.lumine.mythic.api.mobs.MythicMob;
-import io.lumine.mythic.bukkit.MythicBukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -41,6 +37,7 @@ public final class MobPickerGUI extends EditorGUI.Holder {
     private final Consumer<MobEntry> onPicked;
     private final Runnable onCancel;
     private String search = "";
+    private String pack = null; // current pack folder, or null at the root
     private int page = 0;
 
     private static final int PAGE_SIZE = 28; // 4 rows of 7 (slots 10..43, skipping borders)
@@ -65,8 +62,9 @@ public final class MobPickerGUI extends EditorGUI.Holder {
     }
 
     @Override protected String title() {
-        if (search.isEmpty()) return color("&5Pick MythicMob &7(page " + (page + 1) + ")");
-        return color("&5Search: &f" + search);
+        if (!search.isEmpty()) return color("&5Search: &f" + search);
+        if (pack != null) return color("&5Pack: &f" + pack + " &7(page " + (page + 1) + ")");
+        return color("&5Pick MythicMob &7(page " + (page + 1) + ")");
     }
 
     @Override protected int size() { return 54; }
@@ -74,15 +72,15 @@ public final class MobPickerGUI extends EditorGUI.Holder {
     @Override protected void build(Player viewer) {
         fillBorder();
 
-        List<MythicMob> filtered = filteredMobs();
-        int totalPages = Math.max(1, (filtered.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        List<Object> entries = MobBrowse.entries(search, pack);
+        int totalPages = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         if (page >= totalPages) page = totalPages - 1;
         if (page < 0) page = 0;
 
         // Top-row search icon
         set(SEARCH_SLOT, icon(Material.WRITABLE_BOOK,
                 search.isEmpty() ? "&fSearch..." : "&fSearch: &e" + search,
-                "&7" + filtered.size() + " mob(s) match",
+                "&7" + entries.size() + " result(s)",
                 "",
                 "&eClick &7to type a query"),
             e -> {
@@ -91,52 +89,63 @@ public final class MobPickerGUI extends EditorGUI.Holder {
                         search.isEmpty() ? "" : search,
                         text -> {
                             search = text == null ? "" : text.trim();
+                            pack = null; // search spans every pack
                             page = 0;
                             org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
                         });
             });
 
-        // Mob grid
+        // Grid of folders + mobs
         int start = page * PAGE_SIZE;
-        int end = Math.min(start + PAGE_SIZE, filtered.size());
+        int end = Math.min(start + PAGE_SIZE, entries.size());
         int slot = 10;
         for (int i = start; i < end; i++) {
             if (slot % 9 == 8) slot += 2; // skip right border
             if (slot >= 44) break;
-            final MythicMob mob = filtered.get(i);
-            String displayName = niceName(mob);
-            String pack = MobPackIndex.packOf(mob.getInternalName());
-            ItemStack ic = icon(Material.ZOMBIE_HEAD,
-                    "&f" + displayName,
-                    "&8" + mob.getInternalName(),
-                    pack != null ? "&dPack: &7" + pack : "&8(no pack)",
-                    "",
-                    "&eClick &7to configure count/level");
-            set(slot, ic, e -> {
-                Player p = (Player) e.getWhoClicked();
-                final String capturedSearch = this.search;
-                final int capturedPage = this.page;
-                new MobConfigGUI(plugin, mob, onPicked, onCancel, () -> {
-                    MobPickerGUI again = new MobPickerGUI(plugin, onPicked, onCancel);
-                    again.search = capturedSearch;
-                    again.page = capturedPage;
-                    again.open(p);
-                }).open(p);
-            });
+            Object entry = entries.get(i);
+            if (entry instanceof String) {
+                final String packName = (String) entry;
+                set(slot, icon(MobBrowse.FOLDER_MATERIAL,
+                        "&e&l" + packName,
+                        "&7" + MobBrowse.packMobCount(packName) + " mob(s)",
+                        "",
+                        "&eClick &7to open this pack"),
+                    e -> { pack = packName; page = 0; refresh((Player) e.getWhoClicked()); });
+            } else {
+                final MythicMob mob = (MythicMob) entry;
+                set(slot, mobIcon(mob), e -> {
+                    Player p = (Player) e.getWhoClicked();
+                    final String capturedSearch = this.search;
+                    final String capturedPack = this.pack;
+                    final int capturedPage = this.page;
+                    new MobConfigGUI(plugin, mob, onPicked, onCancel, () -> {
+                        MobPickerGUI again = new MobPickerGUI(plugin, onPicked, onCancel);
+                        again.search = capturedSearch;
+                        again.pack = capturedPack;
+                        again.page = capturedPage;
+                        again.open(p);
+                    }).open(p);
+                });
+            }
             slot++;
         }
 
-        if (filtered.isEmpty()) {
-            set(22, icon(Material.BARRIER, "&cNo mobs match",
+        if (entries.isEmpty()) {
+            set(22, icon(Material.BARRIER, "&cNothing here",
                     "&7Try a different search."), null);
         }
 
         // Bottom navigation
-        set(BACK_SLOT, icon(Material.ARROW, "&7← Cancel"), e -> {
-            Player p = (Player) e.getWhoClicked();
-            p.closeInventory();
-            if (onCancel != null) onCancel.run();
-        });
+        if (pack != null && search.isEmpty()) {
+            set(BACK_SLOT, icon(Material.ARROW, "&7← All packs"),
+                e -> { pack = null; page = 0; refresh((Player) e.getWhoClicked()); });
+        } else {
+            set(BACK_SLOT, icon(Material.ARROW, "&7← Cancel"), e -> {
+                Player p = (Player) e.getWhoClicked();
+                p.closeInventory();
+                if (onCancel != null) onCancel.run();
+            });
+        }
 
         if (page > 0) {
             set(PREV_SLOT, icon(Material.SPECTRAL_ARROW, "&7← Page " + page),
@@ -148,7 +157,7 @@ public final class MobPickerGUI extends EditorGUI.Holder {
         }
         if (!search.isEmpty()) {
             set(CLEAR_SLOT, icon(Material.BARRIER, "&cClear Search",
-                    "&7Show all mobs again."),
+                    "&7Show all packs again."),
                 e -> {
                     search = "";
                     page = 0;
@@ -157,20 +166,14 @@ public final class MobPickerGUI extends EditorGUI.Holder {
         }
     }
 
-    private List<MythicMob> filteredMobs() {
-        List<MythicMob> out = new ArrayList<>();
-        try {
-            for (MythicMob m : MythicBukkit.inst().getMobManager().getMobTypes()) {
-                if (search.isEmpty()) { out.add(m); continue; }
-                String q = search.toLowerCase(Locale.ROOT);
-                String id = m.getInternalName().toLowerCase(Locale.ROOT);
-                String name = niceName(m).toLowerCase(Locale.ROOT);
-                if (id.contains(q) || name.contains(q)) out.add(m);
-            }
-        } catch (Throwable ignored) {}
-        // Pack mobs first (grouped by pack), then everything else; alphabetical within each group.
-        out.sort((a, b) -> MobPackIndex.comparePackThenName(a.getInternalName(), b.getInternalName()));
-        return out;
+    private ItemStack mobIcon(MythicMob mob) {
+        String mobPack = MobPackIndex.packOf(mob.getInternalName());
+        return icon(Material.ZOMBIE_HEAD,
+                "&f" + niceName(mob),
+                "&8" + mob.getInternalName(),
+                mobPack != null ? "&dPack: &7" + mobPack : "&8(no pack)",
+                "",
+                "&eClick &7to configure count/level");
     }
 
     /** Robust display-name extraction across Mythic API versions. */
