@@ -78,12 +78,12 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&c&l✦ The Sundering",
                 "&7Buried-hoard setup for maps that",
                 "&7carry the sundering modifier.",
-                "&7Vendor wares: &f" + template.sunderingLoot().size(),
+                "&7Anchors: &f" + template.eventBlocks().size()
+                        + "  &7Wares: &f" + template.sunderingLoot().size(),
                 "",
-                "&8Mobs come from the shared event-trash pool;",
-                "&8the field + charges are tuned in config.yml.",
-                "&eClick &7to set the Shard-vendor stock"),
-            e -> SunderingLootGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+                "&8Mobs come from the shared event-trash pool.",
+                "&eClick &7to configure"),
+            e -> SunderingEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
         // 31 Event Trash Mobs — ONE shared pool every event draws from
         set(31, icon(Material.ROTTEN_FLESH,

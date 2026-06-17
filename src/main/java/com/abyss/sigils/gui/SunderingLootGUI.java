@@ -75,7 +75,7 @@ public final class SunderingLootGUI implements Listener {
 
         for (int i = 27; i < 36; i++) inv.setItem(i, filler());
 
-        inv.setItem(BACK_SLOT, icon(Material.ARROW, "&7← Back to events"));
+        inv.setItem(BACK_SLOT, icon(Material.ARROW, "&7← Back to The Sundering"));
 
         for (int i = 45; i < 54; i++) if (inv.getItem(i) == null) inv.setItem(i, filler());
         inv.setItem(49, icon(Material.BOOK, "&e&lHow it works",
@@ -175,7 +175,7 @@ public final class SunderingLootGUI implements Listener {
             return;
         }
         if (raw == BACK_SLOT) {
-            EventsGUI.openFor(plugin, p, holder.template());
+            SunderingEditorGUI.openFor(plugin, p, holder.template());
         }
     }
 

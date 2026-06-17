@@ -53,42 +53,21 @@ scaling:
 # The Sundering (Expedition-style event)
 # =========================================
 # A buried hoard manifests on a map carrying the Sundering Catalyst (or via the
-# Abyssal Omen skill on a blank map). Players get a limited supply of Seismic
-# Charges to plant; any buried pack or Remnant inside a charge's blast radius is
-# dragged up on detonation. Greedier blast chains hit more Remnants — deadlier
-# mobs, but more Shards and richer vendor wares. Mobs come from the template's
-# shared event-trash pool; the Shard-vendor's stock is its OWN pool, set per
-# template in the editor (Events → The Sundering), separate from the other events.
+# Abyssal Omen skill on a blank map). Players plant a limited supply of Seismic
+# Charges; any buried pack or Remnant inside a charge's blast is dragged up on
+# detonation, and the unearthed mobs drop Shards spent at a vendor afterward.
+#
+# Most tuning is now PER-TEMPLATE — edit it in-game under Events → The Sundering
+# (charges, blast/chain/field radius, buried packs, Remnants, mobs per pack,
+# Shards per kill, vendor wares, max alive) plus its own loot pool. Only the
+# Shard-vendor price band stays global here.
 sundering:
-  # Charges each player is handed at the start (before the Excavator skill).
-  charges: 5
-  # Blast radius (blocks) of each planted charge — what it can unearth/trigger.
-  blast-radius: 4
-  # A charge must be planted within this range of the site centre or another
-  # charge, so a limited supply only reaches part of the field.
-  chain-range: 8
-  # How many buried monster packs make up the field (1 is always at the centre).
-  buried-packs: 12
-  # How many Remnant monoliths are scattered through the field.
-  remnants: 5
-  # Radius (blocks) the buried field + Remnants are scattered across.
-  field-radius: 14
-  # Mobs spawned per unearthed pack (random in this range).
-  mobs-per-pack-min: 2
-  mobs-per-pack-max: 4
-  # Base Shards a killed unearthed mob grants (× triggered-Remnant multiplier,
-  # × the Prospector skill).
-  shards-per-kill: 5
-  # Sundered Hoard vendor: how many items it stocks (before triggered-Remnant
-  # loot bonuses and Greater Spoils widen the stock), and the Shard price band
-  # (rarer items — lower drop chance% — cost nearer the max).
-  vendor-offers: 6
+  # Shard price band for vendor wares (rarer items — lower drop chance% — cost
+  # nearer the max).
   vendor-price-min: 8
   vendor-price-max: 40
   # Shards to reroll ("haggle") the vendor's stock. 0 disables the reroll button.
   vendor-reroll-cost: 12
-  # Safety cap on how many mobs a single detonation can spawn at once.
-  max-alive: 60
 
 # =========================================
 # Tome of Mastery — endgame skill book

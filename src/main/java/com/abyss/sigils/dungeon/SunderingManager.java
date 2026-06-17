@@ -126,6 +126,7 @@ public final class SunderingManager implements Listener {
         final Set<UUID> mobs = new HashSet<>();                  // live unearthed mobs
         final Map<UUID, Integer> shards = new HashMap<>();       // per-player Shards (live balance)
         final Map<UUID, List<VendorOffer>> vendorOffers = new HashMap<>(); // per-player rolled wares
+        UUID vendorLabelId;                                      // floating label over the vendor crate
         double shardMult = 1.0;                                  // product of triggered Remnant mults
         int lootBonus = 0;                                       // sum of triggered Remnant loot bonuses
         BukkitTask watchdog;
@@ -158,20 +159,11 @@ public final class SunderingManager implements Listener {
     // Config
     // ============================================================
 
-    private int    cfgCharges()      { return plugin.getConfig().getInt("sundering.charges", 5); }
-    private double cfgBlastRadius()   { return plugin.getConfig().getDouble("sundering.blast-radius", 4); }
-    private double cfgChainRange()    { return plugin.getConfig().getDouble("sundering.chain-range", 8); }
-    private int    cfgBuriedPacks()   { return plugin.getConfig().getInt("sundering.buried-packs", 12); }
-    private int    cfgRemnants()      { return plugin.getConfig().getInt("sundering.remnants", 5); }
-    private double cfgFieldRadius()   { return plugin.getConfig().getDouble("sundering.field-radius", 14); }
-    private int    cfgMobsPerPackMin(){ return plugin.getConfig().getInt("sundering.mobs-per-pack-min", 2); }
-    private int    cfgMobsPerPackMax(){ return plugin.getConfig().getInt("sundering.mobs-per-pack-max", 4); }
-    private int    cfgShardsPerKill() { return plugin.getConfig().getInt("sundering.shards-per-kill", 5); }
-    private int    cfgVendorOffers()  { return plugin.getConfig().getInt("sundering.vendor-offers", 6); }
-    private int    cfgVendorPriceMin(){ return plugin.getConfig().getInt("sundering.vendor-price-min", 8); }
-    private int    cfgVendorPriceMax(){ return plugin.getConfig().getInt("sundering.vendor-price-max", 40); }
-    private int    cfgVendorReroll()  { return plugin.getConfig().getInt("sundering.vendor-reroll-cost", 12); }
-    private int    cfgMaxAlive()      { return plugin.getConfig().getInt("sundering.max-alive", 60); }
+    // Most tuning is per-template (edited in the Sundering editor); only the
+    // Shard-vendor economy knobs stay global in config.yml.
+    private int cfgVendorPriceMin(){ return plugin.getConfig().getInt("sundering.vendor-price-min", 8); }
+    private int cfgVendorPriceMax(){ return plugin.getConfig().getInt("sundering.vendor-price-max", 40); }
+    private int cfgVendorReroll()  { return plugin.getConfig().getInt("sundering.vendor-reroll-cost", 12); }
 
     /** A template can run The Sundering if it has any event-trash to unearth. */
     public boolean canRun(DungeonTemplate t) {
@@ -205,17 +197,17 @@ public final class SunderingManager implements Listener {
         // Each buried pack gets a glowing orange banner planted in the ground so
         // players can see where to chain their charges.
         state.buried.add(centre.clone());
-        int packs = Math.max(1, cfgBuriedPacks());
+        int packs = Math.max(1, template.sunderingBuriedPacks());
         for (int i = 1; i < packs; i++) {
-            Location spot = scatter(w, centre, cfgFieldRadius());
+            Location spot = scatter(w, centre, template.sunderingFieldRadius());
             if (spot != null) state.buried.add(spot);
         }
         for (Location b : state.buried) {
             state.buriedMarkers.add(spawnBanner(b, Material.ORANGE_BANNER, Color.ORANGE));
         }
-        int remnants = Math.max(0, cfgRemnants());
+        int remnants = Math.max(0, template.sunderingRemnants());
         for (int i = 0; i < remnants; i++) {
-            Location spot = scatter(w, centre, cfgFieldRadius());
+            Location spot = scatter(w, centre, template.sunderingFieldRadius());
             if (spot == null) continue;
             RemnantNode node = new RemnantNode(spot, Remnant.values()[rng.nextInt(Remnant.values().length)]);
             spawnRemnantMarker(node);
@@ -228,16 +220,16 @@ public final class SunderingManager implements Listener {
         for (UUID id : session.players()) {
             Player p = plugin.getServer().getPlayer(id);
             if (p == null) continue;
-            giveCharges(p, session);
+            giveCharges(p, session, template);
             p.sendMessage(Text.color("&c&l✦ &7This map carries &cThe Sundering&7. Find the buried "
                     + "field, plant your &cSeismic Charges &7and strike the &cDetonator&7."));
         }
     }
 
     /** Hand a player their charge supply (base + Excavator skill ranks). */
-    private void giveCharges(Player p, DungeonSession session) {
+    private void giveCharges(Player p, DungeonSession session, DungeonTemplate t) {
         int bonus = SkillType.EXCAVATOR.flatAt(plugin.skills().rank(p.getUniqueId(), SkillType.EXCAVATOR));
-        int amount = Math.max(1, cfgCharges() + bonus);
+        int amount = Math.max(1, t.sunderingCharges() + bonus);
         var overflow = p.getInventory().addItem(SeismicCharge.create(session.id(), amount));
         for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
     }
@@ -349,14 +341,14 @@ public final class SunderingManager implements Listener {
         Location spot = clicked.getLocation().add(0.5, 1, 0.5);
         if (!withinChain(state, spot)) {
             p.sendMessage(Text.color("&cToo far from the chain — plant within "
-                    + (int) cfgChainRange() + " blocks of the Detonator or another charge."));
+                    + state.template.sunderingChainRange() + " blocks of the Detonator or another charge."));
             return;
         }
 
         consumeOne(p, used);
         state.charges.add(spot);
         spawnChargeMarker(state, spot);
-        previewBlast(spot);
+        previewBlast(spot, state.template.sunderingBlastRadius());
         updateDetonatorText(state);
         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 0.6f);
         p.sendMessage(Text.color("&cCharge planted &7(&f" + state.charges.size() + "&7 in the chain)."));
@@ -364,7 +356,7 @@ public final class SunderingManager implements Listener {
 
     /** A charge is valid if it's within chain-range of the centre or any planted charge. */
     private boolean withinChain(State state, Location spot) {
-        double range = cfgChainRange();
+        double range = state.template.sunderingChainRange();
         if (horizDist(spot, state.centre) <= range) return true;
         for (Location c : state.charges) if (horizDist(spot, c) <= range) return true;
         return false;
@@ -393,10 +385,9 @@ public final class SunderingManager implements Listener {
     }
 
     /** One-shot ring showing a planted charge's blast radius. */
-    private void previewBlast(Location centre) {
+    private void previewBlast(Location centre, double r) {
         World w = centre.getWorld();
         if (w == null) return;
-        double r = cfgBlastRadius();
         int points = 32;
         for (int i = 0; i < points; i++) {
             double a = (Math.PI * 2 / points) * i;
@@ -449,7 +440,7 @@ public final class SunderingManager implements Listener {
 
     private void detonate(State state) {
         state.detonated = true;
-        double blast = cfgBlastRadius();
+        double blast = state.template.sunderingBlastRadius();
 
         // Which Remnants did the chain reach? Accumulate their buffs/payout.
         List<Remnant> triggered = new ArrayList<>();
@@ -474,9 +465,10 @@ public final class SunderingManager implements Listener {
             for (Location c : state.charges) if (b.distance(c) <= blast) { hit = true; break; }
             if (!hit) continue;
             if (w != null) w.spawnParticle(Particle.EXPLOSION_EMITTER, b.clone().add(0, 0.5, 0), 1);
-            int count = cfgMobsPerPackMin() + (cfgMobsPerPackMax() > cfgMobsPerPackMin()
-                    ? rng.nextInt(cfgMobsPerPackMax() - cfgMobsPerPackMin() + 1) : 0);
-            for (int i = 0; i < count && state.mobs.size() < cfgMaxAlive(); i++) {
+            int min = state.template.sunderingMobsPerPackMin();
+            int max = state.template.sunderingMobsPerPackMax();
+            int count = min + (max > min ? rng.nextInt(max - min + 1) : 0);
+            for (int i = 0; i < count && state.mobs.size() < state.template.sunderingMaxAlive(); i++) {
                 List<MobEntry> pick = state.template.rollEventTrash(1);
                 if (pick.isEmpty()) break;
                 MobEntry me = pick.get(0);
@@ -588,7 +580,7 @@ public final class SunderingManager implements Listener {
         if (!state.mobs.remove(mobId)) return false;
 
         if (killer != null) {
-            int shards = (int) Math.round(cfgShardsPerKill() * state.shardMult);
+            int shards = (int) Math.round(state.template.sunderingShardsPerKill() * state.shardMult);
             int rank = plugin.skills().rank(killer.getUniqueId(), SkillType.PROSPECTOR);
             if (rank > 0) shards = (int) Math.round(shards * SkillType.PROSPECTOR.multiplierAt(rank));
             if (shards > 0) {
@@ -606,14 +598,31 @@ public final class SunderingManager implements Listener {
         if (state.watchdog != null) { state.watchdog.cancel(); state.watchdog = null; }
         World w = state.centre.getWorld();
         if (w == null) return;
-        // Open the dealer's crate on the floor at the centre (centre is "stand on top").
-        Block floor = w.getBlockAt(state.centre.getBlockX(), state.centre.getBlockY() - 1, state.centre.getBlockZ());
-        floor.setType(Material.BARREL);
-        vendors.put(floor.getLocation(), state.session.id());
+        // Place the crate ON TOP of the floor (the centre block, where players
+        // stand) — not in place of the floor block, which left it sunk in the
+        // ground and hard to spot.
+        Block crate = w.getBlockAt(state.centre.getBlockX(), state.centre.getBlockY(), state.centre.getBlockZ());
+        crate.setType(Material.BARREL);
+        vendors.put(crate.getLocation(), state.session.id());
+
+        // A bright floating beacon label so the crate is easy to find.
+        Location textLoc = crate.getLocation().add(0.5, 1.4, 0.5);
+        TextDisplay label = w.spawn(textLoc, TextDisplay.class, td -> {
+            td.setBillboard(Display.Billboard.CENTER);
+            td.setShadowed(true);
+            td.setSeeThrough(true);
+            td.setDefaultBackground(false);
+            td.setBackgroundColor(Color.fromARGB(200, 60, 10, 0));
+            td.setGlowing(true);
+            td.setGlowColorOverride(Color.ORANGE);
+            td.setPersistent(false);
+            td.setText(Text.color("&6&l✦ Sundered Hoard ✦\n&eRight-click to spend Shards"));
+        });
+        state.vendorLabelId = label.getUniqueId();
 
         w.spawnParticle(Particle.EXPLOSION_EMITTER, state.centre.clone().add(0, 1, 0), 1);
         broadcast(state, "&c&l✦ &7The dust settles. &eA hoard dealer sets up in the crater — "
-                + "right-click the crate to spend your Shards.");
+                + "right-click the &6glowing crate &eto spend your Shards.");
         playSound(state, Sound.BLOCK_ENDER_CHEST_OPEN, 1f);
     }
 
@@ -709,7 +718,7 @@ public final class SunderingManager implements Listener {
         pool.removeIf(l -> l.itemStack() == null);
         Collections.shuffle(pool, rng);
 
-        int count = cfgVendorOffers() + state.lootBonus
+        int count = t.sunderingVendorOffers() + state.lootBonus
                 + SkillType.GREATER_SPOILS.flatAt(plugin.skills().rank(player, SkillType.GREATER_SPOILS));
         count = Math.min(Math.max(0, count), pool.size());
 
@@ -850,6 +859,7 @@ public final class SunderingManager implements Listener {
             for (RemnantNode n : state.remnants) { removeEntity(n.displayId); removeEntity(n.textId); }
             for (UUID m : state.buriedMarkers) removeEntity(m);
             for (UUID m : state.chargeMarkers) removeEntity(m);
+            removeEntity(state.vendorLabelId);
             // Sweep any unplanted charges still on the players in this session.
             for (UUID id : session.players()) {
                 Player p = plugin.getServer().getPlayer(id);
