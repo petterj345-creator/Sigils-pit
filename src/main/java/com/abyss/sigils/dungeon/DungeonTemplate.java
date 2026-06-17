@@ -195,6 +195,15 @@ public final class DungeonTemplate {
     /** Max distinct loot items rolled into the cracked-open cache. */
     private int reliquaryMaxLootItems = 5;
 
+    // ----- the sundering (expedition-style: plant charges, detonate, loot) -----
+    /**
+     * Wares stocked by the Sundered Hoard vendor. Its OWN pool, separate from the
+     * maelstrom/reliquary pools. Reuses {@link MaelstromLoot} (item + chance% +
+     * count range), but the vendor prices items by their chance% (rarer = pricier)
+     * rather than rolling them into a cache; {@code minKills} is unused here.
+     */
+    private final List<MaelstromLoot> sunderingLoot = new ArrayList<>();
+
     public DungeonTemplate(String name, File configFile) {
         this.name = name;
         this.configFile = configFile;
@@ -327,6 +336,9 @@ public final class DungeonTemplate {
         return !reliquarySpawnAnchors().isEmpty()
                 && (!reliquaryGuards.isEmpty() || (reliquaryTrashCount > 0 && !eventTrashMobs.isEmpty()));
     }
+
+    // Sundering getters
+    public List<MaelstromLoot> sunderingLoot() { return sunderingLoot; }
 
     // ----- setters -----
     public void setMode(DungeonMode m)             { this.mode = m; }
@@ -720,6 +732,23 @@ public final class DungeonTemplate {
             }
         }
 
+        // ----- the sundering -----
+        cfg.set("sundering.loot", null); // clear stale
+        for (int i = 0; i < sunderingLoot.size(); i++) {
+            MaelstromLoot r = sunderingLoot.get(i);
+            if (r.itemStack() == null) continue;
+            String base = "sundering.loot." + i;
+            cfg.set(base + ".item", r.itemStack());
+            cfg.set(base + ".chance", r.chancePercent());
+            cfg.set(base + ".min", r.minCount());
+            cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".min-kills", r.minKills());
+            if (r.isMMOItem()) {
+                cfg.set(base + ".mmo-type", r.mmoType());
+                cfg.set(base + ".mmo-id", r.mmoId());
+            }
+        }
+
         configFile.getParentFile().mkdirs();
         cfg.save(configFile);
     }
@@ -1019,6 +1048,32 @@ public final class DungeonTemplate {
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
                 reliquaryLoot.add(ml);
+            }
+        }
+
+        // ----- the sundering -----
+        sunderingLoot.clear();
+        ConfigurationSection sloot = cfg.getConfigurationSection("sundering.loot");
+        if (sloot != null) {
+            List<String> keys = new ArrayList<>(sloot.getKeys(false));
+            keys.sort((a, b) -> {
+                try { return Integer.compare(Integer.parseInt(a), Integer.parseInt(b)); }
+                catch (NumberFormatException e) { return a.compareTo(b); }
+            });
+            for (String key : keys) {
+                ConfigurationSection entry = sloot.getConfigurationSection(key);
+                if (entry == null) continue;
+                org.bukkit.inventory.ItemStack stack = entry.getItemStack("item");
+                if (stack == null) continue;
+                MaelstromLoot ml = new MaelstromLoot(stack,
+                        entry.getDouble("chance", 100),
+                        entry.getInt("min", 1),
+                        entry.getInt("max", 1),
+                        entry.getInt("min-kills", 0));
+                String mmoType = entry.getString("mmo-type", null);
+                String mmoId = entry.getString("mmo-id", null);
+                if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
+                sunderingLoot.add(ml);
             }
         }
     }

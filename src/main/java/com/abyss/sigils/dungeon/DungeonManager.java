@@ -207,6 +207,8 @@ public final class DungeonManager implements Listener {
         plugin.maelstromManager().init(session, template);
         // Spawn reliquaries if the entry map carried the reliquary modifier.
         plugin.reliquaryManager().init(session, template);
+        // Bury a Sundering hoard if the entry map carried the sundering modifier.
+        plugin.sunderingManager().init(session, template);
 
         // Tome of Mastery — Abyssal Omen may manifest an event on a blank map.
         maybeManifestEvent(session, template);
@@ -225,7 +227,8 @@ public final class DungeonManager implements Listener {
         // Blank maps only — never stack onto a map that already carries an event.
         if (session.hasMod(MapMod.RITUAL.id())
                 || session.hasMod(MapMod.MAELSTROM.id())
-                || session.hasMod(MapMod.RELIQUARY.id())) return;
+                || session.hasMod(MapMod.RELIQUARY.id())
+                || session.hasMod(MapMod.SUNDERING.id())) return;
 
         int rank = 0;
         if (plugin.skills() != null) {
@@ -243,6 +246,7 @@ public final class DungeonManager implements Listener {
         if (template.hasRitual())    options.add(MapMod.RITUAL);
         if (template.hasMaelstrom()) options.add(MapMod.MAELSTROM);
         if (template.hasReliquary()) options.add(MapMod.RELIQUARY);
+        if (plugin.sunderingManager().canRun(template)) options.add(MapMod.SUNDERING);
         if (options.isEmpty()) return; // template defines no events — nothing to manifest
 
         MapMod chosen = options.get(rng.nextInt(options.size()));
@@ -258,6 +262,7 @@ public final class DungeonManager implements Listener {
             case RITUAL    -> plugin.ritualManager().init(session, template);
             case MAELSTROM -> plugin.maelstromManager().init(session, template);
             case RELIQUARY -> plugin.reliquaryManager().init(session, template);
+            case SUNDERING -> plugin.sunderingManager().init(session, template);
         }
     }
 
@@ -420,6 +425,8 @@ public final class DungeonManager implements Listener {
         if (plugin.maelstromManager().handleMobDeath(session, entId)) return;
         // Reliquary guardians count toward cracking the reliquary, not the boss.
         if (plugin.reliquaryManager().handleMobDeath(session, entId)) return;
+        // Sundering mobs grant Shards and don't count toward the boss threshold.
+        if (plugin.sunderingManager().handleMobDeath(session, entId, ritualKiller)) return;
 
         if (!session.aliveMobs().remove(entId)) return;
 
@@ -802,6 +809,7 @@ public final class DungeonManager implements Listener {
         plugin.ritualManager().cleanup(s);
         plugin.maelstromManager().cleanup(s);
         plugin.reliquaryManager().cleanup(s);
+        plugin.sunderingManager().cleanup(s);
         sessions.remove(s.id());
 
         World w = s.world();
@@ -963,6 +971,7 @@ public final class DungeonManager implements Listener {
             plugin.rewardChests().cleanupSession(s.id());
             plugin.ritualManager().cleanup(s);
             plugin.maelstromManager().cleanup(s);
+            plugin.sunderingManager().cleanup(s);
             plugin.reliquaryManager().cleanup(s);
             World w = s.world();
             if (w != null) {

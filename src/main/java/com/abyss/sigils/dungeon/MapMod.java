@@ -52,7 +52,22 @@ public enum MapMod {
     RELIQUARY("reliquary", "&6&l✦ Reliquary", "&6&lReliquary Catalyst", Material.TRIAL_KEY,
             "&7Sealed reliquaries appear in the dungeon.",
             "&7Slay the guardians that spill out to",
-            "&7crack one open and claim its hoard.");
+            "&7crack one open and claim its hoard."),
+
+    /**
+     * The Sundering. Buries a hoard somewhere in the instance: a field of buried
+     * monster packs studded with Remnant monoliths. Players are handed a limited
+     * supply of Seismic Charges to plant — any buried pack (and any Remnant)
+     * inside a charge's blast radius is dragged up when the detonator is struck.
+     * Triggered Remnants buff every unearthed mob but pay out far more Shards and
+     * a richer cache. Greedy blast chains = a harder fight for a bigger hoard.
+     * Reuses the shared event-trash pool for its mobs, so any template with event
+     * trash configured can run it (no per-template setup needed).
+     */
+    SUNDERING("sundering", "&c&l✦ The Sundering", "&c&lSundering Catalyst", Material.TNT,
+            "&7A buried hoard waits beneath the dungeon.",
+            "&7Plant seismic charges, chain the blast",
+            "&7through Remnants, and slay what you unearth.");
 
     private final String id;
     private final String displayName;

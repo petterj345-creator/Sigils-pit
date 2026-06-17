@@ -73,6 +73,18 @@ public final class EventsGUI extends EditorGUI.Holder {
                 "&eClick &7to configure"),
             e -> ReliquaryEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
 
+        // 26 The Sundering (expedition-style: plant charges, detonate, loot)
+        set(26, icon(Material.TNT,
+                "&c&l✦ The Sundering",
+                "&7Buried-hoard setup for maps that",
+                "&7carry the sundering modifier.",
+                "&7Vendor wares: &f" + template.sunderingLoot().size(),
+                "",
+                "&8Mobs come from the shared event-trash pool;",
+                "&8the field + charges are tuned in config.yml.",
+                "&eClick &7to set the Shard-vendor stock"),
+            e -> SunderingLootGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 31 Event Trash Mobs — ONE shared pool every event draws from
         set(31, icon(Material.ROTTEN_FLESH,
                 "&c&l✦ Event Trash Mobs &7(" + template.eventTrashMobs().size() + ")",

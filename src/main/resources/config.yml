@@ -50,6 +50,47 @@ scaling:
     quality-per-extra-item: 3
 
 # =========================================
+# The Sundering (Expedition-style event)
+# =========================================
+# A buried hoard manifests on a map carrying the Sundering Catalyst (or via the
+# Abyssal Omen skill on a blank map). Players get a limited supply of Seismic
+# Charges to plant; any buried pack or Remnant inside a charge's blast radius is
+# dragged up on detonation. Greedier blast chains hit more Remnants — deadlier
+# mobs, but more Shards and richer vendor wares. Mobs come from the template's
+# shared event-trash pool; the Shard-vendor's stock is its OWN pool, set per
+# template in the editor (Events → The Sundering), separate from the other events.
+sundering:
+  # Charges each player is handed at the start (before the Excavator skill).
+  charges: 5
+  # Blast radius (blocks) of each planted charge — what it can unearth/trigger.
+  blast-radius: 4
+  # A charge must be planted within this range of the site centre or another
+  # charge, so a limited supply only reaches part of the field.
+  chain-range: 8
+  # How many buried monster packs make up the field (1 is always at the centre).
+  buried-packs: 12
+  # How many Remnant monoliths are scattered through the field.
+  remnants: 5
+  # Radius (blocks) the buried field + Remnants are scattered across.
+  field-radius: 14
+  # Mobs spawned per unearthed pack (random in this range).
+  mobs-per-pack-min: 2
+  mobs-per-pack-max: 4
+  # Base Shards a killed unearthed mob grants (× triggered-Remnant multiplier,
+  # × the Prospector skill).
+  shards-per-kill: 5
+  # Sundered Hoard vendor: how many items it stocks (before triggered-Remnant
+  # loot bonuses and Greater Spoils widen the stock), and the Shard price band
+  # (rarer items — lower drop chance% — cost nearer the max).
+  vendor-offers: 6
+  vendor-price-min: 8
+  vendor-price-max: 40
+  # Shards to reroll ("haggle") the vendor's stock. 0 disables the reroll button.
+  vendor-reroll-cost: 12
+  # Safety cap on how many mobs a single detonation can spawn at once.
+  max-alive: 60
+
+# =========================================
 # Tome of Mastery — endgame skill book
 # =========================================
 # Players earn 1 skill point the first time they complete each map, and spend
@@ -144,6 +185,7 @@ tutorial:
         - "&8• &3Maelstrom &7— a rift you tear open."
         - "&8• &6Reliquary &7— a sealed strongbox to crack."
         - "&8• &5Altar of Souls &7— a ritual that feeds a soul shop."
+        - "&8• &cThe Sundering &7— blast open a buried hoard."
         - ""
         - "&7And with the &fAbyssal Omen &7skill, even a blank map can"
         - "&7manifest one of these on its own. Read on for each."
@@ -175,6 +217,23 @@ tutorial:
         - "&freserve &7(lay away) an item to claim across future maps."
         - ""
         - "&7The &5Soul Harvest &7skill boosts souls per kill."
+    - title: "Event: The Sundering"
+      lines:
+        - "&cThe Sundering &7buries a hoard in the dungeon."
+        - ""
+        - "&7You're handed &cSeismic Charges&7. Plant them on the"
+        - "&7ground near the dig site — each must be within reach"
+        - "&7of the &cDetonator &7or another charge, so chain them."
+        - ""
+        - "&7Strike the Detonator: every buried pack &oand &7Remnant"
+        - "&7in a charge's blast is dragged up. &fRemnants &7buff the"
+        - "&7mobs but pay out far more &6Shards&7 and richer wares."
+        - ""
+        - "&7Slay it all and a &edealer &7sets up in the crater —"
+        - "&7spend your &6Shards &7on the items it has dug up."
+        - ""
+        - "&7Skills &cExcavator &7(more charges) and &cProspector"
+        - "&7(more Shards) make every Sundering bigger."
     - title: "The Tome of Mastery"
       lines:
         - "&7Your &fTome of Mastery &7is a permanent skill tree."
