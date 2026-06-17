@@ -553,6 +553,7 @@ public final class DungeonManager implements Listener {
             e.setRespawnLocation(resolveExitLocation());
             playerToSession.remove(p.getUniqueId());
             session.players().remove(p.getUniqueId());
+            plugin.sunderingManager().removeCharges(p);
             if (session.progressBar() != null) session.progressBar().removePlayer(p);
             // Belt-and-braces: re-issue the removal a few ticks AFTER respawn
             // actually finishes. PlayerRespawnEvent fires before the player is
@@ -779,6 +780,7 @@ public final class DungeonManager implements Listener {
         DungeonSession s = sessionOf(p);
         if (s != null) {
             if (s.progressBar() != null) s.progressBar().removePlayer(p);
+            plugin.sunderingManager().removeCharges(p);
             teleportOut(p);
             playerToSession.remove(p.getUniqueId());
             s.players().remove(p.getUniqueId());

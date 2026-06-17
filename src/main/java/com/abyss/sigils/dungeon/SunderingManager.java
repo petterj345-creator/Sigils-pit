@@ -14,9 +14,10 @@ import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
-import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Interaction;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
@@ -25,8 +26,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
-import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -71,24 +71,28 @@ public final class SunderingManager implements Listener {
      * Remnants with your blast chain is the core greed decision.
      */
     enum Remnant {
-        //        display     colour  hp   dmg  spd  shardMult lootBonus
-        BULWARK ("Bulwark",  "&7&l", 2.2, 1.0, 1.0, 1.6, 1),
-        SAVAGE  ("Savage",   "&c&l", 1.0, 2.0, 1.0, 1.6, 1),
-        FRENZIED("Frenzied", "&e&l", 1.0, 1.2, 1.6, 1.5, 1),
-        WARLORD ("Warlord",  "&5&l", 1.8, 1.6, 1.2, 2.2, 2);
+        //        display     colour  banner                 glow          hp   dmg  spd  shardMult lootBonus
+        BULWARK ("Bulwark",  "&7&l", Material.WHITE_BANNER,  Color.WHITE,  2.2, 1.0, 1.0, 1.6, 1),
+        SAVAGE  ("Savage",   "&c&l", Material.RED_BANNER,    Color.RED,    1.0, 2.0, 1.0, 1.6, 1),
+        FRENZIED("Frenzied", "&e&l", Material.YELLOW_BANNER, Color.YELLOW, 1.0, 1.2, 1.6, 1.5, 1),
+        WARLORD ("Warlord",  "&5&l", Material.PURPLE_BANNER, Color.PURPLE, 1.8, 1.6, 1.2, 2.2, 2);
 
         final String display;
         final String colour;
+        final Material banner;
+        final Color glow;
         final double hpMult;
         final double dmgMult;
         final double spdMult;
         final double shardMult;
         final int lootBonus;
 
-        Remnant(String display, String colour, double hpMult, double dmgMult,
-                double spdMult, double shardMult, int lootBonus) {
+        Remnant(String display, String colour, Material banner, Color glow, double hpMult,
+                double dmgMult, double spdMult, double shardMult, int lootBonus) {
             this.display = display;
             this.colour = colour;
+            this.banner = banner;
+            this.glow = glow;
             this.hpMult = hpMult;
             this.dmgMult = dmgMult;
             this.spdMult = spdMult;
@@ -100,8 +104,8 @@ public final class SunderingManager implements Listener {
     static final class RemnantNode {
         final Location loc;
         final Remnant type;
-        UUID standId;
-        UUID textId;
+        UUID displayId;   // glowing banner BlockDisplay
+        UUID textId;      // floating name above it
         boolean triggered = false;
         RemnantNode(Location loc, Remnant type) { this.loc = loc; this.type = type; }
     }
@@ -114,15 +118,16 @@ public final class SunderingManager implements Listener {
         final List<RemnantNode> remnants = new ArrayList<>();
         final List<Location> charges = new ArrayList<>();        // planted charge positions
         final List<UUID> chargeMarkers = new ArrayList<>();      // visual markers to clean up
-        UUID detonatorStandId;
-        UUID detonatorTextId;
+        final List<UUID> buriedMarkers = new ArrayList<>();      // glowing banner per buried pack
+        UUID detonatorDisplayId;     // glowing banner BlockDisplay
+        UUID detonatorTextId;        // floating name above it
+        UUID detonatorInteractionId; // invisible click hitbox (right-click to detonate)
         boolean detonated = false;
         final Set<UUID> mobs = new HashSet<>();                  // live unearthed mobs
         final Map<UUID, Integer> shards = new HashMap<>();       // per-player Shards (live balance)
         final Map<UUID, List<VendorOffer>> vendorOffers = new HashMap<>(); // per-player rolled wares
         double shardMult = 1.0;                                  // product of triggered Remnant mults
         int lootBonus = 0;                                       // sum of triggered Remnant loot bonuses
-        BukkitTask fieldFx;
         BukkitTask watchdog;
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
 
@@ -197,11 +202,16 @@ public final class SunderingManager implements Listener {
 
         // Bury the field: one guaranteed pack at the centre so a single charge
         // near the Detonator always hits something, plus scattered packs/Remnants.
+        // Each buried pack gets a glowing orange banner planted in the ground so
+        // players can see where to chain their charges.
         state.buried.add(centre.clone());
         int packs = Math.max(1, cfgBuriedPacks());
         for (int i = 1; i < packs; i++) {
             Location spot = scatter(w, centre, cfgFieldRadius());
             if (spot != null) state.buried.add(spot);
+        }
+        for (Location b : state.buried) {
+            state.buriedMarkers.add(spawnBanner(b, Material.ORANGE_BANNER, Color.ORANGE));
         }
         int remnants = Math.max(0, cfgRemnants());
         for (int i = 0; i < remnants; i++) {
@@ -214,7 +224,6 @@ public final class SunderingManager implements Listener {
 
         spawnDetonator(state);
         states.put(session.id(), state);
-        startFieldFx(state);
 
         for (UUID id : session.players()) {
             Player p = plugin.getServer().getPlayer(id);
@@ -234,20 +243,10 @@ public final class SunderingManager implements Listener {
     }
 
     private void spawnDetonator(State state) {
-        Location standLoc = state.centre.clone();
-        World w = standLoc.getWorld();
+        state.detonatorDisplayId = spawnBanner(state.centre, Material.RED_BANNER, Color.RED);
+        state.detonatorInteractionId = spawnInteraction(state.centre);
 
-        ArmorStand stand = w.spawn(standLoc, ArmorStand.class, as -> {
-            as.setInvulnerable(true);
-            as.setGravity(false);
-            as.setBasePlate(true);
-            as.setArms(true);
-            as.setCustomNameVisible(false);
-            as.setPersistent(false);
-            as.setGlowing(true);
-        });
-        state.detonatorStandId = stand.getUniqueId();
-
+        World w = state.centre.getWorld();
         Location textLoc = state.centre.clone().add(0, 2.3, 0);
         TextDisplay text = w.spawn(textLoc, TextDisplay.class, td -> {
             td.setBillboard(Display.Billboard.CENTER);
@@ -271,20 +270,9 @@ public final class SunderingManager implements Listener {
     }
 
     private void spawnRemnantMarker(RemnantNode node) {
-        Location standLoc = node.loc.clone();
-        World w = standLoc.getWorld();
+        node.displayId = spawnBanner(node.loc, node.type.banner, node.type.glow);
 
-        ArmorStand stand = w.spawn(standLoc, ArmorStand.class, as -> {
-            as.setInvulnerable(true);
-            as.setGravity(false);
-            as.setBasePlate(true);
-            as.setArms(true);
-            as.setCustomNameVisible(false);
-            as.setPersistent(false);
-            as.setGlowing(true);
-        });
-        node.standId = stand.getUniqueId();
-
+        World w = node.loc.getWorld();
         Location textLoc = node.loc.clone().add(0, 2.3, 0);
         TextDisplay text = w.spawn(textLoc, TextDisplay.class, td -> {
             td.setBillboard(Display.Billboard.CENTER);
@@ -293,30 +281,40 @@ public final class SunderingManager implements Listener {
             td.setDefaultBackground(false);
             td.setBackgroundColor(Color.fromARGB(160, 20, 20, 20));
             td.setPersistent(false);
+            td.setText(Text.color(node.type.colour + "❖ Remnant: " + node.type.display
+                    + "\n&7Within a blast = buffed mobs, more loot"));
         });
         node.textId = text.getUniqueId();
-        Entity e = plugin.getServer().getEntity(node.textId);
-        if (e instanceof TextDisplay td) {
-            td.setText(Text.color(node.type.colour + "❖ Remnant: " + node.type.display + "\n&7Within a blast = buffed mobs, more loot"));
-        }
     }
 
-    /** While not yet detonated, pulse particles over the buried field + Remnants. */
-    private void startFieldFx(State state) {
-        state.fieldFx = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            if (states.get(state.session.id()) != state || state.detonated) {
-                if (state.fieldFx != null) { state.fieldFx.cancel(); state.fieldFx = null; }
-                return;
-            }
-            World w = state.centre.getWorld();
-            if (w == null) return;
-            for (Location b : state.buried) {
-                w.spawnParticle(Particle.FLAME, b.clone().add(0, 0.2, 0), 2, 0.15, 0.05, 0.15, 0);
-            }
-            for (RemnantNode n : state.remnants) {
-                w.spawnParticle(Particle.SOUL_FIRE_FLAME, n.loc.clone().add(0, 0.4, 0), 4, 0.2, 0.3, 0.2, 0);
-            }
-        }, 20L, 12L);
+    /**
+     * Plant a glowing banner block-display in the ground at a marker. A
+     * BlockDisplay renders from the block corner, so we drop to the block grid —
+     * the banner stands in the floor block rather than floating. Returns its id.
+     */
+    private UUID spawnBanner(Location at, Material banner, Color glow) {
+        World w = at.getWorld();
+        Location loc = new Location(w, at.getBlockX(), at.getBlockY(), at.getBlockZ());
+        BlockDisplay d = w.spawn(loc, BlockDisplay.class, bd -> {
+            bd.setBlock(banner.createBlockData());
+            bd.setGlowing(true);
+            bd.setGlowColorOverride(glow);
+            bd.setBrightness(new Display.Brightness(15, 15));
+            bd.setPersistent(false);
+        });
+        return d.getUniqueId();
+    }
+
+    /** An invisible right-click hitbox over a marker (used for the Detonator). */
+    private UUID spawnInteraction(Location at) {
+        World w = at.getWorld();
+        Interaction in = w.spawn(at.clone(), Interaction.class, i -> {
+            i.setInteractionWidth(1.4f);
+            i.setInteractionHeight(2.2f);
+            i.setResponsive(true);
+            i.setPersistent(false);
+        });
+        return in.getUniqueId();
     }
 
     // ============================================================
@@ -412,14 +410,14 @@ public final class SunderingManager implements Listener {
     // ============================================================
 
     @EventHandler
-    public void onInteractDetonator(PlayerInteractAtEntityEvent e) {
+    public void onInteractDetonator(PlayerInteractEntityEvent e) {
         if (e.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         Player p = e.getPlayer();
         DungeonSession session = plugin.dungeonManager().sessionOf(p);
         if (session == null) return;
         State state = states.get(session.id());
         if (state == null) return;
-        if (!e.getRightClicked().getUniqueId().equals(state.detonatorStandId)) return;
+        if (!e.getRightClicked().getUniqueId().equals(state.detonatorInteractionId)) return;
         e.setCancelled(true);
 
         if (state.detonated) {
@@ -433,35 +431,24 @@ public final class SunderingManager implements Listener {
         detonate(state);
     }
 
-    /** Keep players from rotating / equipping the Detonator + Remnant stands. */
-    @EventHandler
-    public void onManipulate(PlayerArmorStandManipulateEvent e) {
-        State state = states.get(sessionIdOf(e.getPlayer()));
-        if (state == null) return;
-        UUID id = e.getRightClicked().getUniqueId();
-        if (id.equals(state.detonatorStandId) || isRemnantStand(state, id)) e.setCancelled(true);
-    }
-
-    /** Keep the Sundering stands indestructible. */
+    /** Keep the Sundering's banner / interaction markers indestructible. */
     @EventHandler
     public void onDamage(EntityDamageEvent e) {
         UUID id = e.getEntity().getUniqueId();
         for (State state : states.values()) {
-            if (id.equals(state.detonatorStandId) || isRemnantStand(state, id)) {
-                e.setCancelled(true);
-                return;
-            }
+            if (isOurMarker(state, id)) { e.setCancelled(true); return; }
         }
     }
 
-    private boolean isRemnantStand(State state, UUID id) {
-        for (RemnantNode n : state.remnants) if (id.equals(n.standId)) return true;
+    private boolean isOurMarker(State state, UUID id) {
+        if (id.equals(state.detonatorDisplayId) || id.equals(state.detonatorInteractionId)) return true;
+        if (state.buriedMarkers.contains(id)) return true;
+        for (RemnantNode n : state.remnants) if (id.equals(n.displayId)) return true;
         return false;
     }
 
     private void detonate(State state) {
         state.detonated = true;
-        if (state.fieldFx != null) { state.fieldFx.cancel(); state.fieldFx = null; }
         double blast = cfgBlastRadius();
 
         // Which Remnants did the chain reach? Accumulate their buffs/payout.
@@ -507,12 +494,16 @@ public final class SunderingManager implements Listener {
             }
         }
 
-        // The Detonator + Remnant markers have done their job — clear them.
-        removeEntity(state.detonatorStandId);
+        // The Detonator, Remnant + buried-pack banners have done their job — clear them.
+        removeEntity(state.detonatorDisplayId);
         removeEntity(state.detonatorTextId);
-        state.detonatorStandId = null;
+        removeEntity(state.detonatorInteractionId);
+        state.detonatorDisplayId = null;
         state.detonatorTextId = null;
-        for (RemnantNode n : state.remnants) { removeEntity(n.standId); removeEntity(n.textId); }
+        state.detonatorInteractionId = null;
+        for (RemnantNode n : state.remnants) { removeEntity(n.displayId); removeEntity(n.textId); }
+        for (UUID m : state.buriedMarkers) removeEntity(m);
+        state.buriedMarkers.clear();
         for (UUID m : state.chargeMarkers) removeEntity(m);
         state.chargeMarkers.clear();
 
@@ -851,24 +842,31 @@ public final class SunderingManager implements Listener {
     public void cleanup(DungeonSession session) {
         State state = states.remove(session.id());
         if (state != null) {
-            if (state.fieldFx != null) state.fieldFx.cancel();
             if (state.watchdog != null) state.watchdog.cancel();
             for (UUID id : new HashSet<>(state.mobs)) removeEntity(id);
-            removeEntity(state.detonatorStandId);
+            removeEntity(state.detonatorDisplayId);
             removeEntity(state.detonatorTextId);
-            for (RemnantNode n : state.remnants) { removeEntity(n.standId); removeEntity(n.textId); }
+            removeEntity(state.detonatorInteractionId);
+            for (RemnantNode n : state.remnants) { removeEntity(n.displayId); removeEntity(n.textId); }
+            for (UUID m : state.buriedMarkers) removeEntity(m);
             for (UUID m : state.chargeMarkers) removeEntity(m);
-            // Sweep any unplanted charges this run handed out.
+            // Sweep any unplanted charges still on the players in this session.
             for (UUID id : session.players()) {
                 Player p = plugin.getServer().getPlayer(id);
-                if (p == null) continue;
-                ItemStack[] contents = p.getInventory().getContents();
-                for (int i = 0; i < contents.length; i++) {
-                    if (SeismicCharge.isChargeFor(contents[i], session.id())) p.getInventory().setItem(i, null);
-                }
+                if (p != null) removeCharges(p);
             }
         }
         vendors.entrySet().removeIf(en -> en.getValue().equals(session.id()));
+    }
+
+    /** Strip any Seismic Charges from a player's inventory (e.g. on dungeon leave). */
+    public void removeCharges(Player p) {
+        ItemStack[] contents = p.getInventory().getContents();
+        boolean changed = false;
+        for (int i = 0; i < contents.length; i++) {
+            if (SeismicCharge.isCharge(contents[i])) { p.getInventory().setItem(i, null); changed = true; }
+        }
+        if (changed) p.updateInventory();
     }
 
     // ============================================================
@@ -914,10 +912,6 @@ public final class SunderingManager implements Listener {
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    private UUID sessionIdOf(Player p) {
-        DungeonSession s = plugin.dungeonManager().sessionOf(p);
-        return s == null ? null : s.id();
-    }
 
     private void removeEntity(UUID id) {
         if (id == null) return;
