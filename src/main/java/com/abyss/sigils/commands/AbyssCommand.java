@@ -134,9 +134,14 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                 }
                 case "border" -> {
                     if (!p.hasPermission("abyss.admin")) { noPerm(p); return; }
-                    if (args.length < 3) { p.sendMessage(Text.color("&7Usage: &f/abyss hideout border <size>")); return; }
-                    try { plugin.hideoutTemplateEditor().setBorderSize(p, Integer.parseInt(args[2].trim())); }
-                    catch (NumberFormatException ex) { p.sendMessage(Text.color("&cBorder size must be a number.")); }
+                    if (args.length < 3) { p.sendMessage(Text.color("&7Usage: &f/abyss hideout border <size|reset>")); return; }
+                    String arg = args[2].trim();
+                    if (arg.equalsIgnoreCase("reset") || arg.equalsIgnoreCase("clear") || arg.equalsIgnoreCase("off")) {
+                        plugin.hideoutTemplateEditor().resetBorder(p);
+                        return;
+                    }
+                    try { plugin.hideoutTemplateEditor().setBorderSize(p, Integer.parseInt(arg)); }
+                    catch (NumberFormatException ex) { p.sendMessage(Text.color("&cBorder size must be a number, or 'reset'.")); }
                     return;
                 }
                 default -> { /* fall through: treat args[1] as a player to visit */ }

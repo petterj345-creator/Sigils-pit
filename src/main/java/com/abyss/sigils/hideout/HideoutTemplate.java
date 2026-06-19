@@ -65,6 +65,13 @@ public final class HideoutTemplate {
         save();
     }
 
+    /** Drop the boundary entirely — hideouts fall back to config hideout.border-size. */
+    public void clearBorder() {
+        this.hasBorder = false;
+        this.borderSize = 0;
+        save();
+    }
+
     public void setSpawn(Location l) {
         this.spawnX = l.getX();
         this.spawnY = l.getY();

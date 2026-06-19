@@ -79,16 +79,28 @@ public final class HideoutTemplateEditor implements Listener {
         p.sendMessage(Text.color("&aHideout spawn set. New hideouts will start players here."));
     }
 
+    /** Smallest boundary the editor will set — stops a stray double-click trapping you in a 1×1. */
+    private static final int MIN_BORDER = 8;
+
     /** Manually set a square border of the given size, centred on the admin. */
     public void setBorderSize(Player p, int size) {
         if (!p.getWorld().getName().equals(HideoutTemplate.WORLD)) {
             p.sendMessage(Text.color("&cRun this inside the template (&f/abyss hideout edit&c)."));
             return;
         }
-        size = Math.max(8, size);
         double cx = p.getLocation().getBlockX() + 0.5;
         double cz = p.getLocation().getBlockZ() + 0.5;
         applyBorder(p, cx, cz, size);
+    }
+
+    /** Remove the boundary: reset the live border to default and clear the saved one. */
+    public void resetBorder(Player p) {
+        plugin.hideoutTemplate().clearBorder();
+        World w = Bukkit.getWorld(HideoutTemplate.WORLD);
+        if (w != null) w.getWorldBorder().reset();   // back to the vanilla 59,999,968 default
+        cornerA.remove(p.getUniqueId());
+        cornerB.remove(p.getUniqueId());
+        p.sendMessage(Text.color("&aBoundary removed. &7New hideouts use &fhideout.border-size &7from config."));
     }
 
     // ============================================================
@@ -205,6 +217,13 @@ public final class HideoutTemplateEditor implements Listener {
     }
 
     private void applyBorder(Player p, double centerX, double centerZ, double size) {
+        // Floor the size so a stray click (or both corners on one block) can never
+        // shrink the border to a cage you can't escape.
+        if (size < MIN_BORDER) {
+            size = MIN_BORDER;
+            p.sendMessage(Text.color("&7(Boundary too small — clamped to the &f" + MIN_BORDER
+                    + "&7 minimum. &8/abyss hideout border reset &7to remove it.)"));
+        }
         plugin.hideoutTemplate().setBorder(centerX, centerZ, size);
         World w = Bukkit.getWorld(HideoutTemplate.WORLD);
         if (w != null) {
