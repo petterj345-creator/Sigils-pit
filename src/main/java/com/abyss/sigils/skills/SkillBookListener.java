@@ -25,7 +25,7 @@ public final class SkillBookListener implements Listener {
     public SkillBookListener(AbyssPlugin plugin) { this.plugin = plugin; }
 
     private boolean giveOnJoin() {
-        return plugin.getConfig().getBoolean("skillbook.give-on-join", true);
+        return plugin.getConfig().getBoolean("skillbook.give-on-join", false);
     }
 
     @EventHandler

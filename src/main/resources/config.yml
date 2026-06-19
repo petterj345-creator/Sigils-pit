@@ -76,7 +76,9 @@ sundering:
 # them on the skill tree (right-click the book). The book never drops on death.
 skillbook:
   # Give every player a Tome of Mastery on join (and restore it after death)?
-  give-on-join: true
+  # Off by default: players claim their Tome on demand with /abyss book instead
+  # of having one pushed into their inventory every relog.
+  give-on-join: false
 
 # =========================================
 # Tutorial NPC (Citizens)  —  /trait sigils

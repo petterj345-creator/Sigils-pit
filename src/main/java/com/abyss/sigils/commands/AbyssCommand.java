@@ -47,6 +47,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             case "leave"      -> { if (sender instanceof Player p) plugin.dungeonManager().leave(p); }
             case "accept"     -> { if (sender instanceof Player p) plugin.dungeonManager().acceptInvite(p); }
             case "enterabyss" -> { if (sender instanceof Player p) plugin.dungeonManager().start(List.of(p)); }
+            case "book","tome" -> handleClaimBook(sender);
             case "admin"      -> handleAdmin(sender);
             case "create"     -> handleCreate(sender, args);
             case "edit"       -> handleEdit(sender, args);
@@ -83,6 +84,23 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             default -> sender.sendMessage(Text.color("&cUnknown subcommand. Try /abyss help"));
         }
         return true;
+    }
+
+    /**
+     * /abyss book — let a player claim their own Tome of Mastery. The book is no
+     * longer pushed into inventories on join (see skillbook.give-on-join); this is
+     * the self-serve way to get one. Skill progress lives server-side, so claiming
+     * a fresh book never loses points. Refuses to hand out a duplicate.
+     */
+    private void handleClaimBook(CommandSender sender) {
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+        if (com.abyss.sigils.skills.SkillBookItem.has(p)) {
+            p.sendMessage(Text.color("&7You already have a Tome of Mastery."));
+            return;
+        }
+        var overflow = p.getInventory().addItem(com.abyss.sigils.skills.SkillBookItem.create());
+        for (var o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
+        p.sendMessage(Text.color("&6&l✦ &eYour Tome of Mastery has been summoned. &7Right-click to open."));
     }
 
     /** /abyss admin — open the admin give hub (sigils, books, maps, currency, dust). */
@@ -536,6 +554,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Text.color("&5&lAbyss commands:"));
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
+        sender.sendMessage(Text.color("  &f/abyss book &7- claim your Tome of Mastery"));
         sender.sendMessage(Text.color("  &f/abyss leave &7- exit a dungeon"));
         if (sender.hasPermission("abyss.admin")) {
             sender.sendMessage(Text.color("&7Admin:"));
@@ -560,7 +579,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private void noPerm(CommandSender s) { s.sendMessage(Text.color("&cNo permission.")); }
 
     private static final List<String> SUBS = List.of(
-            "help","sigils","leave","accept","enterabyss",
+            "help","sigils","leave","accept","enterabyss","book",
             "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
             "sigil","skill","settier","setquality","mythicdrops","markers","setportal","removeportal"
