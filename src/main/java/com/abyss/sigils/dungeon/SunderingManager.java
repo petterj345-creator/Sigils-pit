@@ -124,22 +124,14 @@ public final class SunderingManager implements Listener {
         UUID detonatorInteractionId; // invisible click hitbox (right-click to detonate)
         boolean detonated = false;
         final Set<UUID> mobs = new HashSet<>();                  // live unearthed mobs
-        final Map<UUID, Integer> shards = new HashMap<>();       // per-player Shards (live balance)
+        // Shards are physical items now (SunderingShard) — earned into and spent
+        // from the player's inventory, not a per-session balance.
         final Map<UUID, List<VendorOffer>> vendorOffers = new HashMap<>(); // per-player rolled wares
         UUID vendorLabelId;                                      // floating label over the vendor crate
         double shardMult = 1.0;                                  // product of triggered Remnant mults
         int lootBonus = 0;                                       // sum of triggered Remnant loot bonuses
         BukkitTask watchdog;
         State(DungeonSession s, DungeonTemplate t) { this.session = s; this.template = t; }
-
-        int shardsOf(UUID id) { return shards.getOrDefault(id, 0); }
-        /** Spend Shards if affordable. Returns true on success. */
-        boolean spendShards(UUID id, int amount) {
-            int have = shards.getOrDefault(id, 0);
-            if (amount > have) return false;
-            shards.put(id, have - amount);
-            return true;
-        }
     }
 
     /** One purchasable item at the Sundered Hoard vendor, priced in Shards. */
@@ -584,9 +576,9 @@ public final class SunderingManager implements Listener {
             int rank = plugin.skills().rank(killer.getUniqueId(), SkillType.PROSPECTOR);
             if (rank > 0) shards = (int) Math.round(shards * SkillType.PROSPECTOR.multiplierAt(rank));
             if (shards > 0) {
-                state.shards.merge(killer.getUniqueId(), shards, Integer::sum);
-                killer.sendMessage(Text.color("&6+ " + shards + " Shards &7(total: &6"
-                        + state.shards.getOrDefault(killer.getUniqueId(), 0) + "&7)"));
+                SunderingShard.give(killer, shards);
+                killer.sendMessage(Text.color("&6+ " + shards + " Shards &7(carried: &6"
+                        + SunderingShard.count(killer) + "&7)"));
             }
         }
 
@@ -679,7 +671,7 @@ public final class SunderingManager implements Listener {
         for (int i = 45; i < 54; i++) inv.setItem(i, filler());
         for (int r = 1; r < 5; r++) { inv.setItem(r * 9, filler()); inv.setItem(r * 9 + 8, filler()); }
 
-        int balance = state.shardsOf(p.getUniqueId());
+        int balance = SunderingShard.count(p);
         int slotIdx = 0;
         for (int i = 0; i < offers.size() && slotIdx < VENDOR_SLOTS.length; i++) {
             int slot = VENDOR_SLOTS[slotIdx++];
@@ -691,7 +683,7 @@ public final class SunderingManager implements Listener {
                 "&6Your Shards: &f" + balance,
                 "&7Earned by slaying what you unearthed.",
                 "",
-                "&8Unspent Shards are lost when you leave."));
+                "&8Physical currency — yours to keep."));
 
         int rerollCost = cfgVendorReroll();
         if (rerollCost > 0) {
@@ -783,10 +775,10 @@ public final class SunderingManager implements Listener {
         if (raw == VENDOR_REROLL_SLOT) {
             int cost = cfgVendorReroll();
             if (cost <= 0) return;
-            if (!state.spendShards(p.getUniqueId(), cost)) { notEnough(p, cost); return; }
+            if (!SunderingShard.take(p, cost)) { notEnough(p, cost); return; }
             state.vendorOffers.put(p.getUniqueId(), rollOffers(state, p.getUniqueId()));
             p.playSound(p.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1f, 1.2f);
-            p.sendMessage(Text.color("&dHaggled for &6" + cost + " Shards&d. &7Balance: &6" + state.shardsOf(p.getUniqueId())));
+            p.sendMessage(Text.color("&dHaggled for &6" + cost + " Shards&d. &7Balance: &6" + SunderingShard.count(p)));
             reopen(p, state);
             return;
         }
@@ -798,11 +790,11 @@ public final class SunderingManager implements Listener {
         VendorOffer offer = offers.get(offerIdx);
 
         if (offer.bought) { p.sendMessage(Text.color("&7You already bought that.")); return; }
-        if (!state.spendShards(p.getUniqueId(), offer.price)) { notEnough(p, offer.price); return; }
+        if (!SunderingShard.take(p, offer.price)) { notEnough(p, offer.price); return; }
         offer.bought = true;
         give(p, offer.source.resolve(plugin, offer.count));
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
-        p.sendMessage(Text.color("&aBought for &6" + offer.price + " Shards&a. &7Balance: &6" + state.shardsOf(p.getUniqueId())));
+        p.sendMessage(Text.color("&aBought for &6" + offer.price + " Shards&a. &7Balance: &6" + SunderingShard.count(p)));
         reopen(p, state);
     }
 
