@@ -4,14 +4,10 @@ import com.abyss.sigils.AbyssPlugin;
 import com.abyss.sigils.dungeon.DungeonTemplate;
 import com.abyss.sigils.integration.MobPackIndex;
 import io.lumine.mythic.api.mobs.MythicMob;
-import io.lumine.mythic.bukkit.MythicBukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Browse all MythicMobs to pick which one should drop an Abyss Map for a
@@ -24,6 +20,7 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
     private final AbyssPlugin plugin;
     private final DungeonTemplate template;
     private String search = "";
+    private String pack = null; // current pack folder, or null at the root
     private int page = 0;
 
     private static final int PAGE_SIZE = 28;
@@ -43,29 +40,29 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
     }
 
     @Override protected String title() {
-        return search.isEmpty()
-                ? color("&5&lPick mob → Map drop &7(" + template.name() + ")")
-                : color("&5Search: &f" + search);
+        if (!search.isEmpty()) return color("&5Search: &f" + search);
+        if (pack != null) return color("&5Pack: &f" + pack);
+        return color("&5&lPick mob → Map drop &7(" + template.name() + ")");
     }
     @Override protected int size() { return 54; }
 
     @Override protected void build(Player viewer) {
         fillBorder();
-        List<MythicMob> mobs = filtered();
-        if (mobs.isEmpty()) {
+        List<Object> entries = MobBrowse.entries(search, pack);
+        if (entries.isEmpty()) {
             set(22, icon(Material.BARRIER, "&cNo MythicMobs match",
                     "&7Make sure MythicMobs is installed",
                     "&7and the search isn't too narrow."),
                 null);
         }
 
-        int totalPages = Math.max(1, (mobs.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        int totalPages = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         if (page >= totalPages) page = totalPages - 1;
         if (page < 0) page = 0;
 
         set(SEARCH_SLOT, icon(Material.WRITABLE_BOOK,
                 search.isEmpty() ? "&fSearch..." : "&fSearch: &e" + search,
-                "&7" + mobs.size() + " mob(s) match",
+                "&7" + entries.size() + " result(s)",
                 "",
                 "&eClick &7to type a query"),
             e -> {
@@ -74,31 +71,48 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
                         search.isEmpty() ? "" : search,
                         text -> {
                             search = text == null ? "" : text.trim();
+                            pack = null; // search spans every pack
                             page = 0;
                             org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> open(p));
                         });
             });
 
         int start = page * PAGE_SIZE;
-        int end = Math.min(start + PAGE_SIZE, mobs.size());
+        int end = Math.min(start + PAGE_SIZE, entries.size());
         int slot = 10;
         for (int i = start; i < end; i++) {
             if (slot % 9 == 8) slot += 2;
             if (slot >= 44) break;
-            final MythicMob m = mobs.get(i);
-            String pack = MobPackIndex.packOf(m.getInternalName());
-            ItemStack ic = icon(Material.ZOMBIE_HEAD,
-                    "&f" + MobPickerGUI.niceName(m),
-                    "&7Internal ID: &8" + m.getInternalName(),
-                    pack != null ? "&dPack: &7" + pack : "&8(no pack)",
-                    "",
-                    "&eClick &7to configure map drop");
-            set(slot, ic, e -> MobMapDropGUI.openFor(plugin, (Player) e.getWhoClicked(), m, template));
+            Object entry = entries.get(i);
+            if (entry instanceof String) {
+                final String packName = (String) entry;
+                set(slot, icon(MobBrowse.FOLDER_MATERIAL,
+                        "&e&l" + packName,
+                        "&7" + MobBrowse.packMobCount(packName) + " mob(s)",
+                        "",
+                        "&eClick &7to open this pack"),
+                    e -> { pack = packName; page = 0; refresh((Player) e.getWhoClicked()); });
+            } else {
+                final MythicMob m = (MythicMob) entry;
+                String mobPack = MobPackIndex.packOf(m.getInternalName());
+                set(slot, icon(Material.ZOMBIE_HEAD,
+                        "&f" + MobPickerGUI.niceName(m),
+                        "&7Internal ID: &8" + m.getInternalName(),
+                        mobPack != null ? "&dPack: &7" + mobPack : "&8(no pack)",
+                        "",
+                        "&eClick &7to configure map drop"),
+                    e -> MobMapDropGUI.openFor(plugin, (Player) e.getWhoClicked(), m, template));
+            }
             slot++;
         }
 
-        set(BACK_SLOT, icon(Material.ARROW, "&7← Back to template editor"),
-            e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+        if (pack != null && search.isEmpty()) {
+            set(BACK_SLOT, icon(Material.ARROW, "&7← All packs"),
+                e -> { pack = null; page = 0; refresh((Player) e.getWhoClicked()); });
+        } else {
+            set(BACK_SLOT, icon(Material.ARROW, "&7← Back to template editor"),
+                e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+        }
 
         if (page > 0) {
             set(PREV_SLOT, icon(Material.SPECTRAL_ARROW, "&7← Page " + page),
@@ -112,22 +126,5 @@ public final class MapDropMobPickerGUI extends EditorGUI.Holder {
             set(CLEAR_SLOT, icon(Material.BARRIER, "&cClear Search"),
                 e -> { search = ""; page = 0; refresh((Player) e.getWhoClicked()); });
         }
-    }
-
-    private List<MythicMob> filtered() {
-        List<MythicMob> out = new ArrayList<>();
-        try {
-            for (MythicMob m : MythicBukkit.inst().getMobManager().getMobTypes()) {
-                if (search.isEmpty()) { out.add(m); continue; }
-                String q = search.toLowerCase(Locale.ROOT);
-                if (m.getInternalName().toLowerCase(Locale.ROOT).contains(q)
-                        || MobPickerGUI.niceName(m).toLowerCase(Locale.ROOT).contains(q)) {
-                    out.add(m);
-                }
-            }
-        } catch (Throwable ignored) {}
-        // Pack mobs first (grouped by pack), then everything else; alphabetical within each group.
-        out.sort((a, b) -> MobPackIndex.comparePackThenName(a.getInternalName(), b.getInternalName()));
-        return out;
     }
 }
