@@ -25,6 +25,12 @@ public final class RewardEntry {
     private double chancePercent;
     private int minCount;
     private int maxCount;
+    /**
+     * Lowest map tier at which this entry can roll. An entry is a candidate only
+     * when the map's tier is >= this. Defaults to 1 (always available), so a
+     * tier-12 map sees every entry tier 1..12 — more tiers, more rewards.
+     */
+    private int unlockTier = 1;
     /** MMOItems type/id, or null for a plain snapshot entry. */
     private String mmoType;
     private String mmoId;
@@ -40,11 +46,13 @@ public final class RewardEntry {
     public double chancePercent()    { return chancePercent; }
     public int minCount()            { return minCount; }
     public int maxCount()            { return maxCount; }
+    public int unlockTier()          { return unlockTier; }
     public String mmoType()          { return mmoType; }
     public String mmoId()            { return mmoId; }
     public boolean isMMOItem()       { return mmoType != null && mmoId != null; }
 
     public void setMMOItem(String type, String id) { this.mmoType = type; this.mmoId = id; }
+    public void setUnlockTier(int n) { this.unlockTier = Math.max(1, n); }
 
     /**
      * Produce the actual ItemStack to hand to a player, at the given count.

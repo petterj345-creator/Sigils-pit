@@ -109,6 +109,16 @@ public final class DungeonTemplate {
      */
     private final List<MobEntry> eventTrashMobs = new ArrayList<>();
 
+    /**
+     * Shared <b>reward</b> pool that ALL events (ritual, maelstrom, reliquary,
+     * sundering) draw from, on TOP of their own type-specific loot — the loot
+     * analogue of {@link #eventTrashMobs}. Set once per map via Events → Default
+     * Event Rewards. Entries are {@link MaelstromLoot} (item + chance% + count
+     * range + unlock-tier); {@code minKills} is ignored here since the default
+     * pool isn't gated on a per-event kill count.
+     */
+    private final List<MaelstromLoot> defaultEventLoot = new ArrayList<>();
+
     // ----- ritual (Altar of Souls) -----
     /** Altar locations (armor stands) placed via the wand. Stored "stand on top". */
     private final List<Location> ritualAltars = new ArrayList<>();
@@ -313,6 +323,28 @@ public final class DungeonTemplate {
         if (n <= 0 || eventTrashMobs.isEmpty()) return out;
         var rng = java.util.concurrent.ThreadLocalRandom.current();
         for (int i = 0; i < n; i++) out.add(eventTrashMobs.get(rng.nextInt(eventTrashMobs.size())));
+        return out;
+    }
+
+    /** Shared reward pool every event draws from, on top of its own loot. */
+    public List<MaelstromLoot> defaultEventLoot() { return defaultEventLoot; }
+
+    /**
+     * The map tier to gate loot by. Treats tier &lt;= 0 (unscaled maps) as tier
+     * 1, so a baseline map still rolls the tier-1 loot every entry defaults to.
+     */
+    public static int effectiveTier(int mapTier) { return Math.max(1, mapTier); }
+
+    /**
+     * Effective loot for an event at a given map tier: the event's OWN pool plus
+     * the shared {@link #defaultEventLoot}, keeping only entries whose unlock
+     * tier the map has reached. More tiers ⇒ more eligible entries ⇒ more loot.
+     */
+    public List<MaelstromLoot> eventLootFor(List<MaelstromLoot> own, int mapTier) {
+        int t = effectiveTier(mapTier);
+        List<MaelstromLoot> out = new ArrayList<>(own.size() + defaultEventLoot.size());
+        for (MaelstromLoot l : own)              if (l.itemStack() != null && l.unlockTier() <= t) out.add(l);
+        for (MaelstromLoot l : defaultEventLoot) if (l.itemStack() != null && l.unlockTier() <= t) out.add(l);
         return out;
     }
 
@@ -625,6 +657,24 @@ public final class DungeonTemplate {
             cfg.set(base + ".chance", r.chancePercent());
             cfg.set(base + ".min", r.minCount());
             cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".tier", r.unlockTier());
+            if (r.isMMOItem()) {
+                cfg.set(base + ".mmo-type", r.mmoType());
+                cfg.set(base + ".mmo-id", r.mmoId());
+            }
+        }
+
+        // ----- shared default event-reward pool (every event draws from this) -----
+        cfg.set("default-event-loot", null); // clear stale
+        for (int i = 0; i < defaultEventLoot.size(); i++) {
+            MaelstromLoot r = defaultEventLoot.get(i);
+            if (r.itemStack() == null) continue;
+            String base = "default-event-loot." + i;
+            cfg.set(base + ".item", r.itemStack());
+            cfg.set(base + ".chance", r.chancePercent());
+            cfg.set(base + ".min", r.minCount());
+            cfg.set(base + ".max", r.maxCount());
+            cfg.set(base + ".tier", r.unlockTier());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -687,6 +737,7 @@ public final class DungeonTemplate {
             cfg.set(base + ".price-min", r.priceMin());
             cfg.set(base + ".price-max", r.priceMax());
             cfg.set(base + ".amount", r.amount());
+            cfg.set(base + ".tier", r.unlockTier());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -727,6 +778,7 @@ public final class DungeonTemplate {
             cfg.set(base + ".min", r.minCount());
             cfg.set(base + ".max", r.maxCount());
             cfg.set(base + ".min-kills", r.minKills());
+            cfg.set(base + ".tier", r.unlockTier());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -762,6 +814,7 @@ public final class DungeonTemplate {
             cfg.set(base + ".min", r.minCount());
             cfg.set(base + ".max", r.maxCount());
             cfg.set(base + ".min-kills", r.minKills());
+            cfg.set(base + ".tier", r.unlockTier());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -790,6 +843,7 @@ public final class DungeonTemplate {
             cfg.set(base + ".min", r.minCount());
             cfg.set(base + ".max", r.maxCount());
             cfg.set(base + ".min-kills", r.minKills());
+            cfg.set(base + ".tier", r.unlockTier());
             if (r.isMMOItem()) {
                 cfg.set(base + ".mmo-type", r.mmoType());
                 cfg.set(base + ".mmo-id", r.mmoId());
@@ -901,10 +955,38 @@ public final class DungeonTemplate {
                 int min = entry.getInt("min", 1);
                 int max = entry.getInt("max", 1);
                 RewardEntry re = new RewardEntry(stack, chance, min, max);
+                re.setUnlockTier(entry.getInt("tier", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) re.setMMOItem(mmoType, mmoId);
                 rewardPool.add(re);
+            }
+        }
+
+        // ----- shared default event-reward pool -----
+        defaultEventLoot.clear();
+        ConfigurationSection defLoot = cfg.getConfigurationSection("default-event-loot");
+        if (defLoot != null) {
+            List<String> keys = new ArrayList<>(defLoot.getKeys(false));
+            keys.sort((a, b) -> {
+                try { return Integer.compare(Integer.parseInt(a), Integer.parseInt(b)); }
+                catch (NumberFormatException e) { return a.compareTo(b); }
+            });
+            for (String key : keys) {
+                ConfigurationSection entry = defLoot.getConfigurationSection(key);
+                if (entry == null) continue;
+                org.bukkit.inventory.ItemStack stack = entry.getItemStack("item");
+                if (stack == null) continue;
+                MaelstromLoot ml = new MaelstromLoot(stack,
+                        entry.getDouble("chance", 100),
+                        entry.getInt("min", 1),
+                        entry.getInt("max", 1),
+                        entry.getInt("min-kills", 0));
+                ml.setUnlockTier(entry.getInt("tier", 1));
+                String mmoType = entry.getString("mmo-type", null);
+                String mmoId = entry.getString("mmo-id", null);
+                if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
+                defaultEventLoot.add(ml);
             }
         }
 
@@ -978,6 +1060,7 @@ public final class DungeonTemplate {
                 int pmax = entry.getInt("price-max", -1);
                 RitualReward rr = new RitualReward(stack, pmin, pmax);
                 rr.setAmount(entry.getInt("amount", 1));
+                rr.setUnlockTier(entry.getInt("tier", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) rr.setMMOItem(mmoType, mmoId);
@@ -1042,6 +1125,7 @@ public final class DungeonTemplate {
                         entry.getInt("min", 1),
                         entry.getInt("max", 1),
                         entry.getInt("min-kills", 0));
+                ml.setUnlockTier(entry.getInt("tier", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
@@ -1091,6 +1175,7 @@ public final class DungeonTemplate {
                         entry.getInt("min", 1),
                         entry.getInt("max", 1),
                         entry.getInt("min-kills", 0));
+                ml.setUnlockTier(entry.getInt("tier", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);
@@ -1128,6 +1213,7 @@ public final class DungeonTemplate {
                         entry.getInt("min", 1),
                         entry.getInt("max", 1),
                         entry.getInt("min-kills", 0));
+                ml.setUnlockTier(entry.getInt("tier", 1));
                 String mmoType = entry.getString("mmo-type", null);
                 String mmoId = entry.getString("mmo-id", null);
                 if (mmoType != null && mmoId != null) ml.setMMOItem(mmoType, mmoId);

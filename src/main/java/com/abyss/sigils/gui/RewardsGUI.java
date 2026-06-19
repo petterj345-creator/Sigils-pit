@@ -143,11 +143,12 @@ public final class RewardsGUI implements Listener {
                 "&7to add them as possible rewards.",
                 "",
                 "&7Left-click an entry → set chance %",
-                "&7Right-click an entry → set count range",
-                "&7Shift-click an entry → return + remove",
+                "&7Right-click an entry → map tier to unlock",
+                "&7Shift-right an entry → set count range",
+                "&7Shift-left-click an entry → return + remove",
                 "",
-                "&8Number prompts close this menu and",
-                "&8ask you to type the value in chat."));
+                "&8Higher-tier maps roll every entry up to",
+                "&8their tier — more tiers, more rewards."));
         return inv;
     }
 
@@ -160,14 +161,16 @@ public final class RewardsGUI implements Listener {
             lore.add("");
             lore.add(color("&7Chance: &f" + r.chancePercent() + "%"));
             lore.add(color("&7Count: &f" + r.minCount() + "-" + r.maxCount()));
+            lore.add(color("&7Map tier: &fT" + r.unlockTier() + "+"));
             if (r.isMMOItem()) {
                 lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
                 lore.add(color("&8Rolls fresh per player"));
             }
             lore.add("");
             lore.add(color("&eLeft-click &7→ change chance"));
-            lore.add(color("&eRight-click &7→ change count range"));
-            lore.add(color("&cShift-click &7→ remove"));
+            lore.add(color("&eRight-click &7→ tier up &8(now T" + r.unlockTier() + ")"));
+            lore.add(color("&eShift-right &7→ change count range"));
+            lore.add(color("&cShift-left-click &7→ remove"));
             meta.setLore(lore);
             stack.setItemMeta(meta);
         }
@@ -300,8 +303,12 @@ public final class RewardsGUI implements Listener {
 
         RewardEntry entry = pool.get(slot);
 
+        if (e.isShiftClick() && e.isRightClick()) {
+            promptCountRange(p, holder, entry);
+            return;
+        }
         if (e.isShiftClick()) {
-            // Shift-click an entry → return it to your inventory + remove
+            // Shift-left-click an entry → return it to your inventory + remove
             pool.remove(slot);
             plugin.templates().save(holder.template());
             ItemStack original = entry.itemStack().clone();
@@ -316,7 +323,8 @@ public final class RewardsGUI implements Listener {
             return;
         }
         if (e.isRightClick()) {
-            promptCountRange(p, holder, entry);
+            cycleTier(holder, entry);
+            rebuild(holder);
             return;
         }
         // Left-click → change chance %
@@ -344,6 +352,13 @@ public final class RewardsGUI implements Listener {
             } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5'")); }
             reopenAfterInput(p, holder);
         });
+    }
+
+    /** Right-click bumps the entry's unlock tier up by one, wrapping at the tier cap. */
+    private void cycleTier(Holder holder, RewardEntry entry) {
+        int max = Math.max(1, plugin.getConfig().getInt("scaling.tier.max", 16));
+        entry.setUnlockTier(entry.unlockTier() >= max ? 1 : entry.unlockTier() + 1);
+        plugin.templates().save(holder.template());
     }
 
     private void handleControlClick(InventoryClickEvent e, Holder holder, Player p, int slot) {
