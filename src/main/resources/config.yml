@@ -81,6 +81,17 @@ skillbook:
   give-on-join: false
 
 # =========================================
+# Hideouts — personal persistent player worlds
+# =========================================
+# Each player gets a small bounded world they can build in with /abyss hideout.
+# The world is created on first entry, saved when they leave, and never deleted.
+hideout:
+  # Side length (in blocks) of the square world border that caps each hideout.
+  border-size: 48
+  # Stash size in rows (1-6). Each row is 9 slots; 6 = a full double chest.
+  stash-rows: 6
+
+# =========================================
 # Tutorial NPC (Citizens)  —  /trait sigils
 # =========================================
 # Add the trait to any Citizens NPC with:   /npc select   then   /trait sigils

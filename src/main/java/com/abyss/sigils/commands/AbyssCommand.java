@@ -44,7 +44,11 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "help"       -> sendHelp(sender);
             case "sigils"     -> { if (sender instanceof Player p) plugin.socketGUI().openFor(p); }
-            case "leave"      -> { if (sender instanceof Player p) plugin.dungeonManager().leave(p); }
+            case "leave"      -> { if (sender instanceof Player p) {
+                if (plugin.hideoutManager().isInHideout(p)) plugin.hideoutManager().leave(p);
+                else plugin.dungeonManager().leave(p);
+            } }
+            case "hideout","home" -> handleHideout(sender, args);
             case "accept"     -> { if (sender instanceof Player p) plugin.dungeonManager().acceptInvite(p); }
             case "enterabyss" -> { if (sender instanceof Player p) plugin.dungeonManager().start(List.of(p)); }
             case "book","tome" -> handleClaimBook(sender);
@@ -101,6 +105,32 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         var overflow = p.getInventory().addItem(com.abyss.sigils.skills.SkillBookItem.create());
         for (var o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
         p.sendMessage(Text.color("&6&l✦ &eYour Tome of Mastery has been summoned. &7Right-click to open."));
+    }
+
+    /**
+     * /abyss hideout            — go to your own hideout (created on first use).
+     * /abyss hideout &lt;player&gt;   — visit another player's hideout (read-only).
+     */
+    private void handleHideout(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
+        if (args.length >= 2) {
+            if (args[1].equalsIgnoreCase("kit")) {
+                p.getInventory().addItem(
+                        com.abyss.sigils.hideout.HideoutItems.portal(),
+                        com.abyss.sigils.hideout.HideoutItems.stash());
+                p.sendMessage(Text.color("&aHere are your hideout fixtures — place them in your hideout."));
+                return;
+            }
+            org.bukkit.OfflinePlayer target = Bukkit.getPlayerExact(args[1]);
+            if (target == null) target = Bukkit.getOfflinePlayerIfCached(args[1]);
+            if (target == null || target.getUniqueId() == null) {
+                p.sendMessage(Text.color("&cUnknown player."));
+                return;
+            }
+            plugin.hideoutManager().visit(p, target.getUniqueId(), target.getName());
+            return;
+        }
+        plugin.hideoutManager().enterOwn(p);
     }
 
     /** /abyss admin — open the admin give hub (sigils, books, maps, currency, dust). */
@@ -555,7 +585,8 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.color("&5&lAbyss commands:"));
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
         sender.sendMessage(Text.color("  &f/abyss book &7- claim your Tome of Mastery"));
-        sender.sendMessage(Text.color("  &f/abyss leave &7- exit a dungeon"));
+        sender.sendMessage(Text.color("  &f/abyss hideout [player] &7- go to your hideout (or visit one)"));
+        sender.sendMessage(Text.color("  &f/abyss leave &7- exit a dungeon or hideout"));
         if (sender.hasPermission("abyss.admin")) {
             sender.sendMessage(Text.color("&7Admin:"));
             sender.sendMessage(Text.color("  &f/abyss admin &8— give menu (sigils, books, maps, currency, dust)"));
@@ -579,7 +610,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private void noPerm(CommandSender s) { s.sendMessage(Text.color("&cNo permission.")); }
 
     private static final List<String> SUBS = List.of(
-            "help","sigils","leave","accept","enterabyss","book",
+            "help","sigils","leave","accept","enterabyss","book","hideout",
             "admin","create","edit","delete","list",
             "givesigil","givedust","givebook","givemap","givecurrency","reload",
             "sigil","skill","settier","setquality","mythicdrops","markers","setportal","removeportal"
@@ -605,6 +636,12 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 case "givesigil","givedust","givebook" -> Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName).filter(s -> s.startsWith(args[1])).toList();
+                case "hideout" -> {
+                    List<String> out = new ArrayList<>();
+                    out.add("kit");
+                    Bukkit.getOnlinePlayers().forEach(pl -> out.add(pl.getName()));
+                    yield out.stream().filter(s -> s.startsWith(args[1].toLowerCase())).toList();
+                }
                 case "sigil" -> java.util.stream.Stream.of("list","create","edit")
                         .filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 case "skill" -> java.util.stream.Stream.of("give","take","reset","book","info")
