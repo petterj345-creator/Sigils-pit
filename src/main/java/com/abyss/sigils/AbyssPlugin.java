@@ -59,6 +59,11 @@ public final class AbyssPlugin extends JavaPlugin {
     private com.abyss.sigils.integration.MobDropStore mobDrops;
     private com.abyss.sigils.integration.ReservedRewardStore reservedRewards;
     private com.abyss.sigils.skills.PlayerSkillStore skills;
+    private com.abyss.sigils.hideout.HideoutManager hideoutManager;
+    private com.abyss.sigils.hideout.HideoutFixtures hideoutFixtures;
+    private com.abyss.sigils.hideout.HideoutStashStore hideoutStash;
+    private com.abyss.sigils.hideout.HideoutTemplate hideoutTemplate;
+    private com.abyss.sigils.hideout.HideoutTemplateEditor hideoutTemplateEditor;
     private EditorWandListener editorWandListener;
     private com.abyss.sigils.gui.EditorMarkers editorMarkers;
     private MarkerVisualizer markerVisualizer;
@@ -134,6 +139,24 @@ public final class AbyssPlugin extends JavaPlugin {
         // Lock down building inside play instances (abyss_inst_*).
         Bukkit.getPluginManager().registerEvents(
                 new com.abyss.sigils.dungeon.DungeonProtectionListener(this), this);
+
+        // Personal persistent player hideouts (abyss_hideout_*). Owner-only
+        // building enforced by HideoutProtectionListener.
+        // The starter template new hideouts clone from, + its in-game editor.
+        hideoutTemplate = new com.abyss.sigils.hideout.HideoutTemplate(this);
+        hideoutTemplateEditor = new com.abyss.sigils.hideout.HideoutTemplateEditor(this);
+        Bukkit.getPluginManager().registerEvents(hideoutTemplateEditor, this);
+        hideoutManager = new com.abyss.sigils.hideout.HideoutManager(this);
+        Bukkit.getPluginManager().registerEvents(hideoutManager, this);
+        Bukkit.getPluginManager().registerEvents(
+                new com.abyss.sigils.hideout.HideoutProtectionListener(this), this);
+        // Placeable hideout fixtures: the Abyss Portal and the Abyss-only Stash.
+        hideoutFixtures = new com.abyss.sigils.hideout.HideoutFixtures(this);
+        hideoutStash = new com.abyss.sigils.hideout.HideoutStashStore(
+                this, getConfig().getInt("hideout.stash-rows", 6));
+        com.abyss.sigils.hideout.StashGUI.register(this);
+        Bukkit.getPluginManager().registerEvents(
+                new com.abyss.sigils.hideout.HideoutFixtureListener(this), this);
         // Delete any abyss_inst_* worlds left over from a crash or hard stop.
         dungeonManager.cleanupOrphanInstances();
         rewardChests = new RewardChestManager(this);
@@ -219,6 +242,9 @@ public final class AbyssPlugin extends JavaPlugin {
     public void onDisable() {
         if (store != null) store.save();
         if (skills != null) skills.save();
+        if (hideoutManager != null) hideoutManager.saveAll();
+        if (hideoutStash != null) hideoutStash.save();
+        if (hideoutFixtures != null) hideoutFixtures.save();
         if (dungeonManager != null) dungeonManager.shutdown();
         if (mmoItemsHook != null && mmoItemsHook.available()) {
             Bukkit.getOnlinePlayers().forEach(mmoItemsHook::clearFor);
@@ -248,6 +274,11 @@ public final class AbyssPlugin extends JavaPlugin {
     public com.abyss.sigils.integration.MobDropStore mobDrops() { return mobDrops; }
     public com.abyss.sigils.integration.ReservedRewardStore reservedRewards() { return reservedRewards; }
     public com.abyss.sigils.skills.PlayerSkillStore skills() { return skills; }
+    public com.abyss.sigils.hideout.HideoutManager hideoutManager() { return hideoutManager; }
+    public com.abyss.sigils.hideout.HideoutFixtures hideoutFixtures() { return hideoutFixtures; }
+    public com.abyss.sigils.hideout.HideoutStashStore hideoutStash() { return hideoutStash; }
+    public com.abyss.sigils.hideout.HideoutTemplate hideoutTemplate() { return hideoutTemplate; }
+    public com.abyss.sigils.hideout.HideoutTemplateEditor hideoutTemplateEditor() { return hideoutTemplateEditor; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
     public MarkerVisualizer markerVisualizer() { return markerVisualizer; }
