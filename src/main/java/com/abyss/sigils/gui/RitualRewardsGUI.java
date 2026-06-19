@@ -106,8 +106,11 @@ public final class RitualRewardsGUI implements Listener {
                 "&7top area to add them to the shop.",
                 "",
                 "&7Left-click an entry → set soul price",
-                "&7Shift-click an entry → return + remove",
+                "&7Right-click an entry → map tier to unlock",
+                "&7Shift-right an entry → set quantity",
+                "&7Shift-left-click an entry → return + remove",
                 "",
+                "&8Higher map tiers stock more shop items.",
                 "&dMMOItems items roll fresh per buyer."));
         return inv;
     }
@@ -125,14 +128,16 @@ public final class RitualRewardsGUI implements Listener {
                 lore.add(color("&7Price: &b" + r.priceMin() + "-" + r.priceMax() + " souls"));
             }
             lore.add(color("&7Quantity: &f" + r.amount()));
+            lore.add(color("&7Map tier: &fT" + r.unlockTier() + "+"));
             if (r.isMMOItem()) {
                 lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
                 lore.add(color("&8Rolls fresh per buyer"));
             }
             lore.add("");
             lore.add(color("&eLeft-click &7→ set price (or 'inherit')"));
-            lore.add(color("&eRight-click &7→ set quantity"));
-            lore.add(color("&cShift-click &7→ remove"));
+            lore.add(color("&eRight-click &7→ tier up &8(now T" + r.unlockTier() + ")"));
+            lore.add(color("&eShift-right &7→ set quantity"));
+            lore.add(color("&cShift-left-click &7→ remove"));
             meta.setLore(lore);
             stack.setItemMeta(meta);
         }
@@ -244,6 +249,15 @@ public final class RitualRewardsGUI implements Listener {
         if (slot >= pool.size()) return;
         RitualReward entry = pool.get(slot);
 
+        // Shift-right-click → set quantity
+        if (e.isShiftClick() && e.isRightClick()) {
+            ChatInput.prompt(plugin, p, "&fQuantity (1-64)", String.valueOf(entry.amount()), text -> {
+                try { entry.setAmount(Integer.parseInt(text.trim())); plugin.templates().save(holder.template()); }
+                catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
+                reopen(p, holder);
+            });
+            return;
+        }
         if (e.isShiftClick()) {
             pool.remove(slot);
             plugin.templates().save(holder.template());
@@ -254,13 +268,10 @@ public final class RitualRewardsGUI implements Listener {
             return;
         }
 
-        // Right-click → set quantity
+        // Right-click → map tier to unlock
         if (e.isRightClick()) {
-            ChatInput.prompt(plugin, p, "&fQuantity (1-64)", String.valueOf(entry.amount()), text -> {
-                try { entry.setAmount(Integer.parseInt(text.trim())); plugin.templates().save(holder.template()); }
-                catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
-                reopen(p, holder);
-            });
+            cycleTier(holder, entry);
+            rebuild(holder);
             return;
         }
 
@@ -360,6 +371,13 @@ public final class RitualRewardsGUI implements Listener {
             }
             plugin.templates().save(t);
         } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '500' or '500-2000'")); }
+    }
+
+    /** Right-click bumps the item's unlock tier up by one, wrapping at the tier cap. */
+    private void cycleTier(Holder holder, RitualReward entry) {
+        int max = Math.max(1, plugin.getConfig().getInt("scaling.tier.max", 16));
+        entry.setUnlockTier(entry.unlockTier() >= max ? 1 : entry.unlockTier() + 1);
+        plugin.templates().save(holder.template());
     }
 
     private void addToPool(Holder holder, ItemStack item) {

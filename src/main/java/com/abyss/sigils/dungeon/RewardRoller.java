@@ -77,10 +77,13 @@ public final class RewardRoller {
             moneyMult *= 1.0 + tier * plugin.getConfig().getDouble("scaling.tier.reward-money-percent-per-tier", 5) / 100.0;
         }
 
-        // Items
+        // Items — only entries the map's tier has unlocked are candidates, so a
+        // higher-tier map rolls from a strictly larger pool (more tiers = more loot).
+        int effTier = DungeonTemplate.effectiveTier(tier);
         List<RewardEntry> candidates = new ArrayList<>();
         for (RewardEntry r : t.rewardPool()) {
             if (r.itemStack() == null) continue;
+            if (r.unlockTier() > effTier) continue;
             if (RNG.nextDouble() * 100.0 < r.chancePercent()) candidates.add(r);
         }
         Collections.shuffle(candidates, RNG);

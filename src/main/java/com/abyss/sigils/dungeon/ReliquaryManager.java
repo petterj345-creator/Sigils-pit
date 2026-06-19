@@ -421,8 +421,8 @@ public final class ReliquaryManager implements Listener {
 
     private Inventory rollCache(DungeonTemplate t, int slain, int tier, UUID player) {
         List<MaelstromLoot> candidates = new ArrayList<>();
-        for (MaelstromLoot l : t.reliquaryLoot()) {
-            if (l.itemStack() == null) continue;
+        // Own reliquary loot + shared default-event pool, filtered to this map's tier.
+        for (MaelstromLoot l : t.eventLootFor(t.reliquaryLoot(), tier)) {
             if (slain < l.minKills()) continue;                  // gated by guardians slain
             if (rng.nextDouble() * 100.0 < l.chancePercent()) candidates.add(l);
         }

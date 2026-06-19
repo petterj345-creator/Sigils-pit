@@ -449,7 +449,14 @@ public final class RitualManager implements Listener {
 
     private List<Offer> rollOffers(State state) {
         DungeonTemplate t = state.template;
-        List<RitualReward> pool = new ArrayList<>(t.ritualRewardPool());
+        int effTier = DungeonTemplate.effectiveTier(state.session.tier());
+        // The shop's own items the map's tier has unlocked...
+        List<RitualReward> pool = new ArrayList<>();
+        for (RitualReward r : t.ritualRewardPool())
+            if (r.itemStack() != null && r.unlockTier() <= effTier) pool.add(r);
+        // ...plus the shared default-event rewards, sold here priced by the soul band.
+        for (MaelstromLoot l : t.defaultEventLoot())
+            if (l.itemStack() != null && l.unlockTier() <= effTier) pool.add(toRitualReward(l));
         Collections.shuffle(pool, rng);
 
         int min = t.ritualItemsMin();
@@ -473,6 +480,19 @@ public final class RitualManager implements Listener {
             offers.add(new Offer(r, Math.max(0, rollInt(lo, hi))));
         }
         return offers;
+    }
+
+    /**
+     * Adapt a shared default-event loot entry into a soul-shop offer: it inherits
+     * the template's global soul price band, rolls a quantity within the entry's
+     * count range, and carries any MMOItems id so it regenerates fresh per buy.
+     */
+    private RitualReward toRitualReward(MaelstromLoot l) {
+        RitualReward r = new RitualReward(l.itemStack(), -1, -1); // -1 = inherit global price
+        int amt = l.minCount() + (l.maxCount() > l.minCount() ? rng.nextInt(l.maxCount() - l.minCount() + 1) : 0);
+        r.setAmount(Math.max(1, amt));
+        if (l.isMMOItem()) r.setMMOItem(l.mmoType(), l.mmoId());
+        return r;
     }
 
     private int rollInt(int lo, int hi) {

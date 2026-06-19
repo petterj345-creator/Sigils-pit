@@ -23,6 +23,11 @@ public final class RitualReward {
     private int priceMax;
     /** How many of the item a purchase grants. */
     private int amount = 1;
+    /**
+     * Lowest map tier at which this item appears in the shop (>= 1). A tier-12
+     * map stocks every item tier 1..12, so higher tiers unlock a richer shop.
+     */
+    private int unlockTier = 1;
     private String mmoType;
     private String mmoId;
 
@@ -37,6 +42,7 @@ public final class RitualReward {
     public int priceMin()        { return priceMin; }
     public int priceMax()        { return priceMax; }
     public int amount()          { return amount; }
+    public int unlockTier()      { return unlockTier; }
     public String mmoType()      { return mmoType; }
     public String mmoId()        { return mmoId; }
     public boolean isMMOItem()   { return mmoType != null && mmoId != null; }
@@ -45,6 +51,7 @@ public final class RitualReward {
 
     public void setItemStack(ItemStack s) { this.itemStack = s; }
     public void setAmount(int n) { this.amount = Math.max(1, Math.min(64, n)); }
+    public void setUnlockTier(int n) { this.unlockTier = Math.max(1, n); }
     public void setMMOItem(String type, String id) { this.mmoType = type; this.mmoId = id; }
     public void setPriceRange(int min, int max) {
         this.priceMin = min;

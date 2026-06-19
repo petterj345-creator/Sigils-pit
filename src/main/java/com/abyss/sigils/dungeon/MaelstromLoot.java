@@ -20,6 +20,11 @@ public final class MaelstromLoot {
     private int maxCount;
     /** Minimum kills required during the rift for this entry to be eligible. */
     private int minKills;
+    /**
+     * Lowest map tier at which this entry can roll (>= 1). A tier-12 map draws
+     * from every entry tier 1..12, so higher tiers unlock strictly more loot.
+     */
+    private int unlockTier = 1;
     private String mmoType;
     private String mmoId;
 
@@ -36,6 +41,7 @@ public final class MaelstromLoot {
     public int minCount()         { return minCount; }
     public int maxCount()         { return maxCount; }
     public int minKills()         { return minKills; }
+    public int unlockTier()       { return unlockTier; }
     public String mmoType()       { return mmoType; }
     public String mmoId()         { return mmoId; }
     public boolean isMMOItem()    { return mmoType != null && mmoId != null; }
@@ -44,6 +50,7 @@ public final class MaelstromLoot {
     public void setItemStack(ItemStack s)  { this.itemStack = s; }
     public void setChancePercent(double p) { this.chancePercent = clampPct(p); }
     public void setMinKills(int n)         { this.minKills = Math.max(0, n); }
+    public void setUnlockTier(int n)       { this.unlockTier = Math.max(1, n); }
     public void setCountRange(int min, int max) {
         this.minCount = Math.max(1, Math.min(min, max));
         this.maxCount = Math.max(this.minCount, Math.max(min, max));

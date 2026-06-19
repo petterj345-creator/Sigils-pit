@@ -8,7 +8,6 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -21,22 +20,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Sundered Hoard vendor stock editor. Drag/drop items into the top area to add
- * them to the pool; click an entry to edit its <b>rarity</b> (its chance%, which
- * the vendor uses to price it — rarer = pricier) and its count range.
+ * Editor for the shared <b>default event-reward pool</b> — the loot analogue of
+ * the Event Trash Mobs pool. Every event (ritual, maelstrom, reliquary,
+ * sundering) rolls from this pool on TOP of its own type-specific loot, so an
+ * admin can set one baseline reward set per map instead of editing each event.
  *
- * Structurally identical to {@link ReliquaryLootGUI} but bound to the template's
- * own {@code sunderingLoot()} pool, and routing back to {@link EventsGUI}. Unlike
- * the cache events there is no min-kills threshold — the vendor sells whatever it
- * stocks; rarity only sets the price.
+ * Entries are {@link MaelstromLoot} (item + chance% + count range + unlock-tier).
+ * There's no min-kills here — the default pool isn't gated on a per-event kill
+ * count; only the map tier gates it.
+ *
+ * Layout + click safety mirror {@link MaelstromLootGUI}.
  */
-public final class SunderingLootGUI implements Listener {
+public final class DefaultEventRewardsGUI implements Listener {
 
-    private static SunderingLootGUI INSTANCE;
+    private static DefaultEventRewardsGUI INSTANCE;
 
     public static void register(AbyssPlugin plugin) {
         if (INSTANCE != null) return;
-        INSTANCE = new SunderingLootGUI(plugin);
+        INSTANCE = new DefaultEventRewardsGUI(plugin);
         Bukkit.getPluginManager().registerEvents(INSTANCE, plugin);
     }
 
@@ -50,7 +51,7 @@ public final class SunderingLootGUI implements Listener {
 
     private final AbyssPlugin plugin;
 
-    private SunderingLootGUI(AbyssPlugin plugin) { this.plugin = plugin; }
+    private DefaultEventRewardsGUI(AbyssPlugin plugin) { this.plugin = plugin; }
 
     public static final class Holder implements InventoryHolder {
         private final DungeonTemplate template;
@@ -66,29 +67,29 @@ public final class SunderingLootGUI implements Listener {
     private static final int BACK_SLOT = 44;
 
     private Inventory build(Holder holder, DungeonTemplate t) {
-        Inventory inv = Bukkit.createInventory(holder, 54, color("&c&lSundering Loot: &f" + t.name()));
+        Inventory inv = Bukkit.createInventory(holder, 54, color("&d&lDefault Event Rewards: &f" + t.name()));
 
-        List<MaelstromLoot> pool = t.sunderingLoot();
+        List<MaelstromLoot> pool = t.defaultEventLoot();
         for (int i = 0; i < Math.min(pool.size(), POOL_END_EX); i++) {
             inv.setItem(i, decorate(pool.get(i)));
         }
 
         for (int i = 27; i < 36; i++) inv.setItem(i, filler());
 
-        inv.setItem(BACK_SLOT, icon(Material.ARROW, "&7← Back to The Sundering"));
+        inv.setItem(BACK_SLOT, icon(Material.ARROW, "&7← Back to events"));
 
         for (int i = 45; i < 54; i++) if (inv.getItem(i) == null) inv.setItem(i, filler());
         inv.setItem(49, icon(Material.BOOK, "&e&lHow it works",
-                "&7Drop or click items into the top area",
-                "&7to add them to the &cSundered Hoard &7vendor.",
+                "&7Drop or click items into the top area to",
+                "&7add them to the shared reward pool that",
+                "&7&lall&7 events draw from on top of their own.",
                 "",
-                "&7Left-click → rarity (sets the Shard price)",
+                "&7Left-click → chance %",
                 "&7Right-click → map tier to unlock",
                 "&7Shift-right → count range",
                 "&7Shift-left-click → return + remove",
                 "",
-                "&8Rarer items (lower chance%) cost more Shards.",
-                "&8Higher map tiers unlock more of the stock."));
+                "&8Higher map tiers unlock more of this pool."));
         return inv;
     }
 
@@ -98,15 +99,15 @@ public final class SunderingLootGUI implements Listener {
         if (meta != null) {
             List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
             lore.add("");
-            lore.add(color("&7Rarity (chance): &f" + r.chancePercent() + "%"));
+            lore.add(color("&7Chance: &f" + r.chancePercent() + "%"));
             lore.add(color("&7Count: &f" + r.minCount() + "-" + r.maxCount()));
             lore.add(color("&7Map tier: &fT" + r.unlockTier() + "+"));
             if (r.isMMOItem()) {
                 lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
-                lore.add(color("&8Rolls fresh on purchase"));
+                lore.add(color("&8Rolls fresh per player"));
             }
             lore.add("");
-            lore.add(color("&eLeft-click &7→ change rarity / price"));
+            lore.add(color("&eLeft-click &7→ change chance"));
             lore.add(color("&eRight-click &7→ tier up &8(now T" + r.unlockTier() + ")"));
             lore.add(color("&eShift-right &7→ change count range"));
             lore.add(color("&cShift-left-click &7→ remove"));
@@ -178,7 +179,7 @@ public final class SunderingLootGUI implements Listener {
             return;
         }
         if (raw == BACK_SLOT) {
-            SunderingEditorGUI.openFor(plugin, p, holder.template());
+            EventsGUI.openFor(plugin, p, holder.template());
         }
     }
 
@@ -208,7 +209,7 @@ public final class SunderingLootGUI implements Listener {
     }
 
     private void handlePoolClick(InventoryClickEvent e, Holder holder, Player p, int slot) {
-        List<MaelstromLoot> pool = holder.template().sunderingLoot();
+        List<MaelstromLoot> pool = holder.template().defaultEventLoot();
         ItemStack cursor = e.getView().getCursor();
         boolean cursorHasItem = cursor != null && cursor.getType() != Material.AIR;
 
@@ -233,7 +234,7 @@ public final class SunderingLootGUI implements Listener {
             var overflow = p.getInventory().addItem(original);
             for (ItemStack o : overflow.values()) p.getWorld().dropItemNaturally(p.getLocation(), o);
             rebuild(holder);
-            p.sendMessage(color("&aRemoved &7" + entry.itemStack().getType() + "&a from the vendor stock."));
+            p.sendMessage(color("&aRemoved &7" + entry.itemStack().getType() + "&a from the default event rewards."));
             return;
         }
         if (e.isRightClick()) {
@@ -241,8 +242,8 @@ public final class SunderingLootGUI implements Listener {
             rebuild(holder);
             return;
         }
-        // Left-click → rarity (chance %), which sets the Shard price.
-        ChatInput.prompt(plugin, p, "&fRarity (chance %)", String.valueOf(entry.chancePercent()), text -> {
+        // Left-click → chance %
+        ChatInput.prompt(plugin, p, "&fChance %", String.valueOf(entry.chancePercent()), text -> {
             try { entry.setChancePercent(Double.parseDouble(text)); plugin.templates().save(holder.template()); }
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
             reopenAfterInput(p, holder);
@@ -281,7 +282,7 @@ public final class SunderingLootGUI implements Listener {
             entry.setMMOItem(plugin.mmoItemsHook().mmoType(clean),
                              plugin.mmoItemsHook().mmoId(clean));
         }
-        holder.template().sunderingLoot().add(entry);
+        holder.template().defaultEventLoot().add(entry);
         plugin.templates().save(holder.template());
     }
 

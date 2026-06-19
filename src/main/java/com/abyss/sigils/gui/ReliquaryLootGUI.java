@@ -82,12 +82,13 @@ public final class ReliquaryLootGUI implements Listener {
                 "&7to add them as possible reliquary loot.",
                 "",
                 "&7Left-click → chance %",
-                "&7Right-click → count range",
+                "&7Right-click → map tier to unlock",
+                "&7Shift-right → count range",
                 "&7Drop key (Q) → min-guardians to unlock",
-                "&7Shift-click → return + remove",
+                "&7Shift-left-click → return + remove",
                 "",
-                "&8Items only roll if the reliquary's slain",
-                "&8count reached their min-guardians threshold."));
+                "&8Higher map tiers unlock more loot; items also",
+                "&8need the slain count past their min-guardians."));
         return inv;
     }
 
@@ -100,15 +101,17 @@ public final class ReliquaryLootGUI implements Listener {
             lore.add(color("&7Chance: &f" + r.chancePercent() + "%"));
             lore.add(color("&7Count: &f" + r.minCount() + "-" + r.maxCount()));
             lore.add(color("&7Unlocks at: &f" + r.minKills() + " guardians"));
+            lore.add(color("&7Map tier: &fT" + r.unlockTier() + "+"));
             if (r.isMMOItem()) {
                 lore.add(color("&dMMOItems: &f" + r.mmoType() + ":" + r.mmoId()));
                 lore.add(color("&8Rolls fresh per player"));
             }
             lore.add("");
             lore.add(color("&eLeft-click &7→ change chance"));
-            lore.add(color("&eRight-click &7→ change count range"));
+            lore.add(color("&eRight-click &7→ tier up &8(now T" + r.unlockTier() + ")"));
+            lore.add(color("&eShift-right &7→ change count range"));
             lore.add(color("&eDrop key &7→ change min-guardians"));
-            lore.add(color("&cShift-click &7→ remove"));
+            lore.add(color("&cShift-left-click &7→ remove"));
             meta.setLore(lore);
             stack.setItemMeta(meta);
         }
@@ -221,6 +224,10 @@ public final class ReliquaryLootGUI implements Listener {
         if (slot >= pool.size()) return;
         MaelstromLoot entry = pool.get(slot);
 
+        if (e.isShiftClick() && e.isRightClick()) {
+            promptCountRange(p, holder, entry);
+            return;
+        }
         if (e.isShiftClick()) {
             pool.remove(slot);
             plugin.templates().save(holder.template());
@@ -240,20 +247,8 @@ public final class ReliquaryLootGUI implements Listener {
             return;
         }
         if (e.isRightClick()) {
-            ChatInput.prompt(plugin, p, "&fCount range (e.g. 1-3)",
-                    entry.minCount() + "-" + entry.maxCount(), text -> {
-                try {
-                    if (text.contains("-")) {
-                        String[] parts = text.split("-", 2);
-                        entry.setCountRange(Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()));
-                    } else {
-                        int n = Integer.parseInt(text.trim());
-                        entry.setCountRange(n, n);
-                    }
-                    plugin.templates().save(holder.template());
-                } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5'")); }
-                reopenAfterInput(p, holder);
-            });
+            cycleTier(holder, entry);
+            rebuild(holder);
             return;
         }
         // Left-click → chance %
@@ -262,6 +257,30 @@ public final class ReliquaryLootGUI implements Listener {
             catch (NumberFormatException ex) { p.sendMessage(color("&cMust be a number.")); }
             reopenAfterInput(p, holder);
         });
+    }
+
+    private void promptCountRange(Player p, Holder holder, MaelstromLoot entry) {
+        ChatInput.prompt(plugin, p, "&fCount range (e.g. 1-3)",
+                entry.minCount() + "-" + entry.maxCount(), text -> {
+            try {
+                if (text.contains("-")) {
+                    String[] parts = text.split("-", 2);
+                    entry.setCountRange(Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()));
+                } else {
+                    int n = Integer.parseInt(text.trim());
+                    entry.setCountRange(n, n);
+                }
+                plugin.templates().save(holder.template());
+            } catch (NumberFormatException ex) { p.sendMessage(color("&cFormat: '3' or '1-5'")); }
+            reopenAfterInput(p, holder);
+        });
+    }
+
+    /** Right-click bumps the entry's unlock tier up by one, wrapping at the tier cap. */
+    private void cycleTier(Holder holder, MaelstromLoot entry) {
+        int max = Math.max(1, plugin.getConfig().getInt("scaling.tier.max", 16));
+        entry.setUnlockTier(entry.unlockTier() >= max ? 1 : entry.unlockTier() + 1);
+        plugin.templates().save(holder.template());
     }
 
     private void addToPool(Holder holder, ItemStack item) {

@@ -714,8 +714,8 @@ public final class SunderingManager implements Listener {
      */
     private List<VendorOffer> rollOffers(State state, UUID player) {
         DungeonTemplate t = state.template;
-        List<MaelstromLoot> pool = new ArrayList<>(t.sunderingLoot());
-        pool.removeIf(l -> l.itemStack() == null);
+        // Own vendor wares + shared default-event pool, filtered to this map's tier.
+        List<MaelstromLoot> pool = new ArrayList<>(t.eventLootFor(t.sunderingLoot(), state.session.tier()));
         Collections.shuffle(pool, rng);
 
         int count = t.sunderingVendorOffers() + state.lootBonus

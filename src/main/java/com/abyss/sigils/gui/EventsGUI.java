@@ -104,6 +104,20 @@ public final class EventsGUI extends EditorGUI.Holder {
                         () -> Bukkit.getScheduler().runTask(plugin, () -> openFor(plugin, p, template)));
             });
 
+        // 33 Default Event Rewards — ONE shared loot pool every event draws from
+        set(33, icon(Material.CHEST,
+                "&d&l✦ Default Event Rewards &7(" + template.defaultEventLoot().size() + ")",
+                "&7One shared reward pool for ALL events on",
+                "&7this map. Every event rolls from this on",
+                "&7top of its own type-specific loot.",
+                "",
+                "&7• Set a baseline reward set once here",
+                "&7• Each entry has a map tier to unlock at",
+                "",
+                "&8Type-specific loot per event still works on top.",
+                "&eClick &7to manage"),
+            e -> DefaultEventRewardsGUI.openFor(plugin, (Player) e.getWhoClicked(), template));
+
         // 49 Back
         set(49, icon(Material.ARROW, "&7← Back to editor"),
             e -> TemplateEditorGUI.openFor(plugin, (Player) e.getWhoClicked(), template));

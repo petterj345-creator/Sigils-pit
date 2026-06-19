@@ -366,7 +366,7 @@ public final class MaelstromManager implements Listener {
         if (inv == null) {
             DungeonTemplate t = plugin.templates().get(session.templateName());
             if (t == null) { p.sendMessage(Text.color("&cTemplate missing.")); return; }
-            inv = rollCache(t, cache.kills, p.getUniqueId());
+            inv = rollCache(t, cache.kills, session.tier(), p.getUniqueId());
             cache.rolled.put(p.getUniqueId(), inv);
             boolean empty = true;
             for (ItemStack s : inv.getContents()) if (s != null && s.getType() != Material.AIR) { empty = false; break; }
@@ -377,10 +377,10 @@ public final class MaelstromManager implements Listener {
         p.openInventory(inv);
     }
 
-    private Inventory rollCache(DungeonTemplate t, int kills, UUID player) {
+    private Inventory rollCache(DungeonTemplate t, int kills, int tier, UUID player) {
         List<MaelstromLoot> candidates = new ArrayList<>();
-        for (MaelstromLoot l : t.maelstromLoot()) {
-            if (l.itemStack() == null) continue;
+        // Own rift loot + shared default-event pool, filtered to this map's tier.
+        for (MaelstromLoot l : t.eventLootFor(t.maelstromLoot(), tier)) {
             if (kills < l.minKills()) continue;                 // gated by kills
             if (rng.nextDouble() * 100.0 < l.chancePercent()) candidates.add(l);
         }
