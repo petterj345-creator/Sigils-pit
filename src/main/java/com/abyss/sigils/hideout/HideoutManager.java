@@ -238,6 +238,52 @@ public final class HideoutManager implements Listener {
         scheduleUnloadIfEmpty(worldName);
     }
 
+    /**
+     * Wipe the caller's own hideout so their next entry is re-cloned fresh from
+     * the current starter template. Hideouts are created from the template only
+     * once (on first entry) and then persist forever, so this is the only way to
+     * pull in template changes made later via {@code /abyss hideout edit}. The
+     * player's stash is stored separately and is left untouched.
+     */
+    public void resetOwn(Player p) {
+        UUID owner = p.getUniqueId();
+        String name = worldName(owner);
+
+        World w = Bukkit.getWorld(name);
+        if (w != null) {
+            // Refuse if anyone other than the owner is still inside.
+            for (Player occ : w.getPlayers()) {
+                if (!occ.getUniqueId().equals(owner)) {
+                    p.sendMessage(Text.color("&cSomeone's still inside your hideout — try again once it's empty."));
+                    return;
+                }
+            }
+            // If the owner is standing in it, send them home before we unload it.
+            if (name.equals(p.getWorld().getName())) {
+                Location back = returnLocations.remove(owner);
+                if (back == null || back.getWorld() == null || isHideoutWorld(back.getWorld())) {
+                    back = Bukkit.getWorlds().get(0).getSpawnLocation();
+                }
+                p.teleport(back);
+            }
+            if (!Bukkit.unloadWorld(w, false)) {   // discard — we're about to delete it
+                p.sendMessage(Text.color("&cCouldn't unload your hideout right now — try again in a moment."));
+                return;
+            }
+        }
+
+        File dir = new File(Bukkit.getWorldContainer(), name);
+        if (dir.isDirectory()) {
+            try { deleteRecursive(dir.toPath()); }
+            catch (IOException e) {
+                p.sendMessage(Text.color("&cCouldn't reset your hideout: " + e.getMessage()));
+                return;
+            }
+        }
+        p.sendMessage(Text.color("&aHideout reset. &7Rebuilding it from the latest starter template…"));
+        enterOwn(p);   // folder is gone now → loadOrCreate re-clones the template
+    }
+
     /** If a player logs out inside a hideout, unload it once it's empty. */
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
