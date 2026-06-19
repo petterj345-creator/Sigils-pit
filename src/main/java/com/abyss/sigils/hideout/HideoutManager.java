@@ -9,6 +9,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -120,6 +121,13 @@ public final class HideoutManager implements Listener {
         boolean firstTime = !folderExists(owner);
         if (firstTime && !allowCreate) return null;
 
+        // First time: clone the designed starter template if one exists, so the
+        // player begins with the admin-built layout (and its border/spawn).
+        boolean clonedFromTemplate = false;
+        if (firstTime && plugin.hideoutTemplate().worldExists()) {
+            clonedFromTemplate = cloneTemplateInto(name);
+        }
+
         WorldCreator wc = new WorldCreator(name);
         wc.environment(World.Environment.NORMAL);
         wc.type(WorldType.FLAT);
@@ -127,7 +135,9 @@ public final class HideoutManager implements Listener {
         World w = Bukkit.createWorld(wc);
         if (w == null) return null;
 
-        if (firstTime) {
+        // Only pick a default spawn for a freshly-generated flat world; a clone
+        // already carries the template's spawn (overridden below if configured).
+        if (firstTime && !clonedFromTemplate) {
             int y = w.getHighestBlockYAt(0, 0) + 1;
             w.setSpawnLocation(0, y, 0);
         }
@@ -135,7 +145,26 @@ public final class HideoutManager implements Listener {
         return w;
     }
 
-    /** Game rules + world border. Re-applied on every load so config changes take effect. */
+    /** Copy the template world's folder into a fresh hideout folder. Returns success. */
+    private boolean cloneTemplateInto(String newName) {
+        World tpl = Bukkit.getWorld(HideoutTemplate.WORLD);
+        if (tpl != null) tpl.save();   // flush latest edits before copying
+        File src = new File(Bukkit.getWorldContainer(), HideoutTemplate.WORLD);
+        File dst = new File(Bukkit.getWorldContainer(), newName);
+        if (!src.isDirectory()) return false;
+        try {
+            if (dst.exists()) deleteRecursive(dst.toPath());
+            copyDir(src.toPath(), dst.toPath());
+            new File(dst, "uid.dat").delete();
+            new File(dst, "session.lock").delete();
+            return true;
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to clone hideout template: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Game rules, border, and spawn. Re-applied on every load so edits take effect. */
     private void applySettings(World w, boolean firstTime) {
         w.setAutoSave(true);                 // flush edits to disk
         w.setDifficulty(Difficulty.PEACEFUL);
@@ -144,9 +173,47 @@ public final class HideoutManager implements Listener {
         w.setGameRule(GameRule.DO_MOB_SPAWNING, false);
         w.setTime(6000);
 
+        HideoutTemplate tpl = plugin.hideoutTemplate();
         WorldBorder border = w.getWorldBorder();
-        border.setCenter(0.5, 0.5);
-        border.setSize(borderSize());
+        if (tpl.hasBorder()) {
+            border.setCenter(tpl.borderCenterX(), tpl.borderCenterZ());
+            border.setSize(tpl.borderSize());
+        } else {
+            border.setCenter(0.5, 0.5);
+            border.setSize(borderSize());
+        }
+        // Keep each hideout's spawn aligned with the configured template spawn.
+        if (tpl.hasSpawn()) {
+            Location s = tpl.spawnIn(w);
+            if (s != null) w.setSpawnLocation(s);
+        }
+    }
+
+    private static void copyDir(java.nio.file.Path src, java.nio.file.Path dst) throws IOException {
+        try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(src)) {
+            stream.forEach(p -> {
+                try {
+                    java.nio.file.Path rel = src.relativize(p);
+                    String n = rel.getFileName() == null ? "" : rel.getFileName().toString();
+                    if (n.equals("session.lock") || n.equals("uid.dat")) return;
+                    java.nio.file.Path target = dst.resolve(rel);
+                    if (java.nio.file.Files.isDirectory(p)) java.nio.file.Files.createDirectories(target);
+                    else {
+                        java.nio.file.Files.createDirectories(target.getParent());
+                        java.nio.file.Files.copy(p, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException ex) { throw new RuntimeException(ex); }
+            });
+        }
+    }
+
+    private static void deleteRecursive(java.nio.file.Path p) throws IOException {
+        if (!java.nio.file.Files.exists(p)) return;
+        try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(p)) {
+            stream.sorted(java.util.Comparator.reverseOrder()).forEach(f -> {
+                try { java.nio.file.Files.delete(f); } catch (IOException ignored) {}
+            });
+        }
     }
 
     private boolean folderExists(UUID owner) {

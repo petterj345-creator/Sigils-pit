@@ -114,12 +114,32 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
     private void handleHideout(CommandSender sender, String[] args) {
         if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return; }
         if (args.length >= 2) {
-            if (args[1].equalsIgnoreCase("kit")) {
-                p.getInventory().addItem(
-                        com.abyss.sigils.hideout.HideoutItems.portal(),
-                        com.abyss.sigils.hideout.HideoutItems.stash());
-                p.sendMessage(Text.color("&aHere are your hideout fixtures — place them in your hideout."));
-                return;
+            switch (args[1].toLowerCase(Locale.ROOT)) {
+                case "kit" -> {
+                    p.getInventory().addItem(
+                            com.abyss.sigils.hideout.HideoutItems.portal(),
+                            com.abyss.sigils.hideout.HideoutItems.stash());
+                    p.sendMessage(Text.color("&aHere are your hideout fixtures — place them in your hideout."));
+                    return;
+                }
+                case "edit" -> {
+                    if (!p.hasPermission("abyss.admin")) { noPerm(p); return; }
+                    plugin.hideoutTemplateEditor().openEditor(p);
+                    return;
+                }
+                case "spawn" -> {
+                    if (!p.hasPermission("abyss.admin")) { noPerm(p); return; }
+                    plugin.hideoutTemplateEditor().setSpawn(p);
+                    return;
+                }
+                case "border" -> {
+                    if (!p.hasPermission("abyss.admin")) { noPerm(p); return; }
+                    if (args.length < 3) { p.sendMessage(Text.color("&7Usage: &f/abyss hideout border <size>")); return; }
+                    try { plugin.hideoutTemplateEditor().setBorderSize(p, Integer.parseInt(args[2].trim())); }
+                    catch (NumberFormatException ex) { p.sendMessage(Text.color("&cBorder size must be a number.")); }
+                    return;
+                }
+                default -> { /* fall through: treat args[1] as a player to visit */ }
             }
             org.bukkit.OfflinePlayer target = Bukkit.getPlayerExact(args[1]);
             if (target == null) target = Bukkit.getOfflinePlayerIfCached(args[1]);
@@ -597,6 +617,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.color("  &f/abyss givesigil <p> <id|random> [tier]"));
             sender.sendMessage(Text.color("  &f/abyss givedust <p> <n>"));
             sender.sendMessage(Text.color("  &f/abyss givebook <p> [tier]"));
+            sender.sendMessage(Text.color("  &f/abyss hideout edit|spawn|border <n> &8— design the starter hideout"));
             sender.sendMessage(Text.color("  &f/abyss givemap <template> [p] [n]"));
             sender.sendMessage(Text.color("  &f/abyss givecurrency <type> [p] [n] &8— map-mod currency"));
             sender.sendMessage(Text.color("  &f/abyss sigil list|create [id]|edit <id> &8— sigil creator"));
@@ -639,6 +660,9 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                 case "hideout" -> {
                     List<String> out = new ArrayList<>();
                     out.add("kit");
+                    if (sender.hasPermission("abyss.admin")) {
+                        out.add("edit"); out.add("spawn"); out.add("border");
+                    }
                     Bukkit.getOnlinePlayers().forEach(pl -> out.add(pl.getName()));
                     yield out.stream().filter(s -> s.startsWith(args[1].toLowerCase())).toList();
                 }

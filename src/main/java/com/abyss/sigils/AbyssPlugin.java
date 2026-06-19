@@ -62,6 +62,8 @@ public final class AbyssPlugin extends JavaPlugin {
     private com.abyss.sigils.hideout.HideoutManager hideoutManager;
     private com.abyss.sigils.hideout.HideoutFixtures hideoutFixtures;
     private com.abyss.sigils.hideout.HideoutStashStore hideoutStash;
+    private com.abyss.sigils.hideout.HideoutTemplate hideoutTemplate;
+    private com.abyss.sigils.hideout.HideoutTemplateEditor hideoutTemplateEditor;
     private EditorWandListener editorWandListener;
     private com.abyss.sigils.gui.EditorMarkers editorMarkers;
     private MarkerVisualizer markerVisualizer;
@@ -140,6 +142,10 @@ public final class AbyssPlugin extends JavaPlugin {
 
         // Personal persistent player hideouts (abyss_hideout_*). Owner-only
         // building enforced by HideoutProtectionListener.
+        // The starter template new hideouts clone from, + its in-game editor.
+        hideoutTemplate = new com.abyss.sigils.hideout.HideoutTemplate(this);
+        hideoutTemplateEditor = new com.abyss.sigils.hideout.HideoutTemplateEditor(this);
+        Bukkit.getPluginManager().registerEvents(hideoutTemplateEditor, this);
         hideoutManager = new com.abyss.sigils.hideout.HideoutManager(this);
         Bukkit.getPluginManager().registerEvents(hideoutManager, this);
         Bukkit.getPluginManager().registerEvents(
@@ -271,6 +277,8 @@ public final class AbyssPlugin extends JavaPlugin {
     public com.abyss.sigils.hideout.HideoutManager hideoutManager() { return hideoutManager; }
     public com.abyss.sigils.hideout.HideoutFixtures hideoutFixtures() { return hideoutFixtures; }
     public com.abyss.sigils.hideout.HideoutStashStore hideoutStash() { return hideoutStash; }
+    public com.abyss.sigils.hideout.HideoutTemplate hideoutTemplate() { return hideoutTemplate; }
+    public com.abyss.sigils.hideout.HideoutTemplateEditor hideoutTemplateEditor() { return hideoutTemplateEditor; }
     public EditorWandListener editorWandListener() { return editorWandListener; }
     public com.abyss.sigils.gui.EditorMarkers editorMarkers() { return editorMarkers; }
     public MarkerVisualizer markerVisualizer() { return markerVisualizer; }

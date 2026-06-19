@@ -25,6 +25,11 @@ import java.util.UUID;
  */
 public final class HideoutProtectionListener implements Listener {
 
+    /** A protected hideout — a player's world, but NOT the admin editor template. */
+    private boolean isProtected(World w) {
+        return HideoutManager.isHideoutWorld(w) && !w.getName().equals(HideoutTemplate.WORLD);
+    }
+
     /** True when {@code p} is allowed to edit blocks in {@code w} (owner only). */
     private boolean canBuild(Player p, World w) {
         UUID owner = HideoutManager.ownerOf(w);
@@ -33,7 +38,7 @@ public final class HideoutProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBreak(BlockBreakEvent e) {
-        if (HideoutManager.isHideoutWorld(e.getBlock().getWorld())
+        if (isProtected(e.getBlock().getWorld())
                 && !canBuild(e.getPlayer(), e.getBlock().getWorld())) {
             e.setCancelled(true);
         }
@@ -41,7 +46,7 @@ public final class HideoutProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlace(BlockPlaceEvent e) {
-        if (HideoutManager.isHideoutWorld(e.getBlock().getWorld())
+        if (isProtected(e.getBlock().getWorld())
                 && !canBuild(e.getPlayer(), e.getBlock().getWorld())) {
             e.setCancelled(true);
         }
@@ -49,7 +54,7 @@ public final class HideoutProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBucketEmpty(PlayerBucketEmptyEvent e) {
-        if (HideoutManager.isHideoutWorld(e.getBlock().getWorld())
+        if (isProtected(e.getBlock().getWorld())
                 && !canBuild(e.getPlayer(), e.getBlock().getWorld())) {
             e.setCancelled(true);
         }
@@ -57,7 +62,7 @@ public final class HideoutProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBucketFill(PlayerBucketFillEvent e) {
-        if (HideoutManager.isHideoutWorld(e.getBlock().getWorld())
+        if (isProtected(e.getBlock().getWorld())
                 && !canBuild(e.getPlayer(), e.getBlock().getWorld())) {
             e.setCancelled(true);
         }
