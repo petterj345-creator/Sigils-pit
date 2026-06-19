@@ -149,7 +149,7 @@ public final class AbyssPlugin extends JavaPlugin {
         hideoutManager = new com.abyss.sigils.hideout.HideoutManager(this);
         Bukkit.getPluginManager().registerEvents(hideoutManager, this);
         Bukkit.getPluginManager().registerEvents(
-                new com.abyss.sigils.hideout.HideoutProtectionListener(), this);
+                new com.abyss.sigils.hideout.HideoutProtectionListener(this), this);
         // Placeable hideout fixtures: the Abyss Portal and the Abyss-only Stash.
         hideoutFixtures = new com.abyss.sigils.hideout.HideoutFixtures(this);
         hideoutStash = new com.abyss.sigils.hideout.HideoutStashStore(

@@ -127,6 +127,17 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                     plugin.hideoutTemplateEditor().openEditor(p);
                     return;
                 }
+                case "reset" -> {
+                    // Re-clone the player's own hideout from the latest starter
+                    // template. Destructive (wipes their build), so gate on confirm.
+                    if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
+                        p.sendMessage(Text.color("&c⚠ This wipes your current hideout and rebuilds it from the latest starter template."));
+                        p.sendMessage(Text.color("&7Your stash is safe. To confirm: &f/abyss hideout reset confirm"));
+                        return;
+                    }
+                    plugin.hideoutManager().resetOwn(p);
+                    return;
+                }
                 case "spawn" -> {
                     if (!p.hasPermission("abyss.admin")) { noPerm(p); return; }
                     plugin.hideoutTemplateEditor().setSpawn(p);
@@ -611,6 +622,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Text.color("  &f/sigils &7- open your socket menu"));
         sender.sendMessage(Text.color("  &f/abyss book &7- claim your Tome of Mastery"));
         sender.sendMessage(Text.color("  &f/abyss hideout [player] &7- go to your hideout (or visit one)"));
+        sender.sendMessage(Text.color("  &f/abyss hideout reset confirm &7- rebuild your hideout from the latest template"));
         sender.sendMessage(Text.color("  &f/abyss leave &7- exit a dungeon or hideout"));
         if (sender.hasPermission("abyss.admin")) {
             sender.sendMessage(Text.color("&7Admin:"));
@@ -664,7 +676,7 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
                         .map(Player::getName).filter(s -> s.startsWith(args[1])).toList();
                 case "hideout" -> {
                     List<String> out = new ArrayList<>();
-                    out.add("kit");
+                    out.add("kit"); out.add("reset");
                     if (sender.hasPermission("abyss.admin")) {
                         out.add("edit"); out.add("spawn"); out.add("border");
                     }
@@ -695,6 +707,10 @@ public final class AbyssCommand implements CommandExecutor, TabCompleter {
             if (sub.equals("skill")) {
                 return Bukkit.getOnlinePlayers().stream()
                         .map(Player::getName).filter(s -> s.startsWith(args[2])).toList();
+            }
+            if (sub.equals("hideout") && sub2.equals("reset")) {
+                return java.util.stream.Stream.of("confirm")
+                        .filter(s -> s.startsWith(args[2].toLowerCase())).toList();
             }
         }
         return List.of();
