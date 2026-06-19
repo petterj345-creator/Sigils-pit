@@ -26,7 +26,8 @@ import java.util.*;
  * so nothing is silently lost.
  *
  * Each player can only claim once per session; clicking the block again after
- * claiming reopens the same rolled inventory until they close it empty.
+ * claiming reopens the same rolled inventory. Once they've emptied it, it stays
+ * empty — it never re-rolls, so the chest can't be farmed for unlimited loot.
  */
 public final class RewardChestManager implements Listener {
 
@@ -37,6 +38,12 @@ public final class RewardChestManager implements Listener {
 
     /** Per-(session,player) → the rolled inventory shown to that player. */
     private final Map<String, Inventory> rolledInventories = new HashMap<>();
+    /**
+     * (session,player) keys that have already rolled their chest. Survives the
+     * rolled inventory being freed when emptied, so re-clicking an emptied chest
+     * never re-rolls a fresh set of loot (the unlimited-items exploit).
+     */
+    private final Set<String> claimed = new HashSet<>();
     /** Per-(session,player) → already-given money/xp flag, so re-opening doesn't re-pay. */
     private final Set<String> nonItemRewardsGiven = new HashSet<>();
     /** Players currently viewing a reward chest (for the close handler). */
@@ -95,6 +102,12 @@ public final class RewardChestManager implements Listener {
         String key = sessionId + ":" + p.getUniqueId();
         Inventory inv = rolledInventories.get(key);
         if (inv == null) {
+            // Already claimed and emptied this chest? Don't re-roll — that was the
+            // unlimited-loot exploit (take the last item, reopen, get a fresh roll).
+            if (claimed.contains(key)) {
+                p.sendMessage(Text.color("&7You've already emptied this reward chest."));
+                return;
+            }
             // First time clicking — roll
             DungeonTemplate t = plugin.templates().get(session.templateName());
             if (t == null) { p.sendMessage(Text.color("&cTemplate missing.")); return; }
@@ -121,6 +134,7 @@ public final class RewardChestManager implements Listener {
                 slot += 2;
             }
             rolledInventories.put(key, inv);
+            claimed.add(key);
 
             if (roll.items.isEmpty() && roll.money == 0 && roll.xpLevels == 0) {
                 p.sendMessage(Text.color("&7The Abyss yields nothing this time."));
@@ -167,5 +181,6 @@ public final class RewardChestManager implements Listener {
         chestToSession.entrySet().removeIf(en -> en.getValue().equals(sessionId));
         rolledInventories.keySet().removeIf(k -> k.startsWith(sessionId + ":"));
         nonItemRewardsGiven.removeIf(k -> k.startsWith(sessionId + ":"));
+        claimed.removeIf(k -> k.startsWith(sessionId + ":"));
     }
 }
